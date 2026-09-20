@@ -361,28 +361,56 @@ AI 辅助开发的有效环节包括从 SDK 和设备树中定位参数、生成
 
 ## 附录 A：证据索引
 
+### A.1 规范与设计依据
+
 | 编号 | 资料 | 用途 |
 | --- | --- | --- |
-| R1 | docs/2026 首届 openvela AI 硬件开发者大赛 - 作品提交模板.docx | 章节及材料要求 |
-| R2 | docs/refs/contest_2026/hardware_porting/hardware_porting_track_guide.md | 新平台适配赛道范围 |
-| R3 | amp/README.md、amp/OWNERSHIP.md、amp/FLASH.md、amp/layout.sh | AMP 架构、资源划分和当前烧写布局 |
-| R4 | docs/driver-mode-c-review-2026-09-15.md；提交 3e1f21c | 静态审查发现与修复记录 |
-| R5 | 提交 6d76bf8 | 网络发送环修复、100 次 ping 和网络 NSH 记录 |
-| R6 | 提交 48876f1 | 相机调度修复、3 秒 88 帧；其中的 MiMo 401 记录已被 R14 的实测取代 |
-| R7 | docs/ai-agent-setup.md、docs/k7-ai-agent-design.md、app/kickpi_ui/ | Agent 配置、设计与实现；部分旧文档待同步 |
-| R8 | notes/xts-rerun-raw/2026-09-15-short/ | 原始短项输出、events.jsonl 和 summary.md |
-| R9 | notes/xts-strict-audit.md、notes/xts-rerun-plan.md | 严格测试缺口；其中旧网络判断不得覆盖较新实测 |
-| R10 | docs/refs/openvela_xts_test_cases.md | 原版 xTS 步骤与判定依据 |
-| R11 | notes/xts-final-2026-09-20.md | ★ xTS 35 项分档结果（A/B/C）与未达成原因 |
-| R12 | notes/xts-rerun-raw/2026-09-19-reboot-logo/、2026-09-20-coldboot/ | 启动异常与启动时间：每次启动的原始串口字节、分块到达时刻、异常行统计 |
-| R13 | notes/xts-rerun-raw/2026-09-19-kasan-12h/ | 12 h 待机：serial.raw、chunks.jsonl、summary.json |
-| R14 | notes/xts-rerun-raw/2026-09-19-nist-sts/、2026-09-19-rtc/、2026-09-19-ramtest-final/、2026-09-20-short/ | 随机数统计报告、RTC/内存/MD5/getprime 原始输出 |
-| R15 | notes/xts-rerun-raw/2026-09-20-watchdog/、2026-09-20-time/ | 未达成两项的原始证据与根因分析 |
-| R15b | notes/xts-rerun-raw/2026-09-20-mpu6050/、2026-09-20-btier/ | 1.3.7 MPU-6050 实测与 14 项 B 档重跑的双路原始记录 |
-| R16 | bsp/upstream/、amp/uboot/0010、0011 | 上游缺陷修复补丁与 U-Boot 改动（启动倒计时、resource 分区） |
-| R17 | notes/HANDOFF.md、notes/DEBUG-CASES.md | 现状与铁律；29 例排查记录（现象—歧路—根因—修复—教训） |
+| R1 | `docs/2026 首届 openvela AI 硬件开发者大赛 - 作品提交模板.docx` | 章节及材料要求 |
+| R2 | `docs/refs/contest_2026/hardware_porting/hardware_porting_track_guide.md` | 新平台适配赛道范围 |
+| R3 | `docs/refs/openvela_xts_test_cases.md` | 原版 xTS 35 项的步骤与判定依据，所有复测按其原文命令执行 |
+| R4 | `amp/README.md`、`amp/OWNERSHIP.md`、`amp/FLASH.md`、`amp/layout.sh` | AMP 架构、资源划分与当前烧写布局（FIT 地址以此为准） |
+| R5 | `docs/ai-agent-setup.md`、`docs/k7-ai-agent-design.md`、`app/kickpi_ui/` | Agent 配置、设计与实现 |
+| R6 | `notes/HANDOFF.md`、`notes/DEBUG-CASES.md` | 现状与铁律；29 例排查记录（现象—歧路—根因—修复—教训） |
+| R7 | `notes/bt-final-2026-09-19/` | 蓝牙 SDIO 未通过的完整排查过程（含各轮 A/B 对照实验） |
 
-证据冲突处理：V0.1 采用的“鉴权未闭环”已被 09-19/20 的实测取代（凭据配置问题，已可用）；V0.1 的“MD5 只收到 99 行”确认为串口丢行，09-20 复测为 100/100；旧 FIT 地址以当前 amp/layout.sh 为准。B 类结果仍须在后续补原始文件，不把提交说明当作完整测试附件。
+### A.2 xTS 原始记录（按用例）
+
+目录均在 `notes/xts-rerun-raw/` 下，每个目录含 README（结论与判读）、原始串口字节
+（`*.raw`）、telnet 会话（`*.net.txt`）与 `events.jsonl`（逐条命令、耗时、字节数）。
+总表见 `notes/xts-final-2026-09-20.md`。
+
+| 编号 | 用例 | 目录 | 记录内容 |
+| --- | --- | --- | --- |
+| E1 | 1.1.2、1.1.3、1.1.6~1.1.11、1.1.13、1.2.3、1.3.2、1.3.10、1.3.13、1.3.17 | `2026-09-20-btier/` | 14 项按原文命令重跑，telnet + 串口双路取证；另含 1.1.4 ostest 在单系统镜像上的完整输出（`1.1.4-ostest-solo.txt`）与 1.3.6 GPIO 4/4 |
+| E2 | 1.1.5、1.1.12、1.3.4 | `2026-09-20-short/` | getprime 1230 个素数/149 ms；MD5 100/100 且与主机 `md5sum` 一致；`mkrd` + `cmocka_driver_block` 3/3 |
+| E3 | 1.2.1、2.1.4 | `2026-09-19-reboot-logo/` | `reboot` ×10 的每次原始字节、分块到达时刻、异常行统计；横幅平均 2.76 s |
+| E4 | 1.2.2、1.2.4、2.1.3 | `2026-09-20-coldboot/` | 上下电 10 次的原始字节与计时（平均 2.844 s）；两核 `df` 的 Flash 占用 |
+| E5 | 1.3.1 | `2026-09-20-flash/` | 按厂商指导烧写后重启进 nsh 的完整记录 |
+| E6 | 1.3.3 | `2026-09-19-ramtest-final/` | `free` 取 maxfree 后 `ramtest -w/-h/-b` 六阶段无错 |
+| E7 | 1.3.5 | `2026-09-20-sdblock/` | 按原文命令在 SD 卡上执行；stress 子项的规模测算与不可行说明 |
+| E8 | 1.3.6 | `2026-09-19-gpio/` | 修复前的失败记录与定位过程（EXT_PORT 在输出态恒读 0），对照 E1 的 4/4 |
+| E9 | 1.3.7 | `2026-09-20-mpu6050/` | MPU-6050 接线、`i2c get -r 0x75` = 0x68、驱动注册日志、`cmocka_driver_i2c_spi` PASSED 与 100 次读数 |
+| E10 | 1.3.10、1.3.11 | `2026-09-19-uart/`、`2026-09-19-uart-file/`、`2026-09-20-ymodem/` | ttyS0 回环；ymodem 主机→板 md5 一致，板→主机的丢字实测（7~16%） |
+| E11 | 1.3.12 | `2026-09-19-rtc/` | `cmocka_driver_rtc` 连跑 3 次，api/alarm/periodic 全过 |
+| E12 | 1.3.14 | `2026-09-20-time/` | 网络取样与亚秒对齐的部分数据；不足 24 h，仅作过程记录 |
+| E13 | 1.3.15 | `2026-09-20-watchdog/` | 停止喂狗后的复位记录、ATF `reset status: 0x1050`、CRU_GLB_RST_ST 读到 0 的根因分析 |
+| E14 | 1.3.16 | `2026-09-19-nist-sts/`、`2026-09-19-nist-sts-stream-limit/` | NIST STS 188 行报告（最小 P=0.002042、0 处 `*`）与 fopen 流数上限的定位过程 |
+| E15 | 3.1.1 | `2026-09-19-kasan-12h/` | 12 h 待机：`serial.raw`、`chunks.jsonl`、`summary.json`，713 条心跳与堆曲线 |
+| E16 | 相机帧率 | `2026-09-20-camera/` | 预览帧率实测（非 xTS 用例，供 3.5.2 对照） |
+| E17 | 历史轮次 | `2026-09-15-short/`、`2026-09-18-*/`、`2026-09-19-sweep/` 等 | 早期复测与失败记录，保留以便核对结论如何收敛；与最新结论冲突时以 `xts-final-2026-09-20.md` 为准 |
+
+### A.3 代码改动对照
+
+| 编号 | 位置 | 内容 |
+| --- | --- | --- |
+| C1 | `bsp/upstream/` | 三处上游缺陷补丁：`posix_spawn` ENOENT 误报 ERROR、`fopen` 流数上限、`bmi160_base.c` 只开 I²C 编不过 |
+| C2 | `amp/uboot/0010`、`0011` | 启动倒计时 200 ms/档；logo 的 resource 回落到 dtbo 分区 |
+| C3 | 提交 `6d76bf8`、`48876f1` | 网络发送环修复（100 次 ping）、相机忙等改休眠（3 秒 88 帧） |
+| C4 | `docs/driver-mode-c-review-2026-09-15.md`、提交 `3e1f21c` | 静态审查发现与修复记录（静态结论不计为实机 PASS） |
+
+证据冲突处理：V0.1 采用的"鉴权未闭环"已被 09-19/20 的实测取代（凭据配置问题，已可用）；
+V0.1 的"MD5 只收到 99 行"确认为串口丢行，09-20 复测为 100/100；旧 FIT 地址以当前
+`amp/layout.sh` 为准。同一用例有多轮记录时，以 `notes/xts-final-2026-09-20.md` 指向的那一轮为准。
 
 ## 附录 B：提交材料与评审维度对照
 
