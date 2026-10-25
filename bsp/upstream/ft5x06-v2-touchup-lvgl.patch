@@ -1,0 +1,497 @@
+diff --git a/drivers/input/ft5x06.c b/drivers/input/ft5x06.c
+index 34eb7303..dd630386 100644
+--- a/drivers/input/ft5x06.c
++++ b/drivers/input/ft5x06.c
+@@ -108,6 +108,20 @@ struct ft5x06_dev_s
+   uint8_t lastevent;                        /* Last reported event */
+   int16_t lastx;                            /* Last reported X position */
+   int16_t lasty;                            /* Last reported Y position */
++#else
++  /* ★ 上一帧还按着的触点，用来在抬手时补一个 TOUCH_UP。
++   *
++   *   FocalTech 抬手时上报的是"触点数 = 0"，**没有任何一个点**带
++   *   抬手事件。原来的代码遇到 0 点直接 return 0（当成没数据），于是
++   *   上层永远收不到 TOUCH_UP：LVGL 的指针一直停在 PRESSED，
++   *   按下事件有、松开事件没有 —— 而"点一下切换标签页"需要的是
++   *   完整的按下+松开。现象就是"触摸有数据但界面没反应"。
++   */
++
++  uint8_t downcount;                        /* 上一帧的触点数 */
++  uint8_t downid[FT5X06_MAX_TOUCHES];
++  int16_t downx[FT5X06_MAX_TOUCHES];
++  int16_t downy[FT5X06_MAX_TOUCHES];
+ #endif
+   mutex_t devlock;                          /* Manages exclusive access to
+                                              * this structure */
+@@ -197,6 +211,150 @@ static const uint8_t g_event_map[4] =
+  * Private Functions
+  ****************************************************************************/
+ 
++/* ★ 诊断计数器（排查"中断进来了但上层拿不到数据"用）
++ *
++ *   这一条链有四个可能断点：worker 没被调度、I2C 读失败、解码判无效、
++ *   样本交付了但上层不认。串口日志在中断上下文里既会改变时序、又会被
++ *   1.5M 无流控的串口丢掉，所以用计数器：事后从容读，不影响时序。
++ */
++
++uint32_t g_ft5x06_workers;      /* worker 跑了几次           */
++uint32_t g_ft5x06_reads;        /* I2C 读成功几次            */
++uint32_t g_ft5x06_valids;       /* 解码判为有效几次          */
++uint32_t g_ft5x06_delivered;    /* 真正交付给上层几个样本    */
++uint32_t g_ft5x06_lastraw;      /* 最近一帧的 buf[0..3]      */
++uint32_t g_ft5x06_lastxy;       /* 最近一个点 (x<<16)|y      */
++
++/****************************************************************************
++ * Name: ft5x06_decode
++ *
++ * Description:
++ *   把原始缓冲解成统一的触点列表，同时支持两代 FocalTech 协议。
++ *
++ * ★ 为什么需要它
++ *
++ *   这个驱动原本只认 FT5x06 那一代的数据排布。较新的 FT8xxx（本项目上
++ *   板的是 FT8756）用的是厂商称为 protocol v2 的排布，两者在同一个寄存器
++ *   地址上返回**完全不同的结构**：
++ *
++ *                     老协议(FT5x06)          v2(FT8756)
++ *     触点数          buf[1] 整字节           buf[1] & 0x0F
++ *     协议标识        —                       buf[1] >> 4 == 0x02
++ *     每点长度        6 字节                  8 字节
++ *     首点偏移        2                       4
++ *     坐标位宽        12 位                   16 位（低 4 位在 PRE 的高半字节）
++ *
++ *   最要命的是第一行：v2 的 buf[1] 高 4 位是协议号 0x2，老代码把整个字节
++ *   当触点数，读出来是 0x2N ≥ 32，超过 FT5X06_MAX_TOUCHES，于是**整帧被
++ *   当成无效丢掉**。表现是中断照常进（实测 2772 次）、/dev/input0 却一个
++ *   字节都读不出来 —— 两边都不报错，很难往协议版本上想。
++ *
++ *   出处：kernel-6.1 drivers/input/touchscreen/focaltech_touch_ft8756/
++ *         focaltech_core.c 的 fts_read_touchdata_i2c() 与 v2 解析分支。
++ *
++ ****************************************************************************/
++
++/* 原厂 focaltech_core.h: #define FTS_MAX_ID 0x0A —— 槽位 ID 的有效上界 */
++
++#define FT5X06_FTS_MAX_ID  0x0a
++
++#define FT5X06_PROTO_V2        0x02
++#define FT5X06_V2_HDRLEN       4
++#define FT5X06_V2_TCHLEN       8
++
++struct ft5x06_decoded_s
++{
++  uint8_t  id;
++  uint8_t  event;
++  uint16_t x;
++  uint16_t y;
++};
++
++static int ft5x06_decode(FAR const uint8_t *buf,
++                         FAR struct ft5x06_decoded_s *out, int max)
++{
++  int n;
++  int i;
++
++  if ((buf[1] >> 4) == FT5X06_PROTO_V2)
++    {
++      n = buf[1] & 0x0f;
++
++      /* 缓冲能放下多少点，取决于 FT5X06_TOUCH_DATA_LEN。多出来的点这一帧
++       * 看不到 —— 对只用单点的上层没有影响，但要说清楚而不是静默截断。
++       */
++
++      if (n > (FT5X06_TOUCH_DATA_LEN - FT5X06_V2_HDRLEN) / FT5X06_V2_TCHLEN)
++        {
++          n = (FT5X06_TOUCH_DATA_LEN - FT5X06_V2_HDRLEN) / FT5X06_V2_TCHLEN;
++        }
++
++      if (n > max)
++        {
++          n = max;
++        }
++
++      for (i = 0; i < n; i++)
++        {
++          FAR const uint8_t *p = buf + FT5X06_V2_HDRLEN + i * FT5X06_V2_TCHLEN;
++
++          out[i].event = p[0] >> 6;
++          out[i].id    = p[2] >> 4;
++          out[i].x     = (uint16_t)(((p[0] & 0x0f) << 12) |
++                                    (p[1] << 4) | ((p[4] >> 4) & 0x0f));
++          out[i].y     = (uint16_t)(((p[2] & 0x0f) << 12) |
++                                    (p[3] << 4) | (p[4] & 0x0f));
++        }
++
++      return n;
++    }
++
++  /* 老协议
++   *
++   * ★ 扫**所有槽位**，不要只扫 buf[1]（TD_STATUS）个。
++   *
++   *   出处：原厂 focaltech_touch/focaltech_core.c fts_read_parse_touchdata()
++   *
++   *     for (i = 0; i < max_touch_num; i++) {
++   *         pointid = (buf[FTS_TOUCH_ID_POS + base]) >> 4;
++   *         if (pointid >= FTS_MAX_ID) break;
++   *         ...
++   *         events[i].flag = buf[FTS_TOUCH_EVENT_POS + base] >> 6;
++   *     }
++   *
++   *   它的循环上界是 max_touch_num，**完全不看 point_num**，终止条件是
++   *   "槽位里的 ID 无效"。
++   *
++   *   为什么这很关键：手指抬起来那一帧，控制器报的是 TD_STATUS = 0，
++   *   但槽位 0 里**仍然有一条带 UP 事件的记录**。只按 TD_STATUS 扫，
++   *   这一帧就什么都读不到 —— 上层永远收不到 TOUCH_UP，LVGL 的指针
++   *   一直停在 PRESSED，于是"按下有反应、松开没有"，而点一下切页需要的
++   *   恰恰是完整的按下+松开。板上现象就是"点了一点反应都没有"。
++   *
++   *   FTS_MAX_ID 在原厂头文件里是 0x0A。
++   */
++
++  n = 0;
++  for (i = 0; i < max && i < FT5X06_MAX_TOUCHES; i++)
++    {
++      FAR const uint8_t *p = buf + 2 + i * 6;
++      uint8_t            id = p[2] >> 4;
++
++      if (id >= FT5X06_FTS_MAX_ID)
++        {
++          break;                 /* 槽位无效，后面的也不用看了 */
++        }
++
++      out[n].event = p[0] >> 6;
++      out[n].id    = id;
++      out[n].x     = (uint16_t)(((p[0] & 0x0f) << 8) | p[1]);
++      out[n].y     = (uint16_t)(((p[2] & 0x0f) << 8) | p[3]);
++      n++;
++    }
++
++  return n;
++}
++
+ /****************************************************************************
+  * Name: ft5x06_notify
+  ****************************************************************************/
+@@ -231,9 +389,10 @@ static void ft5x06_notify(FAR struct ft5x06_dev_s *priv)
+ 
+ static void ft5x06_data_worker(FAR void *arg)
+ {
++  g_ft5x06_workers++;
++
+   FAR struct ft5x06_dev_s *priv = (FAR struct ft5x06_dev_s *)arg;
+   FAR const struct ft5x06_config_s *config;
+-  FAR struct ft5x06_touch_data_s *sample;
+   struct i2c_msg_s msg[2];
+   uint8_t regaddr;
+   int ret;
+@@ -283,8 +442,6 @@ static void ft5x06_data_worker(FAR void *arg)
+        * no touch data.
+        */
+ 
+-      sample = (FAR struct ft5x06_touch_data_s *)priv->touchbuf;
+-
+       /* Notify waiters (only if we ready some valid data).
+        *
+        * REVISIT: For improved performance consider moving the duplicate
+@@ -292,13 +449,35 @@ static void ft5x06_data_worker(FAR void *arg)
+        * would save a context switch.
+        */
+ 
+-      if (sample->tdstatus <= FT5X06_MAX_TOUCHES)
+-        {
+-          /* Notify any waiters that new FT5x06 data is available */
++      {
++        struct ft5x06_decoded_s dec[FT5X06_MAX_TOUCHES];
++        int nd;
+ 
+-          priv->valid = true;
+-          ft5x06_notify(priv);
+-        }
++        g_ft5x06_reads++;
++        g_ft5x06_lastraw = ((uint32_t)priv->touchbuf[0] << 24) |
++                           ((uint32_t)priv->touchbuf[1] << 16) |
++                           ((uint32_t)priv->touchbuf[2] << 8)  |
++                            (uint32_t)priv->touchbuf[3];
++
++        /* ★ 判据改成"能不能解出触点"，而不是"tdstatus 这个字节小不小"。
++         *   v2 的那个字节高 4 位是协议号，按裸值判必然判成无效。
++         */
++
++        nd = ft5x06_decode(priv->touchbuf, dec, FT5X06_MAX_TOUCHES);
++        if (nd > 0)
++          {
++            g_ft5x06_lastxy = ((uint32_t)dec[0].x << 16) | dec[0].y;
++          }
++
++        if (nd >= 0)
++          {
++            g_ft5x06_valids++;
++            /* Notify any waiters that new FT5x06 data is available */
++
++            priv->valid = true;
++            ft5x06_notify(priv);
++          }
++      }
+ 
+ #ifdef CONFIG_FT5X06_POLLMODE
+       /* Update the poll rate */
+@@ -400,6 +579,7 @@ static int ft5x06_data_interrupt(int irq, FAR void *context, FAR void *arg)
+ }
+ #endif
+ 
++
+ /****************************************************************************
+  * Name: ft5x06_sample
+  ****************************************************************************/
+@@ -525,6 +705,33 @@ drop:
+   return 0;  /* No new touches read. */
+ }
+ #else
++
++/****************************************************************************
++ * Name: ft5x06_padsample
++ *
++ * Description:
++ *   把没用到的点位清零，并按**调用方的容量**返回长度。
++ *
++ *   npoints 仍然是权威的"有几个点有效"；补齐只是为了让一次 read 的长度
++ *   固定 —— 上层（LVGL）是按 SIZEOF_TOUCH_SAMPLE_S(maxpoints) 做严格相等
++ *   判断的，长度浮动会让样本被整个丢掉。
++ *
++ ****************************************************************************/
++
++static ssize_t ft5x06_padsample(FAR struct touch_sample_s *sample,
++                                unsigned int ntouches,
++                                unsigned int maxtouches)
++{
++  unsigned int i;
++
++  for (i = ntouches; i < maxtouches; i++)
++    {
++      memset(&sample->point[i], 0, sizeof(struct touch_point_s));
++    }
++
++  return SIZEOF_TOUCH_SAMPLE_S(maxtouches);
++}
++
+ static ssize_t ft5x06_sample(FAR struct ft5x06_dev_s *priv, FAR char *buffer,
+                              size_t len)
+ {
+@@ -532,13 +739,20 @@ static ssize_t ft5x06_sample(FAR struct ft5x06_dev_s *priv, FAR char *buffer,
+   FAR struct ft5x06_touch_point_s *touch;
+   FAR struct touch_sample_s *sample;
+   FAR struct touch_point_s *point;
++  struct ft5x06_decoded_s dec[FT5X06_MAX_TOUCHES];
+   unsigned int maxtouches;
+   unsigned int ntouches;
++  unsigned int ndown = 0;
+   int i;
+ 
+   maxtouches = (len - sizeof(int)) / sizeof(struct touch_point_s);
+   DEBUGASSERT(maxtouches > 0);  /* Already verified */
+ 
++  if (maxtouches > FT5X06_MAX_TOUCHES)
++    {
++      maxtouches = FT5X06_MAX_TOUCHES;
++    }
++
+   if (!priv->valid)
+     {
+       return 0;  /* Nothing to read */
+@@ -548,21 +762,64 @@ static ssize_t ft5x06_sample(FAR struct ft5x06_dev_s *priv, FAR char *buffer,
+ 
+   raw      = (FAR struct ft5x06_touch_data_s *)priv->touchbuf;
+   touch    = raw->touch;
++  UNUSED(raw);
++  UNUSED(touch);
+ 
+-  /* Decode number of touches */
++  /* Decode number of touches（两代协议共用同一个解码器） */
+ 
+-  ntouches = raw->tdstatus;
+-  DEBUGASSERT(ntouches <= FT5X06_MAX_TOUCHES);
++  {
++    int n = ft5x06_decode(priv->touchbuf, dec,
++                          maxtouches > FT5X06_MAX_TOUCHES ?
++                          FT5X06_MAX_TOUCHES : (int)maxtouches);
+ 
+-  if (ntouches > maxtouches)
+-    {
+-      ntouches = maxtouches;
+-    }
++    if (n < 0)
++      {
++        priv->valid = false;
++        return 0;
++      }
++
++    ntouches = n;
++  }
+ 
+   if (ntouches < 1)
+     {
++      /* ★ 抬手：补一帧 TOUCH_UP，而不是当成"没数据"丢掉。
++       *
++       *   只在上一帧确实按着时补，所以静止不动时不会刷屏 —— 空闲期
++       *   这个分支每秒会走上千次（中断是电平触发的）。
++       */
++
+       priv->valid = false;
+-      return 0;  /* No touches read. */
++
++      if (priv->downcount == 0)
++        {
++          return 0;  /* 本来就没按着 */
++        }
++
++      ntouches = priv->downcount;
++      if (ntouches > maxtouches)
++        {
++          ntouches = maxtouches;
++        }
++
++      sample          = (FAR struct touch_sample_s *)buffer;
++      point           = sample->point;
++      sample->npoints = ntouches;
++
++      for (i = 0; i < (int)ntouches; i++)
++        {
++          point[i].id       = priv->downid[i];
++          point[i].flags    = TOUCH_UP | TOUCH_ID_VALID | TOUCH_POS_VALID;
++          point[i].x        = priv->downx[i];
++          point[i].y        = priv->downy[i];
++          point[i].h        = 0;
++          point[i].w        = 0;
++          point[i].pressure = 0;
++        }
++
++      priv->downcount = 0;
++      g_ft5x06_delivered += ntouches;
++      return ft5x06_padsample(sample, ntouches, maxtouches);
+     }
+ 
+   /* User data buffer points (sink) */
+@@ -573,29 +830,41 @@ static ssize_t ft5x06_sample(FAR struct ft5x06_dev_s *priv, FAR char *buffer,
+   /* Return the number of touches read */
+ 
+   sample->npoints = ntouches;
++  g_ft5x06_delivered += ntouches;
+ 
+   /* Decode and return the touch points */
+ 
+   for (i = 0; i < ntouches; i++)
+     {
+-      int event         = TOUCH_POINT_GET_EVENT(touch[i]);
+-
+-      point[i].id       = TOUCH_POINT_GET_ID(touch[i]);
+-      point[i].flags    = g_event_map[event];
++      point[i].id       = dec[i].id;
++      point[i].flags    = g_event_map[dec[i].event];
+ #ifdef CONFIG_FT5X06_SWAPXY
+-      point[i].y        = TOUCH_POINT_GET_X(touch[i]);
+-      point[i].x        = TOUCH_POINT_GET_Y(touch[i]);
++      point[i].y        = dec[i].x;
++      point[i].x        = dec[i].y;
+ #else
+-      point[i].x        = TOUCH_POINT_GET_X(touch[i]);
+-      point[i].y        = TOUCH_POINT_GET_Y(touch[i]);
++      point[i].x        = dec[i].x;
++      point[i].y        = dec[i].y;
+ #endif
+       point[i].h        = 0;
+       point[i].w        = 0;
+       point[i].pressure = 0;
++
++      /* 只记**还按着**的点。带 UP 的那条已经是真正的抬手上报了，
++       * 再记进去下一帧会重复补一次 UP。
++       */
++
++      if ((point[i].flags & TOUCH_UP) == 0)
++        {
++          priv->downid[ndown] = point[i].id;
++          priv->downx[ndown]  = point[i].x;
++          priv->downy[ndown]  = point[i].y;
++          ndown++;
++        }
+     }
+ 
++  priv->downcount = ndown;
+   priv->valid = false;
+-  return SIZEOF_TOUCH_SAMPLE_S(ntouches);
++  return ft5x06_padsample(sample, ntouches, maxtouches);
+ }
+ #endif /* CONFIG_FT5X06_SINGLEPOINT */
+ 
+@@ -893,7 +1162,24 @@ static ssize_t ft5x06_read(FAR struct file *filep, FAR char *buffer,
+         }
+     }
+ 
+-  ret = SIZEOF_TOUCH_SAMPLE_S(1);
++  /* ★ 不能无条件返回 SIZEOF_TOUCH_SAMPLE_S(1)。
++   *
++   *   ft5x06_sample() 已经返回了真实字节数，这里把它丢掉改成"1 个点的
++   *   长度"，于是**报出去的 maxpoints 和实际返回的长度对不上**。
++   *
++   *   LVGL 的 NuttX 触摸驱动是严格相等判断：
++   *     lv_nuttx_touchscreen.c touchscreen_read_sample()
++   *       nbytes = read(fd, sample, SIZEOF_TOUCH_SAMPLE_S(maxpoint));
++   *       return nbytes == SIZEOF_TOUCH_SAMPLE_S(maxpoint);
++   *
++   *   maxpoint 来自 TSIOC_GETMAXPOINTS（我们报 5），而 read 返回 1 个点的
++   *   长度 —— 不相等，**每一个样本都被丢掉**。板上的表现是：中断在进、
++   *   I2C 读得到、坐标也对、驱动统计里"交付"在涨，而 LVGL 完全没反应，
++   *   并且没有任何一层报错。
++   *
++   *   ft5x06_sample() 现在会把没用到的点位清零并按调用方容量补齐长度，
++   *   这里直接用它的返回值即可：npoints 说明有几个点有效，长度固定。
++   */
+ 
+ errout:
+   nxmutex_unlock(&priv->devlock);
+@@ -945,6 +1231,44 @@ static int ft5x06_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
+         }
+         break;
+ 
++      /* ★ 没有这一条，LVGL 的 NuttX 触摸驱动就绑不上
++       *
++       *   apps/graphics/lvgl 的 lv_nuttx_touchscreen_create() 打开设备之后
++       *   第一件事就是
++       *
++       *       ioctl(fd, TSIOC_GETMAXPOINTS, &maxpoint)
++       *
++       *   失败就直接 close 并返回 NULL —— 于是 lv_nuttx_init() 的
++       *   result->indev 是空的，界面出得来但**触摸完全没反应**，而且
++       *   （LV_USE_LOG 默认关着）一行日志都没有。
++       *
++       *   ft5x06 本来就按多点上报（见 ft5x06_multitouch 里的 npoints），
++       *   把 FT5X06_MAX_TOUCHES 报出去即可，没有别的成本。
++       */
++
++      case TSIOC_GETMAXPOINTS:  /* arg: Pointer to uint8_t */
++        {
++          /* ★ 必须按 uint8_t 写，不能按 int。
++           *
++           *   include/nuttx/input/touchscreen.h 写得很清楚：
++           *     TSIOC_GETMAXPOINTS  arg: Pointer to uint8_t max touch point
++           *
++           *   调用方 lv_nuttx_touchscreen.c 也确实是
++           *     uint8_t maxpoint;
++           *     ioctl(fd, TSIOC_GETMAXPOINTS, &maxpoint);
++           *
++           *   按 int * 写就是往一个 1 字节的对象里写 4 字节 —— 踩掉调用方
++           *   栈上相邻的 3 个字节。小端下 maxpoint 恰好拿到正确的低字节，
++           *   于是"看起来是对的"，但旁边的局部变量已经被清零了。这种
++           *   破坏不会当场报错，只会在别处莫名其妙地发作。
++           */
++
++          FAR uint8_t *ptr = (FAR uint8_t *)((uintptr_t)arg);
++          DEBUGASSERT(ptr != NULL);
++          *ptr = FT5X06_MAX_TOUCHES;
++        }
++        break;
++
+       default:
+         ret = -ENOTTY;
+         break;

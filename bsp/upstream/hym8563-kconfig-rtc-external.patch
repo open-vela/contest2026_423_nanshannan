@@ -1,0 +1,42 @@
+diff --git a/drivers/timers/Kconfig b/drivers/timers/Kconfig
+index e08c5074..dd56f5bb 100644
+--- a/drivers/timers/Kconfig
++++ b/drivers/timers/Kconfig
+@@ -328,17 +328,6 @@ config RTC_DS1307
+ 	---help---
+ 		Enables support for the Maxim Integrated DS1307 I2C RTC timer.
+ 
+-config RTC_HYM8563
+-	bool "Haoyu HYM8563 I2C RTC"
+-	default n
+-	depends on I2C
+-	---help---
+-		Haoyu HYM8563 I2C 实时时钟。
+-
+-		★ 秒寄存器 bit7 是掉电标志（VL），置位表示走时曾中断、
+-		  读出的时间不可信。本驱动在该情况下让 rdtime 返回 -ENODATA，
+-		  而不是交出一个看似合法的随机时间 —— 后者比读不出来更难查。
+-
+ config RTC_DS3231
+ 	bool "DS3231"
+ 	---help---
+@@ -366,6 +355,19 @@ config DS3231_I2C_FREQUENCY
+ 
+ endif # RTC_DSXXXX
+ 
++config RTC_HYM8563
++	bool "Haoyu HYM8563 I2C RTC"
++	default n
++	select I2C
++	select RTC_DATETIME
++	depends on RTC_EXTERNAL
++	---help---
++		Haoyu HYM8563 I2C 实时时钟。
++
++		★ 秒寄存器 bit7 是掉电标志（VL），置位表示走时曾中断、
++		  读出的时间不可信。本驱动在该情况下让 rdtime 返回 -ENODATA，
++		  而不是交出一个看似合法的随机时间 —— 后者比读不出来更难查。
++
+ config RTC_PCF85263
+ 	bool "PCF85263 RTC Driver"
+ 	default n

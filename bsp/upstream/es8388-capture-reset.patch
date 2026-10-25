@@ -1,0 +1,146 @@
+diff --git a/drivers/audio/es8388.c b/drivers/audio/es8388.c
+index a2867179..98db8d6e 100644
+--- a/drivers/audio/es8388.c
++++ b/drivers/audio/es8388.c
+@@ -1046,14 +1046,23 @@ static int es8388_configure(FAR struct audio_lowerhalf_s *dev,
+             break;
+           }
+ 
+-        /* Save the current stream configuration */
++        es8388_audio_output(priv);
++        es8388_reset(priv);
++
++        /* Save the current stream configuration.
++         *
++         * This must happen *after* es8388_reset(), which puts samprate,
++         * nchannels and bpsamp back to their build-time defaults. Storing
++         * them first meant every requested sample rate, channel count and
++         * sample width was silently replaced by the default before
++         * es8388_setsamplerate() and es8388_setbitspersample() programmed
++         * the codec and the I2S driver.
++         */
+ 
+         priv->samprate  = caps->ac_controls.hw[0];
+         priv->nchannels = caps->ac_channels;
+         priv->bpsamp    = caps->ac_controls.b[2];
+ 
+-        es8388_audio_output(priv);
+-        es8388_reset(priv);
+         es8388_setsamplerate(priv);
+         es8388_setbitspersample(priv);
+ 
+@@ -1089,14 +1098,17 @@ static int es8388_configure(FAR struct audio_lowerhalf_s *dev,
+             break;
+           }
+ 
+-        /* Save the current stream configuration */
++        es8388_audio_input(priv);
++        es8388_reset(priv);
++
++        /* Save the current stream configuration after the reset; see the
++         * AUDIO_TYPE_OUTPUT case above.
++         */
+ 
+         priv->samprate  = caps->ac_controls.hw[0];
+         priv->nchannels = caps->ac_channels;
+         priv->bpsamp    = caps->ac_controls.b[2];
+ 
+-        es8388_audio_input(priv);
+-        es8388_reset(priv);
+         es8388_setsamplerate(priv);
+         es8388_setbitspersample(priv);
+ 
+@@ -2244,15 +2256,42 @@ static void es8388_reset(FAR struct es8388_dev_s *priv)
+                   ES8388_DACSOFTRAMP_DISABLE |
+                   ES8388_DACRAMPRATE_4LRCK);
+ 
++  /* ★ Explicitly restore the low-power control registers.
++   *
++   *   This driver never wrote CHIPLOPOW1/CHIPLOPOW2, relying on them being
++   *   at their 0x00 reset default.  That only holds after a real power
++   *   cycle: the ES8388 keeps its register state across a warm reboot, so
++   *   whatever the previous firmware (bootloader, another OS) left behind
++   *   stays in effect.
++   *
++   *   Observed on a RK3576 board warm-booted from the vendor Android image:
++   *   CHIPLOPOW1=0xe8, CHIPLOPOW2=0xc3 -- low-power modes left enabled on
++   *   the analog blocks.  Playback still worked, but every captured sample
++   *   read as exactly zero while all the registers this driver does write
++   *   matched the vendor's working configuration.
++   *
++   *   A reset routine has to write the registers it depends on; not writing
++   *   one means inheriting it.
++   */
++
++  es8388_writereg(priv, ES8388_CHIPLOPOW1, ES8388_CHIPLOPOW1_DEFAULT);
++  es8388_writereg(priv, ES8388_CHIPLOPOW2, ES8388_CHIPLOPOW2_DEFAULT);
++
+   es8388_writereg(priv, ES8388_CONTROL2,
+                   ES8388_PDNVREFBUF_NORMAL  |
+                   ES8388_VREFLO_NORMAL      |
+                   ES8388_PDNIBIASGEN_NORMAL |
+                   ES8388_PDNANA_NORMAL      |
+-                  ES8388_LPVREFBUF_LP       |
+-                  ES8388_LPVCMMOD_NORMAL    |
++                  ES8388_LPVREFBUF_NORMAL   |
++                  ES8388_LPVCMMOD_LP        |
+                   (1 << 6)); /* Default value of undocumented bit */
+ 
++  /* The reference chain above matters for capture: with a low-power VREF
++   * buffer the ADC bias never settles and every sample reads zero.
++   * The vendor Linux driver leaves CONTROL2 at 0x60 (normal VREF buffer)
++   * while recording; this driver used 0x50 (low-power).
++   */
++
+   es8388_writereg(priv, ES8388_CHIPPOWER,
+                   ES8388_DACVREF_PDN_PWRUP  |
+                   ES8388_ADCVREF_PDN_PWRUP  |
+@@ -2283,12 +2322,22 @@ static void es8388_reset(FAR struct es8388_dev_s *priv)
+                   ES8388_PDNDACR_PWRDN |
+                   ES8388_PDNDACL_PWRDN);
+ 
++  /* ENREF enables the analog reference buffer. With it disabled the ADC
++   * has no bias reference and its output is stuck, so every captured
++   * sample reads as exactly zero while every other register still looks
++   * correct -- nothing in the stack reports an error.
++   *
++   * Cross-checked against the vendor Linux driver on a RK3576 board:
++   * while recording, CONTROL1 reads 0x36 (ENREF enabled); this driver
++   * produced 0x12 (ENREF disabled) and captured pure silence.
++   */
++
+   es8388_writereg(priv, ES8388_CONTROL1,
+                   ES8388_VMIDSEL_500K    |
+-                  ES8388_ENREF_DISABLE   |
++                  ES8388_ENREF_ENABLE    |
+                   ES8388_SEQEN_DISABLE   |
+                   ES8388_SAMEFS_SAME     |
+-                  ES8388_DACMCLK_ADCMCLK |
++                  ES8388_DACMCLK_DACMCLK |
+                   ES8388_LRCM_ISOLATED   |
+                   ES8388_SCPRESET_NORMAL);
+ 
+@@ -2394,11 +2443,22 @@ static void es8388_reset(FAR struct es8388_dev_s *priv)
+                   ES8388_MONOMIX_STEREO |
+                   ES8388_DS_LINPUT1_RINPUT1);
+ 
++  /* DATSEL_LR mirrors the vendor Linux driver (ADCCONTROL4 reads 0x4c
++   * there while recording); this driver used DATSEL_LL (0x0c).
++   */
++
+   es8388_writereg(priv, ES8388_ADCCONTROL4,
+                   ES8388_ADCFORMAT(ES_I2S_NORMAL)     |
+                   ES8388_ADCWL(ES_WORD_LENGTH_16BITS) |
+                   ES8388_ADCLRP_NORM_2ND              |
+-                  ES8388_DATSEL_LL);
++                  ES8388_DATSEL_LR);
++
++  /* Bit 4 is undocumented but the vendor driver leaves it set
++   * (ADCCONTROL7 reads 0x30 while recording, this driver produced 0x20).
++   */
++
++  es8388_writereg(priv, ES8388_ADCCONTROL7,
++                  es8388_readreg(priv, ES8388_ADCCONTROL7) | (1 << 4));
+ 
+   es8388_writereg(priv, ES8388_ADCCONTROL5,
+                   ES8388_ADCFSRATIO(ES_LCLK_DIV_256) |

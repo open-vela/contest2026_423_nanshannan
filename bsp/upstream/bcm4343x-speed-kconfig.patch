@@ -1,0 +1,68 @@
+diff --git a/drivers/wireless/bluetooth/Kconfig b/drivers/wireless/bluetooth/Kconfig
+index 20bab63d..284065f0 100644
+--- a/drivers/wireless/bluetooth/Kconfig
++++ b/drivers/wireless/bluetooth/Kconfig
+@@ -44,6 +44,19 @@ config BLUETOOTH_BCM4343X
+ 		Note that firmware needs to be provided for these devices to operate. In
+ 		general this firmware is available in the Cypress WICED SDK.
+ 
++config BLUETOOTH_BCM4343X_SPEED
++	int "BCM4343X operating baud rate"
++	default 2000000
++	depends on BLUETOOTH_BCM4343X
++	---help---
++		Baud rate used after the firmware has been loaded.
++
++		The host must actually be able to generate this rate. A 16550
++		fed by a 24 MHz clock divides by 16*n, so 1500000 is exact
++		while 2000000 rounds to 1500000 -- the controller would then be
++		told to switch to a speed the host never reaches, and the link
++		comes up as noise rather than failing cleanly.
++
+ config BLUETOOTH_UART_OTHER
+ 	bool "Other generic HCI UART device"
+ 	select BLUETOOTH_UART_GENERIC
+diff --git a/drivers/wireless/bluetooth/bt_uart_bcm4343x.c b/drivers/wireless/bluetooth/bt_uart_bcm4343x.c
+index 78622ee0..960ad466 100644
+--- a/drivers/wireless/bluetooth/bt_uart_bcm4343x.c
++++ b/drivers/wireless/bluetooth/bt_uart_bcm4343x.c
+@@ -45,6 +45,7 @@
+ #include <nuttx/kmalloc.h>
+ #include <nuttx/kthread.h>
+ #include <nuttx/semaphore.h>
++#include <nuttx/signal.h>
+ #include <nuttx/serial/tioctl.h>
+ #include <termios.h>
+ 
+@@ -54,7 +55,21 @@
+  * Pre-processor Definitions
+  ****************************************************************************/
+ 
+-#define HCIUART_DEFAULT_SPEED 2000000
++/* Operating speed after the firmware is loaded.
++ *
++ * Not every host can generate every rate. A 16550 fed by a 24 MHz clock,
++ * for instance, divides by 16*n, so 1500000 is exact (n = 1) while 2000000
++ * would need n = 0.75 and silently rounds to 1500000 -- the controller is
++ * then told to switch to a speed the host never reaches, and the link comes
++ * up as noise. Rockchip's own userspace tool drives this part at 1500000
++ * for exactly that reason.
++ */
++
++#ifdef CONFIG_BLUETOOTH_BCM4343X_SPEED
++#  define HCIUART_DEFAULT_SPEED CONFIG_BLUETOOTH_BCM4343X_SPEED
++#else
++#  define HCIUART_DEFAULT_SPEED 2000000
++#endif
+ #define HCIUART_LOW_SPEED     115200
+ 
+ /****************************************************************************
+@@ -322,7 +337,7 @@ static int load_bcm4343x_firmware(FAR const struct btuart_lowerhalf_s *lower)
+                               command_resp, sizeof(command_resp));
+           if (ret)
+             {
+-              wlwarn("block offset %x upload failed, retrying\n",
++              wlwarn("block offset %tx upload failed, retrying\n",
+                             rp - g_bt_firmware_hcd);
+             }
+         }
