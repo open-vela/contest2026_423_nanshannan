@@ -1,0 +1,18 @@
+diff --git a/src/tools/skill_loader.c b/src/tools/skill_loader.c
+index ea21931..b8deb0c 100644
+--- a/src/tools/skill_loader.c
++++ b/src/tools/skill_loader.c
+@@ -247,8 +247,11 @@ int skill_loader_init(void)
+ {
+     syslog(LOG_INFO, "[%s] Initializing skills system\n", TAG);
+ 
+-    /* Ensure skills directory exists */
+-    mkdir(AGENT_SKILLS_DIR, 0755);
++    /* Ensure skills directory exists.  AGENT_SKILLS_DIR ends with '/' so
++     * file names can be appended to it, but NuttX FAT rejects mkdir() of
++     * a path with a trailing slash (ENOTDIR); tmpfs accepts it.
++     */
++    mkdir(AGENT_DATA_DIR "/skills", 0755);
+ 
+     for (size_t i = 0; i < NUM_BUILTINS; i++) {
+         install_builtin(&s_builtins[i]);

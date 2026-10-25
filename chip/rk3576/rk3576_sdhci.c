@@ -486,9 +486,16 @@ static sdio_capset_t rk3576_sdio_capabilities(struct sdio_dev_s *dev)
    *
    *   不声明 DMASUPPORTED：CAP0 里有 ADMA2，但本驱动是 PIO，
    *   声明了会让上层走没实现的 dmarecvsetup 路径。
+   *
+   * ★ SDIO_CAPS_DMABEFOREWRITE 管的是**调用顺序**，与 DMA 无关
+   *   （rk3576_dwmmc.c 里同一个坑）。不报的话 mmcsd 写单块是先发
+   *   CMD24、再 SENDSETUP —— 而 SDHCI 的 DATAPRESENT/方向位必须和命令
+   *   在同一次寄存器写里给出，于是 CMD24 被当成无数据命令发出去。
+   *   2026-10-25 第一次 mkfatfs 实测：CMD24 命令超时（INTSTAT
+   *   0x00018000），一个字节都没写进去。
    */
 
-  return SDIO_CAPS_4BIT_ONLY;
+  return SDIO_CAPS_4BIT_ONLY | SDIO_CAPS_DMABEFOREWRITE;
 }
 
 static sdio_statset_t rk3576_sdio_status(struct sdio_dev_s *dev)
@@ -636,7 +643,20 @@ static int rk3576_sdio_sendcmd(struct sdio_dev_s *dev, uint32_t cmd,
         break;
     }
 
-  if (priv->xfer_armed)
+  /* ★ 数据位只给真正带数据的那条命令，不能只看 xfer_armed。
+   *
+   *   对 MMC 卡，mmcsd 的多块读写是 RECVSETUP → CMD23(SET_BLOCK_COUNT)
+   *   → CMD18/25。CMD23 发出时 xfer_armed 已经为真，原先会把它也当成
+   *   读命令：控制器为一条没有数据相位的命令开了数据通路，随后的
+   *   CMD18 永远等不到 BUFRDRDY。单块的 CMD17 前面不发 CMD23，所以
+   *   "单块读正常、多块读必超时"（2026-10-25 双系统下读 GPT 时发现）。
+   *
+   *   也不开 AUTOCMD12：MMC 用 CMD23 预告块数，卡传完自己停；SD 不支持
+   *   CMD23 时 mmcsd 会自己发 CMD12。再叠一个 Auto CMD12 是多余的停止命令。
+   */
+
+  if (priv->xfer_armed &&
+      (cmd & MMCSD_DATAXFR_MASK) != MMCSD_NODATAXFR)
     {
       cmdreg |= SDHCI_CMD_DATAPRESENT;
       xfer    = SDHCI_XFER_BLKCNTEN;
@@ -648,7 +668,7 @@ static int rk3576_sdio_sendcmd(struct sdio_dev_s *dev, uint32_t cmd,
 
       if (priv->nblocks > 1)
         {
-          xfer |= SDHCI_XFER_MULTIBLK | SDHCI_XFER_AUTOCMD12;
+          xfer |= SDHCI_XFER_MULTIBLK;
         }
     }
 
@@ -884,7 +904,13 @@ static sdio_eventset_t rk3576_sdio_eventwait(struct sdio_dev_s *dev)
                  sdhci_getreg(RK3576_SDHCI_HOSTCTRL1),
                  sdhci_getreg(RK3576_SDHCI_CLKCTRL),
                  priv->remaining, (int)priv->is_write);
+
+          /* 超时也要复位 DAT 线：不复位的话 DATINHIBIT 一直挂着，
+           * 下一次操作跟着失败，看起来像故障在"随机"出现。
+           */
+
           priv->xfer_armed = false;
+          sdhci_reset(SDHCI_RESET_CMD | SDHCI_RESET_DATA);
           return SDIOWAIT_TIMEOUT;
         }
 
@@ -945,6 +971,7 @@ static sdio_eventset_t rk3576_sdio_eventwait(struct sdio_dev_s *dev)
     }
 
   priv->xfer_armed = false;
+  sdhci_reset(SDHCI_RESET_CMD | SDHCI_RESET_DATA);
   return SDIOWAIT_TIMEOUT;
 }
 

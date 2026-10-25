@@ -36,12 +36,16 @@
 #include <nuttx/video/fb.h>
 #include <nuttx/timers/oneshot.h>
 #include "arm64_arch_timer.h"
+#include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <sched.h>
 #include <nuttx/board.h>
 #include <nuttx/kthread.h>
 #include <nuttx/sdio.h>
 #include <nuttx/mmcsd.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/fs/partition.h>
 #include <nuttx/drivers/drivers.h>
 #include <arch/board/board.h>
 
@@ -341,6 +345,98 @@ static int devinit_thread(int argc, FAR char *argv[])
   return 0;
 }
 
+#if defined(CONFIG_RK3576_SDHCI) && defined(CONFIG_GPT_PARTITION) && \
+    defined(CONFIG_FS_FAT)
+/* ★ /data 落在 eMMC 出厂 GPT 的 cache 分区（384MB）。
+ *
+ *   AMP 下 Linux 不碰 eMMC（内核没编 MMC），cache 分区没人用；它离
+ *   U-Boot / FIT / 内核（全在 LBA 65536 以内）很远。
+ *
+ *   只认名字**和**范围都对得上的那一项：GPT 被人改过（比如重刷了
+ *   厂商固件、分区挪了位置）就不注册，宁可退回 tmpfs，也不往一块
+ *   不知道是什么的地方写。预期值取自出厂 GPT 备份
+ *   ~/rk3576-amp/backup/gpt-orig.bin，和 10-25 板上读出的一致。
+ *
+ *   ★ U-Boot SPL 每次启动刷一串 "Invalid GPT"，那是在扫 MMC2（TF 卡，
+ *     本来就没有 GPT），不是 eMMC。
+ *
+ *   不在启动路径里格式化。第一次用要手动：mkfatfs /dev/data
+ */
+
+#define KICKPI_DATA_PART    "cache"
+#define KICKPI_DATA_FIRST   1165312
+#define KICKPI_DATA_NBLOCKS 786432
+#define KICKPI_DATA_DEV     "/dev/data"
+
+static void kickpi_data_part_handler(FAR struct partition_s *part,
+                                     FAR void *arg)
+{
+  FAR bool *found = arg;
+  int ret;
+
+  if (strcmp(part->name, KICKPI_DATA_PART) != 0)
+    {
+      return;
+    }
+
+  if (part->firstblock != KICKPI_DATA_FIRST ||
+      part->nblocks != KICKPI_DATA_NBLOCKS || part->blocksize != 512)
+    {
+      syslog(LOG_ERR, "ERROR: eMMC GPT 的 %s 分区是 %zu+%zu（块 %zu），"
+             "不是预期的 %d+%d，不使用\n", KICKPI_DATA_PART,
+             part->firstblock, part->nblocks, part->blocksize,
+             KICKPI_DATA_FIRST, KICKPI_DATA_NBLOCKS);
+      return;
+    }
+
+  ret = register_blockpartition(KICKPI_DATA_DEV, 0666, "/dev/mmcsd0",
+                                part->firstblock, part->nblocks);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: 注册 %s 失败: %d\n", KICKPI_DATA_DEV, ret);
+      return;
+    }
+
+  *found = true;
+}
+
+/* 返回 true 表示 /data 已挂上 eMMC */
+
+static bool kickpi_mount_data_emmc(void)
+{
+  struct stat st;
+  bool found = false;
+  int ret;
+
+  if (stat("/dev/mmcsd0", &st) < 0)
+    {
+      return false;
+    }
+
+  ret = parse_block_partition("/dev/mmcsd0", kickpi_data_part_handler,
+                              &found);
+  if (ret < 0 || !found)
+    {
+      syslog(LOG_ERR, "ERROR: eMMC 上没找到可用的 %s 分区（%d）\n",
+             KICKPI_DATA_PART, ret);
+      return false;
+    }
+
+  ret = mount(KICKPI_DATA_DEV, "/data", "vfat", 0, NULL);
+  if (ret < 0)
+    {
+      syslog(LOG_WARNING, "eMMC: %s 挂载失败（%d）。第一次用要先 "
+             "mkfatfs %s，然后 mount -t vfat %s /data\n",
+             KICKPI_DATA_DEV, -errno, KICKPI_DATA_DEV, KICKPI_DATA_DEV);
+      return false;
+    }
+
+  syslog(LOG_INFO, "eMMC: %s（GPT %s）已挂到 /data\n",
+         KICKPI_DATA_DEV, KICKPI_DATA_PART);
+  return true;
+}
+#endif
+
 /****************************************************************************
  * Name: board_app_initialize
  *
@@ -412,22 +508,11 @@ int board_app_initialize(uintptr_t arg)
       syslog(LOG_ERR, "ERROR: 挂载 tmpfs 到 /tmp 失败: %d\n", ret);
     }
 
-  /* ★ /data 给 ai_agent 用。
+  /* ★ /data 给 ai_agent 用（/data/ai_agent，技能在 /data/ai_agent/skills/）。
    *
-   *   CONFIG_EXAMPLES_AI_AGENT_VELA_DATA_DIR 默认是 /data/ai_agent，
-   *   Skills 按官方指引放在 /data/agent/skills/。板子上没有这个挂载点，
-   *   agent 起来后建不了配置和会话文件。
-   *
-   *   ★ 现在用 tmpfs，掉电即失 —— 只够先跑通 CLI 对话。Skills 和记忆
-   *     要持久化，得改挂到 SD 卡（/dev/mmcsd1）。留待接 Skills 时再换，
-   *     现在换会把"agent 能不能跑"和"SD 卡在不在"两件事绑在一起。
+   *   它要等 eMMC 就绪后才挂，所以不在这里，见下面 SDHCI 那段之后：
+   *   优先 eMMC cache 分区（kickpi_mount_data_emmc()），不行退回 tmpfs。
    */
-
-  ret = mount(NULL, "/data", "tmpfs", 0, NULL);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: 挂载 tmpfs 到 /data 失败: %d\n", ret);
-    }
 #endif
 
 #ifdef CONFIG_FS_PROCFS
@@ -575,6 +660,34 @@ int board_app_initialize(uintptr_t arg)
         }
     }
 #endif
+
+  /* /data：优先 eMMC 的 cache 分区，不行就退回 tmpfs（掉电即失） */
+
+    {
+      bool data_ok = false;
+
+#if defined(CONFIG_RK3576_SDHCI) && defined(CONFIG_GPT_PARTITION) && \
+    defined(CONFIG_FS_FAT)
+      data_ok = kickpi_mount_data_emmc();
+#endif
+
+#ifdef CONFIG_FS_TMPFS
+      if (!data_ok)
+        {
+          ret = mount(NULL, "/data", "tmpfs", 0, NULL);
+          if (ret < 0)
+            {
+              syslog(LOG_ERR, "ERROR: 挂载 tmpfs 到 /data 失败: %d\n", ret);
+            }
+          else
+            {
+              syslog(LOG_WARNING, "/data 是 tmpfs，掉电即失\n");
+            }
+        }
+#endif
+
+      UNUSED(data_ok);
+    }
 
 #ifdef CONFIG_RK3576_VOP2
   /* 显示链路第一步：VOP2 自检 + 内置彩条。

@@ -71,6 +71,7 @@ apply upstream/tftpc-null-blockno.patch      apps
 apply upstream/apps.patch                    apps
 apply upstream/ai_agent.patch                packages/ai_agent
 apply upstream/agent-monotonic-latency.patch packages/ai_agent
+apply upstream/agent-skills-mkdir-fat.patch  packages/ai_agent
 apply upstream/frameworks-uv.patch           frameworks/system/utils/uv
 apply upstream/posixspawn-enoent-not-error.patch nuttx
 apply upstream/stdio-stream-limit-open-max.patch nuttx
