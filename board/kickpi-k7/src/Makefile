@@ -62,6 +62,12 @@ ifeq ($(CONFIG_AUDIO_ES8388),y)
 CSRCS += kickpi_k7_audio.c
 endif
 
+# 网络地址配置由 gmac 后台线程调 netinit_bringup()（见 kickpi_k7_appinit.c），
+# 头文件在 apps 侧。
+ifeq ($(CONFIG_NETUTILS_NETINIT),y)
+CFLAGS += ${INCDIR_PREFIX}$(TOPDIR)/../apps/include
+endif
+
 # 摄像头只依赖 I2C（传感器时钟来自板上晶振，供电是普通 GPIO）
 ifeq ($(CONFIG_RK3576_I2C),y)
 CSRCS += kickpi_k7_camera.c

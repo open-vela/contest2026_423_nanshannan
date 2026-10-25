@@ -62,6 +62,10 @@
 #include "rk3576_rptun.h"
 #include "kickpi_k7.h"
 
+#if defined(CONFIG_NETUTILS_NETINIT) && !defined(CONFIG_NSH_NETINIT)
+#  include "netutils/netinit.h"
+#endif
+
 
 /* 板级 late init 里直接把界面拉起来，见下面 fb_register 之后那一段。
  * Application.mk 会把应用的 main 重命名成 <PROGNAME>_main，所以这里
@@ -158,6 +162,28 @@ static int gmac_bringup_thread(int argc, FAR char *argv[])
     {
       syslog(LOG_INFO, "网络: eth0 已注册（GMAC%d）\n",
              CONFIG_RK3576_ETH_PORT);
+
+#if defined(CONFIG_NETUTILS_NETINIT) && !defined(CONFIG_NSH_NETINIT)
+      /* ★ 地址和 ifup 在这里做，不交给 nsh 的 netinit。
+       *
+       *   nsh 在 board_app_initialize 返回后立刻起 netinit，而 eth0 要
+       *   等本线程忙等完 2.5 秒才注册 —— netinit 先跑的话，设地址和
+       *   ifup 都会因为找不到设备静默失败，eth0 停在 DOWN / 0.0.0.0。
+       *
+       *   以前一直没出事，是因为 CPU1 被绕开，剩下三个核被本线程和
+       *   devinit 这些优先级 100 的忙等占满，优先级 80 的 netinit 恰好
+       *   被饿到 eth0 注册之后。修好 CPU1 后（rk3576_smp.c），netinit
+       *   立刻有核可用，顺序就反了（2026-10-24 板上复现）。
+       *
+       *   在这里同步调用，顺序由代码保证，不再靠调度碰巧排对。
+       */
+
+      ret = netinit_bringup();
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "ERROR: 网络配置失败: %d\n", ret);
+        }
+#endif
     }
 #endif
 

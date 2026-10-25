@@ -29,13 +29,12 @@
 #include <sys/boardctl.h>
 #include <stdint.h>
 #include <nuttx/board.h>
-#include <nuttx/sched.h>
-#include <sched.h>
 #include <errno.h>
 
 #include "arm64_internal.h"
 #include "hardware/rk3576_memorymap.h"
 #include "rk3576_reboot.h"
+#include "rk3576_smp.h"
 #include "kickpi_k7.h"
 
 /****************************************************************************
@@ -149,60 +148,16 @@ static void kickpi_dump_reset_status(void)
          st);
 }
 
-#if defined(CONFIG_SMP) && defined(CONFIG_ARM64_GICV2_SHARED_DIST) && \
-    CONFIG_SMP_NCPUS > 1
-/****************************************************************************
- * Name: kickpi_avoid_cpu1
- *
- * Description:
- *   让现有任务都不再使用 CPU1。之后新建的任务从父任务继承亲和性，
- *   nsh、界面、ai_agent、lpwork 也就都不会被放到 CPU1 上。
- *
- * ★ 临时绕行，不是修复（2026-09-17）
- *
- *   双系统下 CPU1 能完整启动到 IDLE（启动阶段标记走到 6），但之后绑到
- *   它上面的线程 1 秒内都跑不起来；单系统下同一份镜像四个核都正常。
- *   ai_agent 的拍照线程或 lpwork（JPEG 编码）一旦落在 CPU1，就永远停在
- *   "就绪"，camera_capture 不返回。根因未查清，诊断补丁另存。
- *
- *   在 board_late_initialize 里做：此时各任务基本都在等待，改掩码不需要
- *   CPU1 配合。单系统下这样做只是少用一个核。
- *
- ****************************************************************************/
-
-static void kickpi_avoid_cpu1_one(FAR struct tcb_s *tcb, FAR void *arg)
-{
-  cpu_set_t set;
-
-  UNUSED(arg);
-
-  if (is_idle_task(tcb) || (tcb->flags & TCB_FLAG_CPU_LOCKED) != 0)
-    {
-      return;
-    }
-
-  set = tcb->affinity & ~(cpu_set_t)(1 << 1);
-  if (set != 0 && set != tcb->affinity)
-    {
-      nxsched_set_affinity(tcb->pid, sizeof(set), &set);
-    }
-}
-
-static void kickpi_avoid_cpu1(void)
-{
-  nxsched_foreach(kickpi_avoid_cpu1_one, NULL);
-  syslog(LOG_WARNING, "SMP: 双系统下 CPU1 不接任务（原因未明），"
-         "已让现有任务避开 CPU1\n");
-}
-#endif
-
 void board_late_initialize(void)
 {
   kickpi_dump_reset_status();
 
-#if defined(CONFIG_SMP) && defined(CONFIG_ARM64_GICV2_SHARED_DIST) && \
-    CONFIG_SMP_NCPUS > 1
-  kickpi_avoid_cpu1();
+#ifdef CONFIG_SMP
+  /* 双系统下启动阶段会丢调度 SGI，丢了 NuttX 不会补发 ——
+   * 09 月"CPU1 不接任务"就是这个。见 rk3576_smp.c。
+   */
+
+  rk3576_sgi_rescue_start();
 #endif
 
 #ifdef CONFIG_HAVE_CXXINITIALIZE

@@ -31,6 +31,10 @@ CHIP_CSRCS  = rk3576_boot.c rk3576_serial.c rk3576_gpio.c
 CHIP_CSRCS += rk3576_addrenv.c
 CHIP_CSRCS += rk3576_cru.c rk3576_pinmux.c rk3576_power.c
 
+ifeq ($(CONFIG_SMP),y)
+CHIP_CSRCS += rk3576_smp.c
+endif
+
 ifeq ($(CONFIG_RK3576_GMAC),y)
 CHIP_CSRCS += rk3576_gmac.c
 endif

@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -32,10 +33,13 @@
 #include <fcntl.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/clock.h>
 #include <nuttx/video/fb.h>
 #include <nuttx/input/touchscreen.h>
 #include <poll.h>
 #include <time.h>
+#include <pthread.h>
+#include <sched.h>
 #include <arch/board/board.h>
 
 uint32_t rk3576_gpio_irq_count(int bank, uint32_t *last_status);
@@ -735,6 +739,78 @@ static int diag_rst(void)
 }
 
 /****************************************************************************
+ * Name: diag_cpus
+ *
+ * Description:
+ *   建一个只绑指定核的线程，最多等 2 秒看它跑没跑。
+ *
+ *   来历：09 月双系统下绑到 CPU1 的线程跑不起来，当时加了让所有任务避开
+ *   CPU1 的绕行。2026-10-24 在当前版本上已不复现（见
+ *   notes/cpu1-debug-2026-10-24.md），绕行已去掉，留这个命令备查。
+ *
+ *   线程建成 detached、只看标志位不 join —— 若核真的不接任务，join 会把
+ *   nsh 卡死（上一版诊断命令踩过）。
+ ****************************************************************************/
+
+#ifdef CONFIG_SMP
+extern volatile uint32_t g_rk3576_sgi_rescued;
+extern volatile clock_t  g_rk3576_sgi_rescue_tick;
+
+static volatile int g_cpu_ran = -1;
+
+static void *diag_cpu_thread(void *arg)
+{
+  UNUSED(arg);
+  g_cpu_ran = up_cpu_index();
+  return NULL;
+}
+
+static int diag_cpus(int cpu)
+{
+  pthread_attr_t attr;
+  pthread_t tid;
+  cpu_set_t set;
+  int i;
+  int ret;
+
+  if (cpu < 0 || cpu >= CONFIG_SMP_NCPUS)
+    {
+      printf("核号 0..%d\n", CONFIG_SMP_NCPUS - 1);
+      return 1;
+    }
+
+  g_cpu_ran = -1;
+  CPU_ZERO(&set);
+  CPU_SET(cpu, &set);
+  pthread_attr_init(&attr);
+  pthread_attr_setaffinity_np(&attr, sizeof(set), &set);
+  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  ret = pthread_create(&tid, &attr, diag_cpu_thread, NULL);
+  pthread_attr_destroy(&attr);
+  if (ret != 0)
+    {
+      printf("建线程失败 %d\n", ret);
+      return 1;
+    }
+
+  for (i = 0; i < 20 && g_cpu_ran < 0; i++)
+    {
+      usleep(100000);
+    }
+
+  if (g_cpu_ran == cpu)
+    {
+      printf("CPU%d: 线程跑了（%d00ms 内）\n", cpu, i);
+      return 0;
+    }
+
+  printf("CPU%d: 线程 2 秒没跑（ran=%d，pid %d 留着，ps 可看）\n",
+         cpu, g_cpu_ran, (int)tid);
+  return 1;
+}
+#endif
+
+/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -820,6 +896,42 @@ int main(int argc, char *argv[])
       return 0;
     }
 
+#ifdef CONFIG_SMP
+  if (argc >= 5 && strcmp(argv[1], "cpus") == 0 &&
+      strcmp(argv[2], "pin") == 0)
+    {
+      /* 把指定任务的亲和性改成给定掩码（nsh 没有 taskset） */
+
+      cpu_set_t set = (cpu_set_t)strtoul(argv[4], NULL, 16);
+      int ret = sched_setaffinity(atoi(argv[3]), sizeof(set), &set);
+
+      printf("pid %s -> 0x%lx: %s\n", argv[3], (unsigned long)set,
+             ret == 0 ? "OK" : "失败");
+      return ret == 0 ? 0 : 1;
+    }
+
+  if (argc >= 2 && strcmp(argv[1], "cpus") == 0)
+    {
+      int cpu;
+      int fail = 0;
+
+      if (argc >= 3)
+        {
+          return diag_cpus(atoi(argv[2]));
+        }
+
+      for (cpu = 0; cpu < CONFIG_SMP_NCPUS; cpu++)
+        {
+          fail += diag_cpus(cpu);
+        }
+
+      printf("调度 SGI 补发 %" PRIu32 " 次，最后一次在开机 %lu ms\n",
+             g_rk3576_sgi_rescued,
+             (unsigned long)TICK2MSEC(g_rk3576_sgi_rescue_tick));
+      return fail;
+    }
+#endif
+
   if (argc >= 2 && strcmp(argv[1], "rst") == 0)
     {
       return diag_rst();
@@ -851,6 +963,8 @@ int main(int argc, char *argv[])
   printf("  k7diag fb ramp|bars|grid   绕开 LVGL 写测试图案\n");
   printf("  k7diag eth                 两个网口的 PHY 链路状态\n");
   printf("  k7diag rst                 读全局复位状态（只读不清）\n");
+  printf("  k7diag cpus [核号]         建只绑该核的线程看它跑不跑（缺省逐核）\n");
+  printf("  k7diag cpus pin <pid> <十六进制掩码>  改任务亲和性\n");
   printf("  k7diag vsync               量 VP1 的帧开始标志（清除/使能行为）\n");
   printf("  k7diag anim [秒]           绕开 LVGL 的双缓冲翻页动画（查撕裂/黑线）\n");
   printf("  k7diag touch [秒]          绕开 LVGL 的色块点击测试（查触摸链路）\n");
