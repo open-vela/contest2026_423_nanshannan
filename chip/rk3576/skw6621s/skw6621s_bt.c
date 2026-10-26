@@ -27,6 +27,9 @@
 #include <nuttx/clock.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/kthread.h>
+#include <nuttx/signal.h>
+#include <nuttx/wireless/bluetooth/bt_driver.h>
 
 #include "skw6621s_sdio.h"
 
@@ -48,6 +51,15 @@
 
 #define BT_CMD_TIMEOUT_MS           1000
 
+/* RX thread: packets are copied out under the bus lock and delivered to
+ * the host stack after it is released, so the stack never re-enters the
+ * driver with the lock held.
+ */
+
+#define BT_RXQ_DEPTH                32
+#define BT_RXQ_SIZE                 1536
+#define BT_RX_IDLE_US               2000
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -57,6 +69,26 @@
 static uint8_t g_evt[260];
 static size_t g_evt_len;
 static volatile bool g_evt_valid;
+
+struct bt_rxpkt_s
+{
+  uint8_t type;
+  uint16_t len;
+  uint8_t data[BT_RXQ_SIZE];
+};
+
+struct skw_btdev_s
+{
+  struct bt_driver_s drv;
+  FAR const char *nvpath;
+  struct bt_rxpkt_s rxq[BT_RXQ_DEPTH];
+  unsigned int rxn;
+  unsigned int dropped;
+  volatile bool running;
+  int pid;
+};
+
+static struct skw_btdev_s g_skwbt;
 
 /****************************************************************************
  * Private Functions
@@ -322,4 +354,152 @@ int skw6621s_bt_hci_init(FAR const char *nvpath)
 out:
   skw6621s_set_hci_cb(NULL, NULL);
   return ret == 0 ? OK : (ret > 0 ? -EIO : ret);
+}
+
+/****************************************************************************
+ * Host stack glue (struct bt_driver_s)
+ ****************************************************************************/
+
+static void bt_rxq_cb(FAR void *arg, uint8_t type,
+                      FAR const uint8_t *data, size_t len)
+{
+  FAR struct skw_btdev_s *dev = arg;
+  FAR struct bt_rxpkt_s *pkt;
+
+  if ((type != 0x04 && type != 0x02) || len > BT_RXQ_SIZE ||
+      dev->rxn >= BT_RXQ_DEPTH)
+    {
+      dev->dropped++;
+      return;
+    }
+
+  pkt = &dev->rxq[dev->rxn++];
+  pkt->type = type;
+  pkt->len = len;
+  memcpy(pkt->data, data, len);
+}
+
+static int bt_rx_thread(int argc, FAR char *argv[])
+{
+  FAR struct skw_btdev_s *dev = &g_skwbt;
+  unsigned int last_dropped = 0;
+
+  while (dev->running)
+    {
+      unsigned int i;
+      int ret;
+
+      ret = skw6621s_poll();
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "SKW BT: rx poll %d, RX thread stops\n", ret);
+          break;
+        }
+
+      /* The callback ran inside skw6621s_poll(); the lock is free now */
+
+      for (i = 0; i < dev->rxn; i++)
+        {
+          FAR struct bt_rxpkt_s *pkt = &dev->rxq[i];
+
+          bt_netdev_receive(&dev->drv,
+                            pkt->type == 0x04 ? BT_EVT : BT_ACL_IN,
+                            pkt->data, pkt->len);
+        }
+
+      dev->rxn = 0;
+
+      if (dev->dropped != last_dropped)
+        {
+          syslog(LOG_WARNING, "SKW BT: dropped %u rx packets\n",
+                 dev->dropped);
+          last_dropped = dev->dropped;
+        }
+
+      if (ret == 0)
+        {
+          nxsig_usleep(BT_RX_IDLE_US);
+        }
+    }
+
+  dev->running = false;
+  return 0;
+}
+
+static int skwbt_open(FAR struct bt_driver_s *drv)
+{
+  FAR struct skw_btdev_s *dev = &g_skwbt;
+  int ret;
+
+  if (dev->running)
+    {
+      return OK;
+    }
+
+  /* Vendor init with the synchronous path, before the RX thread owns
+   * the receive side.
+   */
+
+  ret = skw6621s_bt_hci_init(dev->nvpath);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  dev->rxn = 0;
+  skw6621s_set_hci_cb(bt_rxq_cb, dev);
+
+  dev->running = true;
+  dev->pid = kthread_create("skwbt_rx", 120, 4096, bt_rx_thread, NULL);
+  if (dev->pid < 0)
+    {
+      dev->running = false;
+      skw6621s_set_hci_cb(NULL, NULL);
+      return dev->pid;
+    }
+
+  return OK;
+}
+
+static int skwbt_send(FAR struct bt_driver_s *drv, enum bt_buf_type_e type,
+                      FAR void *data, size_t len)
+{
+  int ret;
+
+  if (type == BT_CMD)
+    {
+      ret = skw6621s_hci_send(0x01, data, len);
+    }
+  else if (type == BT_ACL_OUT)
+    {
+      ret = skw6621s_hci_send(0x02, data, len);
+    }
+  else
+    {
+      return -EINVAL;
+    }
+
+  return ret < 0 ? ret : (int)len;
+}
+
+static void skwbt_close(FAR struct bt_driver_s *drv)
+{
+  g_skwbt.running = false;
+}
+
+int skw6621s_bt_register(FAR const char *nvpath)
+{
+  FAR struct skw_btdev_s *dev = &g_skwbt;
+
+  if (dev->drv.open != NULL)
+    {
+      return -EALREADY;
+    }
+
+  dev->nvpath     = nvpath;
+  dev->drv.open   = skwbt_open;
+  dev->drv.send   = skwbt_send;
+  dev->drv.close  = skwbt_close;
+
+  return bt_driver_register(&dev->drv);
 }

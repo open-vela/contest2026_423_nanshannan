@@ -106,7 +106,7 @@ nsh> ps
 | 项 | 状态 |
 |---|---|
 | HDMI 输出 | 硬件参数与 PHY 方案已定（见 `docs/` 与提交记录），待接显示器做链路 |
-| 蓝牙 / WiFi（实焊 SKW6621S，SDIO） | **SDIO 枚举已实板通过**（10-26，`bt probe` 读出 1ffe:6621 / SV6160LITE）。根因两处：模组蓝牙 UART_RXD（GPIO1_C4）复位释放时被下拉为低，模组不应答 CMD5；MANFID 要从公共 CIS 读。10-26 固件下载与 CP 启动也已实板通过（`bt init` 收到固件版本串）。蓝牙 HCI、WiFi 联网**尚未实现**。见 [调研与结论](notes/wireless-research-2026-10-26.md) |
+| 蓝牙 / WiFi（实焊 SKW6621S，SDIO） | **SDIO 枚举已实板通过**（10-26，`bt probe` 读出 1ffe:6621 / SV6160LITE）。根因两处：模组蓝牙 UART_RXD（GPIO1_C4）复位释放时被下拉为低，模组不应答 CMD5；MANFID 要从公共 CIS 读。10-26 固件下载与 CP 启动也已实板通过（`bt init` 收到固件版本串）。蓝牙已接入 NuttX 协议栈，`btsak bnep0 scan` 能扫到周围 BLE 设备；连接/GATT 未测。WiFi 联网**尚未实现**。见 [调研与结论](notes/wireless-research-2026-10-26.md) |
 | M.2 SSD（PCIe + NVMe） | 勘察完成，见 `docs/pcie-nvme.md`；NuttX 无 NVMe 驱动，需移植 |
 | xTS 剩余 3 项 | 1.3.5（板载 Flash 上跑破坏性块测试会毁掉启动镜像，16 GB SD 卡上 stress 子项约 2,920 万次循环不可行）、1.3.14（原文要求静置 24h 以上，截止日前时间不够）、1.3.15（复位原因寄存器被 ATF 清零，已定位）|
 

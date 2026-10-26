@@ -1,0 +1,43 @@
+��btsak bnep0 info
+��Device: bnep0
+BDAddr: 60:48:9c:b5:16:e3
+Flags:  0000
+Free:   20
+  ACL:  20
+  SCO:  0
+Max:
+  ACL:  24
+  SCO:  0
+MTU:
+  ACL:  70
+  SCO:  70
+Policy: 0
+Type:   0
+nsh> 
+��btsak bnep0 scan start
+��nsh> 
+��btsak bnep0 scan get
+��Scan result:
+ 1.	addr:            6f:f8:fd:d1:89:31 type: 1
+	rssi:            -95
+	response type:   0
+	advertiser data: 02 01 02 17 ff 8f 03 2c 11 34 33 37 59 10 30 41	                 a2 01 15 26 29 79 c5 57 01 03 02 03 03 aa fd
+ 2.	addr:            6f:f8:fd:d1:89:31 type: 1
+	rssi:            -96
+	response type:   4
+	advertiser data: 1d 16 aa fd 83 0c f3 33 30 32 34 39 32 32 39 31	                 33 e7 9a 84 52 45 73 44 4d 49 20 4b 38 30
+ 3.	addr:            5d:9c:8f:9f:25:9b type: 1
+	rssi:            -98
+	response type:   0
+	advertiser data: 02 01 1a 0a ff 4c 00 10 05 7a 1c bc c1 ed 02 0a	                 00
+ 4.	addr:            73:8a:fc:ba:cb:55 type: 1
+	rssi:            -100
+	response type:   0
+	advertiser data: 02 01 02 17 ff 8f 03 28 11 34 62 50 74 10 30 41	                 a2 01 15 26 29 f8 27 57 01 03 02 03 03 aa fd
+ 5.	addr:            73:8a:fc:ba:cb:55 type: 1
+	rssi:            -100
+	response type:   4
+	advertiser data: 19 16 aa fd 83 0c f3 e9 a3 9e e9 a3 9e e7 9a 84	                 52 45 44 4d 49 20 33 4b 38 30
+nsh> 
+��btsak bnep0 scan stop
+��nsh> 

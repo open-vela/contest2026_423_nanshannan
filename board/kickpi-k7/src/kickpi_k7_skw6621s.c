@@ -84,5 +84,9 @@ int kickpi_k7_bt_initialize(void)
       return ret;
     }
 
+#ifdef CONFIG_NET_BLUETOOTH
+  return skw6621s_bt_register("/data/skw/sv6160lite.nvbin");
+#else
   return skw6621s_bt_hci_init("/data/skw/sv6160lite.nvbin");
+#endif
 }

@@ -62,4 +62,11 @@ int skw6621s_hci_send(uint8_t type, FAR const uint8_t *data, size_t len);
 
 int skw6621s_bt_hci_init(FAR const char *nvpath);
 
+/* Register the controller with the NuttX Bluetooth stack (bt_driver_s).
+ * The stack calls open(), which runs skw6621s_bt_hci_init and starts the
+ * RX polling thread.  Call after skw6621s_boot.
+ */
+
+int skw6621s_bt_register(FAR const char *nvpath);
+
 #endif /* __CONTEST_SKW6621S_SDIO_H */

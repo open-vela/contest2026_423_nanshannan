@@ -137,6 +137,27 @@ SKW BT: BD_ADDR 0: 60:48:9c:b5:16:e3
 
 刷写前用 `mw 2ae10004=00400000` 把 WL_REG_ON 拉低、模组回到复位，这次跑过 `bt init` 后刷写成功（一次）。
 
+## 接入 NuttX 蓝牙栈，BLE 扫描通过（同日）
+
+`skw6621s_bt.c` 实现 `bt_driver_s`：open() 里先跑厂商初始化（BTREADY / NVDS / Reset），再起收包线程
+`skwbt_rx`（轮询，空闲时 nxsig_usleep 2ms）。收包回调只在总线锁内把包拷进队列，解锁后再交给协议栈，
+避免协议栈在锁内回调驱动。`bt init` 末尾 `bt_driver_register` → 网络设备 **bnep0**（不是 bt0）。
+
+配置：`CONFIG_NET_BLUETOOTH`、`CONFIG_BTSAK`（程序名改 `btsak`，避开本仓的 `bt`）。
+
+```
+btsak bnep0 info        → BDAddr 60:48:9c:b5:16:e3，ACL 缓冲 20，ACL MTU 70
+btsak bnep0 scan start / get
+  addr 73:8a:fc:ba:cb:55  rssi -99  广播数据含 "REDMI 3K80"
+  addr 6f:f8:fd:d1:89:31  rssi -96
+  addr 5d:9c:8f:9f:25:9b
+```
+
+（`telnet-btsak-scan.txt`）收到的是周围真实设备的广播，射频收通路是通的。RSSI 在 -96～-100，偏弱：
+可能是天线（NV 用的 SHARE、天线座未确认），未查。
+
+刷写前把 WL_REG_ON 拉低，跑过 `bt init` 后又刷写成功一次（共两次）。
+
 ## 下一步
 
-接 NuttX 蓝牙栈（bt_driver_s + 收包线程）；WiFi 在其后。
+蓝牙：连接 / GATT 未测；广播（advertise）未测；RSSI 偏弱待查天线。WiFi 在其后；WiFi 在其后。

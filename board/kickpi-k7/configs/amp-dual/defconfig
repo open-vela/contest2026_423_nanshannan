@@ -296,3 +296,10 @@ CONFIG_MMCSD_SDIO=y
 CONFIG_RK3576_DWMMC=y
 CONFIG_RK3576_SKW6621S=y
 CONFIG_SDIO_BLOCKSETUP=y
+
+# ★ 蓝牙协议栈：`bt init` 启动 SKW6621S 后把它注册成 bnep0（bt_driver_s，
+#   chip/rk3576/skw6621s/skw6621s_bt.c）。btsak 的默认程序名也是 "bt"，
+#   和本仓的 bt 命令冲突，改叫 btsak。用法：btsak bnep0 scan start / get / stop。
+CONFIG_NET_BLUETOOTH=y
+CONFIG_BTSAK=y
+CONFIG_BTSAK_PROGNAME="btsak"
