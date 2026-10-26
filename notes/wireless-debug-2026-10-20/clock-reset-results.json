@@ -1,0 +1,65 @@
+[
+  {
+    "label": "baseline",
+    "source": "0x2fbb",
+    "gpio": "0xef0bff",
+    "cmd52_read": {
+      "status": "0x6",
+      "response": "0x0"
+    },
+    "cmd52_reset": {
+      "status": "0x6",
+      "response": "0x0"
+    },
+    "cmd0": {
+      "status": "0x4",
+      "response": "0x0"
+    },
+    "cmd5": {
+      "status": "0x6",
+      "response": "0x0"
+    }
+  },
+  {
+    "label": "clock800k",
+    "source": "0x2f9d",
+    "gpio": "0xef0bff",
+    "cmd52_read": {
+      "status": "0x6",
+      "response": "0x0"
+    },
+    "cmd52_reset": {
+      "status": "0x6",
+      "response": "0x0"
+    },
+    "cmd0": {
+      "status": "0x4",
+      "response": "0x0"
+    },
+    "cmd5": {
+      "status": "0x6",
+      "response": "0x0"
+    }
+  },
+  {
+    "label": "bt_off",
+    "source": "0x2fbb",
+    "gpio": "0x6d0bff",
+    "cmd52_read": {
+      "status": "0x6",
+      "response": "0x0"
+    },
+    "cmd52_reset": {
+      "status": "0x6",
+      "response": "0x0"
+    },
+    "cmd0": {
+      "status": "0x4",
+      "response": "0x0"
+    },
+    "cmd5": {
+      "status": "0x6",
+      "response": "0x0"
+    }
+  }
+]

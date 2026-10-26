@@ -73,12 +73,13 @@ extern "C"
 
 int rk3576_pinmux_set(int bank, int pin, unsigned int func);
 
-/* 内部上下拉的取值（PULL_TYPE_IO_DEFAULT 编码） */
+/* RK3576 uses PULL_TYPE_IO_1 for every bank: 0/2 disable, 1 down,
+ * 3 up. Bus hold is not supported. Use 0 for disabled pulls.
+ */
 
 #define RK3576_PULL_NONE     0
-#define RK3576_PULL_UP       1
-#define RK3576_PULL_DOWN     2
-#define RK3576_PULL_HOLD     3
+#define RK3576_PULL_UP       3
+#define RK3576_PULL_DOWN     1
 
 /****************************************************************************
  * Name: rk3576_pinmux_setpull
@@ -109,8 +110,8 @@ int rk3576_pinmux_get(int bank, int pin);
  * Name: rk3576_pinmux_getpull
  *
  * Description:
- *   读回引脚的上下拉设置：0=关 1=上拉 2=下拉 3=保持。
- *   与 setpull 配对使用，用来证明写入确实落到了目标寄存器。
+ *   Read the raw pull encoding: 0/2 disabled, 1 pull-down, 3 pull-up.
+ *   Invalid bank or pin arguments return -EINVAL.
  *
  ****************************************************************************/
 

@@ -41,6 +41,7 @@
 
 #include <nuttx/sdio.h>
 #include <nuttx/mmcsd.h>
+#include <nuttx/clock.h>
 
 #include "arm64_internal.h"
 #include "rk3576_cru.h"
@@ -288,6 +289,123 @@ static int dw_reset_ctrl(uint32_t base)
  *
  ****************************************************************************/
 
+/* ★ 软件逻辑分析仪：发命令的同时紧循环读 GPIO 的 EXT_PORT（焊盘电平，
+ *   与复用无关），事后按 CLK 上升沿取 CMD 位。
+ *
+ *   为什么要它：10-22～10-26 把能比的静态配置都和 Linux 比齐了，CMD5
+ *   仍无应答，而手里没有示波器。它回答三件事 —— CLK 到没到焊盘、CMD5
+ *   帧对不对、模组有没有在 CMD 线上回应答 —— 把问题切成"主机发送 /
+ *   主机采样 / 模组"三段。
+ *
+ *   关中断、采样数固定，最长几毫秒；只在手动 bt probe 的第一次 CMD5
+ *   里跑，不进启动路径。默认关，要用时 `mw <g_dw_la_enable 地址>=1`。
+ */
+
+uint32_t g_dw_la_enable;
+
+#define DW_LA_SAMPLES  16384
+#define DW_LA_SHOW     320          /* 打印的 CLK 上升沿个数 */
+
+static uint8_t g_dw_la[DW_LA_SAMPLES];
+
+static void dw_la_send(uint32_t base, uint32_t arg, uint32_t cmd,
+                       FAR const struct dwmmc_hw_s *hw)
+{
+  uintptr_t port = RK3576_GPIO1_ADDR + 0x70;   /* GPIO1 EXT_PORT */
+  char      bits[65];
+  uint64_t  t0;
+  uint64_t  t1;
+  uint32_t  freq;
+  irqstate_t flags;
+  int       edges = 0;
+  int       shown = 0;
+  int       minp = DW_LA_SAMPLES;
+  int       maxp = 0;
+  int       last_rise = -1;
+  int       d0_low = 0;
+  int       cmd_low = 0;
+  int       nb = 0;
+  int       i;
+
+  DEBUGASSERT(hw->clk_bank == 1 && hw->cmd_bank == 1 && hw->bus_bank == 1);
+
+  dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
+  dw_putreg(base, DWMMC_CMDARG, arg);
+
+  flags = up_irq_save();
+  t0 = read_sysreg(cntpct_el0);
+  dw_putreg(base, DWMMC_CMD, cmd);
+
+  for (i = 0; i < DW_LA_SAMPLES; i++)
+    {
+      uint32_t v = getreg32(port);
+
+      g_dw_la[i] = ((v >> hw->clk_pin) & 1) |
+                   (((v >> hw->cmd_pin) & 1) << 1) |
+                   (((v >> hw->bus_first) & 1) << 2);
+    }
+
+  t1 = read_sysreg(cntpct_el0);
+
+  syslog(LOG_INFO, "LA: 采样结束时 EXT_PORT=%08" PRIx32
+         " (C4=%d C6=%d C7=%d)\n", getreg32(port),
+         (int)((getreg32(port) >> 20) & 1), (int)((getreg32(port) >> 22) & 1),
+         (int)((getreg32(port) >> 23) & 1));
+  up_mdelay(10);
+  up_irq_restore(flags);
+  freq = read_sysreg(cntfrq_el0);
+
+  syslog(LOG_INFO, "LA: %d 点 %" PRIu64 " ticks @%" PRIu32 "Hz"
+         " = %" PRIu64 " ns/点\n", DW_LA_SAMPLES, t1 - t0, freq,
+         (uint64_t)((t1 - t0) * 1000000000ull / freq / DW_LA_SAMPLES));
+  up_mdelay(10);
+
+  for (i = 0; i < DW_LA_SAMPLES; i++)
+    {
+      d0_low += (g_dw_la[i] & 4) == 0;
+      cmd_low += (g_dw_la[i] & 2) == 0;
+
+      if (i > 0 && (g_dw_la[i - 1] & 1) == 0 && (g_dw_la[i] & 1) != 0)
+        {
+          if (last_rise >= 0)
+            {
+              int p = i - last_rise;
+
+              minp = p < minp ? p : minp;
+              maxp = p > maxp ? p : maxp;
+            }
+
+          last_rise = i;
+          edges++;
+
+          if (shown < DW_LA_SHOW)
+            {
+              bits[nb++] = (g_dw_la[i] & 2) ? '1' : '0';
+              shown++;
+              if (nb == 64)
+                {
+                  bits[nb] = '\0';
+                  syslog(LOG_INFO, "LA cmd[%3d] %s\n", shown - 64, bits);
+                  up_mdelay(10);
+                  nb = 0;
+                }
+            }
+        }
+    }
+
+  if (nb > 0)
+    {
+      bits[nb] = '\0';
+      syslog(LOG_INFO, "LA cmd[%3d] %s\n", shown - nb, bits);
+      up_mdelay(10);
+    }
+
+  syslog(LOG_INFO, "LA: CLK 上升沿 %d 个，周期 %d..%d 点；"
+         "CMD 低 %d 点，D0 低 %d 点\n",
+         edges, edges > 1 ? minp : 0, maxp, cmd_low, d0_low);
+  up_mdelay(10);
+}
+
 int rk3576_dwmmc_probe(uint32_t base)
 {
   FAR const struct dwmmc_hw_s *hw = dwmmc_hw(base);
@@ -315,33 +433,16 @@ int rk3576_dwmmc_probe(uint32_t base)
       return ret;
     }
 
-  /* 2) 两路时钟。biu(hclk) 供寄存器访问，ciu(cclk) 驱动卡时钟 ——
-   *    只开 hclk 的话寄存器读写正常但卡不动，这个坑在 I2C 上踩过。
-   *
-   *    选源取 2 = xin24m：初始化阶段本来就要 400kHz 以下，用 24M
-   *    分频最省事，也避开了 gpll/cpll 实际频率的不确定性。
-   *    分频 6 位，写 (div/2 - 1)？——不，dw_mmc 的 CLKDIV 才是卡时钟
-   *    分频；这里的 CLKSEL 分频是给控制器源时钟的，取 1 分频。
+  /* The SDIO CLKGEN divides the CIU source by two. The Linux CMD5
+   * snapshot uses xin24m / 30 = 800 kHz with CLKDIV=0 for a 400 kHz
+   * card clock. Preserve the existing TF initialization clock path.
    */
 
   rk3576_clk_setmux(hw->sel_con, hw->sel_mux_shift, 2, 2);
 
-  /* ★ 分频位置：SDIO 在 CRU 里分到 400kHz，控制器的 CLKDIV 走旁路。
-   *
-   *   原厂 Linux 在这个主机上打印的是
-   *     mmc0: Bus speed = 400000Hz (req 400000Hz, actual 400000Hz, div = 0)
-   *   div=0 说明它把源时钟直接整到了 400kHz，而不是靠控制器内部分频。
-   *
-   *   两种分法的**频率**等效，但 Rockchip dw_mmc 的采样/驱动相位是按
-   *   源时钟整定的，分频放在控制器里会移动采样点 —— 表现正是"卡在拉
-   *   命令线但响应帧格式不对"（RESP_ERR，无超时无 CRC 错）。
-   *
-   *   24MHz / 60 = 400kHz，CRU 分频器写 (n-1)。
-   */
-
   if (hw->is_sdio)
     {
-      rk3576_clk_setmux(hw->sel_con, hw->sel_div_shift, 6, 59);
+      rk3576_clk_setmux(hw->sel_con, hw->sel_div_shift, 6, 29);
     }
   else
     {
@@ -366,6 +467,23 @@ int rk3576_dwmmc_probe(uint32_t base)
 
   rk3576_pinmux_set(hw->cmd_bank, hw->cmd_pin, hw->pin_func);
   rk3576_pinmux_set(hw->clk_bank, hw->clk_pin, hw->pin_func);
+
+  if (hw->is_sdio)
+    {
+      /* Match K7's SDIO pinctrl state, including CLK's pull-up.
+       * The bootloader leaves pull-downs on these pins; mux alone
+       * does not establish the idle-high SDIO bus state.
+       */
+
+      for (i = 0; i < 4; i++)
+        {
+          rk3576_pinmux_setpull(hw->bus_bank, hw->bus_first + i,
+                               RK3576_PULL_UP);
+        }
+
+      rk3576_pinmux_setpull(hw->cmd_bank, hw->cmd_pin, RK3576_PULL_UP);
+      rk3576_pinmux_setpull(hw->clk_bank, hw->clk_pin, RK3576_PULL_UP);
+    }
 
   if (hw->det_pin >= 0)
     {
@@ -428,6 +546,21 @@ int rk3576_dwmmc_probe(uint32_t base)
       rk3576_gpio_write(BT_RST_BANK, BT_RST_PIN, false);   /* 先拉低 */
       rk3576_gpio_setdir(WIFI_RST_BANK, WIFI_RST_PIN, true);
       rk3576_gpio_write(WIFI_RST_BANK, WIFI_RST_PIN, false);  /* 保持复位 */
+
+      /* ★ 模组的蓝牙 UART 必须空闲为高，否则它不应答 SDIO。
+       *
+       *   GPIO1_C4 = UART4_TX → 模组 UART_RXD。复位默认下拉，RXD 一直是低，
+       *   模组释放复位后对 CMD5 毫无反应（软件逻辑分析仪看到 CMD5 帧逐位
+       *   正确，CMD 线上没有应答）。Linux 把它复用成 UART，空闲为高，所以
+       *   一切正常。10-26 同一次开机里 A/B：C4 上拉 → R4 = 0x90ffff00（与
+       *   Linux 相同），改回下拉 → 超时；BT_REG_ON 高低不影响。
+       *   推测模组 ROM 在复位释放时采样 RXD，低电平当作走 UART 下载。
+       *   C5（UART4_RX ← 模组 TXD）一并上拉，和 UART 空闲态一致。
+       */
+
+      rk3576_pinmux_setpull(1, 20, RK3576_PULL_UP);   /* C4 UART4_TX */
+      rk3576_pinmux_setpull(1, 21, RK3576_PULL_UP);   /* C5 UART4_RX */
+
       up_mdelay(20);
     }
 
@@ -531,8 +664,8 @@ int rk3576_dwmmc_probe(uint32_t base)
 
     /* 先给足初始化时钟：400kHz 下 80 个时钟约 200us。 */
 
-    /* SDIO 侧源时钟已在 CRU 分到 400kHz，控制器内部走旁路（与原厂一致）；
-     * SD 侧维持原来的做法（已验证可用，不动它）。
+    /* SDIO uses an 800 kHz CIU source and CLKGEN / 2, with CLKDIV=0.
+     * Keep the established TF divider unchanged.
      */
 
     /* ★ 严格按原厂 dw_mmc.c 的顺序设时钟，每一步都要"通知 CIU"。
@@ -565,11 +698,12 @@ int rk3576_dwmmc_probe(uint32_t base)
     if (hw->is_sdio)
       {
         rk3576_gpio_write(WIFI_RST_BANK, WIFI_RST_PIN, true);
-        rk3576_gpio_write(BT_RST_BANK, BT_RST_PIN, true);
+        /* BT_REG_ON 保持低：与 Linux 枚举 SDIO 时一致 */
+
         up_mdelay(WIFI_PWRON_DELAY_MS);
         syslog(LOG_INFO,
                "DWMMC: 模组释放复位 WIFI_REG_ON(GPIO%d_%d)=1 "
-               "BT_REG_ON(GPIO%d_%d)=1，等 %d ms\n",
+               "BT_REG_ON(GPIO%d_%d)=0，等 %d ms\n",
                WIFI_RST_BANK, WIFI_RST_PIN, BT_RST_BANK, BT_RST_PIN,
                WIFI_PWRON_DELAY_MS);
       }
@@ -774,11 +908,19 @@ int rk3576_dwmmc_probe(uint32_t base)
 
         for (try = 0; try < 20; try++)
           {
-            dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
-            dw_putreg(base, DWMMC_CMDARG, ocr);
-            dw_putreg(base, DWMMC_CMD,
-                      DWMMC_CMD_START | holdbit |
-                      DWMMC_CMD_RESP_EXP | DWMMC_CMD_INDX(5));
+            if (try == 0 && g_dw_la_enable)
+              {
+                dw_la_send(base, ocr, DWMMC_CMD_START | holdbit |
+                           DWMMC_CMD_RESP_EXP | DWMMC_CMD_INDX(5), hw);
+              }
+            else
+              {
+                dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
+                dw_putreg(base, DWMMC_CMDARG, ocr);
+                dw_putreg(base, DWMMC_CMD,
+                          DWMMC_CMD_START | holdbit |
+                          DWMMC_CMD_RESP_EXP | DWMMC_CMD_INDX(5));
+              }
 
             /* ★ 先看控制器有没有**接受**这条命令。
              *
@@ -980,6 +1122,7 @@ struct rk3576_dwmmc_dev_s
    */
 
   int               last_result;
+  uint32_t          command;          /* Pending command for CMD53 PIO */
 
   /* ★ 卡槽不接 MMC（TF 卡槽）：CMD1 不上总线，直接当"没响应"。
    *
@@ -1055,6 +1198,7 @@ static int dw_update_clk(uint32_t base)
 
 static void dw_set_clock_hz(struct rk3576_dwmmc_dev_s *priv, uint32_t hz)
 {
+  const struct dwmmc_hw_s *hw = dwmmc_hw(priv->base);
   uint32_t cclkin;
   uint32_t div;
   uint32_t parent;
@@ -1071,44 +1215,13 @@ static void dw_set_clock_hz(struct rk3576_dwmmc_dev_s *priv, uint32_t hz)
       return;
     }
 
-  /* ★ Rockchip 的 dw_mmc 不是靠 CLKDIV 调卡时钟的，而是靠调 CIU 源时钟。
-   *
-   *   厂商驱动 dw_mmc-rockchip.c 的 dw_mci_rk3288_set_ios() 注释：
-   *
-   *     bus_hz = cclkin / RK3288_CLKGEN_DIV        // CLKGEN 固定 2 分频
-   *     ios->clock = (div == 0) ? bus_hz : bus_hz / (2 * div)
-   *     Note: div can only be 0 or 1
-   *     cclkin = ios->clock * RK3288_CLKGEN_DIV    // clk_set_rate 调源时钟
-   *
-   *   也就是说控制器内部先固定 2 分频，CLKDIV 只允许 0 或 1。
-   *
-   *   此前本端口把源时钟固定在 24MHz、用 CLKDIV 做大分频（400kHz 算出
-   *   div=30）—— 那是**超出规格的取值**。控制器由此进入未定义行为，
-   *   表现为对代码布局极度敏感：命令路径上多一条 syslog 就能工作，
-   *   换成等效延时、编译屏障或让出 CPU 都不行。这类"看起来像时序"的
-   *   现象，根子往往是某个字段被写了非法值。
-   *
-   *   现在改为：CLKDIV 固定 0，用 CRU 调 CCLK_SRC_SDMMC0 到 hz*2。
-   *
-   *     COMPOSITE(CCLK_SRC_SDMMC0, gpll_cpll_24m_p,
-   *               CLKSEL_CON(105), 13, 2, MFLAGS,   选源
-   *                                 7, 6, DFLAGS)   6 位分频
+  /* RK3576 SDIO uses a fixed CLKGEN / 2 before the card divider.
+   * Account for it both when selecting the source and when recording
+   * the actual card rate. The caller requests only 400 kHz or 25 MHz.
+   * Keep the existing SD clock policy pending separate TF validation.
    */
 
-  /* ★ 这里不乘 CLKGEN_DIV。
-   *
-   *   厂商 RK3288 的驱动里 cclkin = ios->clock * RK3288_CLKGEN_DIV，
-   *   前提是控制器内部确有那一级 2 分频。RK3576 是否相同**未经证实** ——
-   *   若没有，乘 2 会让识别阶段的卡时钟变成 800kHz，超过规范的 400kHz
-   *   上限，表现为部分命令响应超时（实测 CMD55 RTO）。
-   *
-   *   按 hz 直接设源时钟，两种情况下都合法：
-   *     有 CLKGEN/2 -> 实际 hz/2，偏慢但合规
-   *     无 CLKGEN/2 -> 实际 hz，正好
-   *   先保证能工作，分频器是否存在等能通信后再用实测频率确认。
-   */
-
-  cclkin = hz;
+  cclkin = hw->is_sdio ? hz * 2 : hz;
 
   /* 选源：低速用 24M 分频，高速用 gpll。分频器只有 6 位（1..64），
    * 所以源频率不能离目标太远。
@@ -1135,10 +1248,10 @@ static void dw_set_clock_hz(struct rk3576_dwmmc_dev_s *priv, uint32_t hz)
       div = 64;
     }
 
-  rk3576_clk_setmux(DWMMC_SEL_CON, DWMMC_SEL_MUX_SHIFT, 2, mux);
-  rk3576_clk_setmux(DWMMC_SEL_CON, DWMMC_SEL_DIV_SHIFT, 6, div - 1);
+  rk3576_clk_setmux(hw->sel_con, hw->sel_mux_shift, 2, mux);
+  rk3576_clk_setmux(hw->sel_con, hw->sel_div_shift, 6, div - 1);
 
-  /* CLKDIV 固定 0 = 直通（规格只允许 0 或 1） */
+  /* Bypass the card divider; the fixed CLKGEN / 2 still applies. */
 
   dw_putreg(priv->base, DWMMC_CLKDIV, 0);
   dw_update_clk(priv->base);
@@ -1146,11 +1259,11 @@ static void dw_set_clock_hz(struct rk3576_dwmmc_dev_s *priv, uint32_t hz)
   dw_putreg(priv->base, DWMMC_CLKENA, DWMMC_CLKENA_ENABLE);
   dw_update_clk(priv->base);
 
-  priv->card_hz = parent / div;
+  priv->card_hz = parent / div / (hw->is_sdio ? 2 : 1);
 
   syslog(LOG_INFO,
-         "DWMMC: 卡时钟 目标 %" PRIu32 "Hz 源=%" PRIu32 "Hz/%" PRIu32
-         " = %" PRIu32 "Hz（若含 CLKGEN/2 则再半）\n",
+         "DWMMC: requested=%" PRIu32 "Hz parent=%" PRIu32
+         "Hz div=%" PRIu32 " card=%" PRIu32 "Hz\n",
          hz, parent, div, priv->card_hz);
 }
 
@@ -1279,7 +1392,10 @@ static sdio_statset_t rk3576_dwmmc_status(struct sdio_dev_s *dev)
 {
   struct rk3576_dwmmc_dev_s *priv = (struct rk3576_dwmmc_dev_s *)dev;
 
-  UNUSED(dev);
+  if (dwmmc_hw(priv->base)->is_sdio)
+    {
+      return SDIO_STATUS_PRESENT;
+    }
 
   /* 用硬件的卡检测脚，而不是恒返回 PRESENT。SD 卡是可插拔的，
    * 这里说实话才有意义。
@@ -1435,6 +1551,7 @@ static int rk3576_dwmmc_sendcmd(struct sdio_dev_s *dev, uint32_t cmd,
   /* 每条命令开始时先置为未完成，避免沿用上一条的结果。 */
 
   priv->last_result = -EBUSY;
+  priv->command = cmd;
 
   /* 顺序与 U-Boot 一致：先等卡不忙，再清中断状态，最后写参数与命令。 */
 
@@ -1707,100 +1824,88 @@ static int rk3576_dwmmc_cancel(struct sdio_dev_s *dev)
 
 static int dw_pio_transfer(struct rk3576_dwmmc_dev_s *priv)
 {
-  uint32_t *p = (uint32_t *)priv->buffer;
-  size_t words = priv->remaining / 4;
+  uint8_t *buffer = priv->buffer;
+  size_t length = priv->remaining;
   size_t done = 0;
+  size_t count;
+  uint32_t word;
   uint32_t sts;
-  int us;
+  uint32_t status;
+  clock_t start = clock_systime_ticks();
+  clock_t timeout = MSEC2TICK(priv->waittimeout_ms);
 
-#ifdef CONFIG_RK3576_DWMMC_TRACE
-  syslog(LOG_INFO,
-         "DW xfer %s remaining=%zu words=%zu blksz=%u BLKSIZ=%" PRIu32
-         " BYTCNT=%" PRIu32 "\n",
-         priv->is_write ? "写" : "读", priv->remaining, words,
-         priv->blocksize, dw_getreg(priv->base, DWMMC_BLKSIZ),
-         dw_getreg(priv->base, DWMMC_BYTCNT));
-#endif
+  /* One deadline covers FIFO movement and DATA_OVER. A byte-mode CMD53
+   * need not be word aligned; BYTCNT limits the last FIFO word on the wire.
+   */
 
-  for (us = 0; us < 2000000 && done < words; us++)
+  for (; ; )
     {
       sts = dw_getreg(priv->base, DWMMC_RINTSTS);
-
-      if (sts & DWMMC_INT_DATA_ERROR)
+      if ((sts & DWMMC_INT_DATA_ERROR) != 0)
         {
-          syslog(LOG_ERR,
-                 "ERROR: DWMMC 数据错误 RINTSTS=0x%08" PRIx32
-                 " 已传 %zu/%zu 字\n", sts, done, words);
-          dw_putreg(priv->base, DWMMC_RINTSTS, DWMMC_INT_DATA_ERROR);
-          return -EIO;
+          syslog(LOG_ERR, "DWMMC: data error sts=%08" PRIx32
+                 " bytes=%zu/%zu\n", sts, done, length);
+          dw_putreg(priv->base, DWMMC_RINTSTS,
+                    sts & DWMMC_INT_DATA_ERROR);
+          return (sts & (DWMMC_INT_DRTO | DWMMC_INT_HTO)) != 0 ?
+                 -ETIMEDOUT : -EIO;
         }
 
-      if (priv->is_write)
-        {
-          /* FIFO 未满就继续灌 */
+      /* Errors take priority even when DATA_OVER arrives at the same time.
+       * On reads, DATA_OVER may precede draining the final FIFO word.
+       */
 
-          while (done < words &&
-                 (dw_getreg(priv->base, DWMMC_STATUS) & DWMMC_STATUS_FIFO_FULL) == 0)
-            {
-              dw_putreg(priv->base, priv->fifo_off, p[done++]);
-            }
-        }
-      else
-        {
-          uint32_t fcnt = DWMMC_GET_FCNT(dw_getreg(priv->base, DWMMC_STATUS));
-
-          while (done < words && fcnt-- > 0)
-            {
-              p[done++] = dw_getreg(priv->base, priv->fifo_off);
-            }
-        }
-
-      if (done < words)
-        {
-          up_udelay(1);
-        }
-    }
-
-  if (done < words)
-    {
-      syslog(LOG_ERR,
-             "ERROR: DWMMC 数据传输超时 已传 %zu/%zu 字 STATUS=0x%08"
-             PRIx32 "\n", done, words, dw_getreg(priv->base, DWMMC_STATUS));
-      return -ETIMEDOUT;
-    }
-
-  /* 等 DATA_OVER —— 数据搬完不等于卡那边结束。 */
-
-  for (us = 0; us < 500000; us++)
-    {
-      if (dw_getreg(priv->base, DWMMC_RINTSTS) & DWMMC_INT_DATA_OVER)
+      if (done == length && (sts & DWMMC_INT_DATA_OVER) != 0)
         {
           dw_putreg(priv->base, DWMMC_RINTSTS, DWMMC_INT_DATA_OVER);
           return OK;
         }
 
-      up_udelay(1);
+      if (clock_systime_ticks() - start >= timeout)
+        {
+          syslog(LOG_ERR, "DWMMC: transfer timeout sts=%08" PRIx32
+                 " bytes=%zu/%zu host=%" PRIu32 " card=%" PRIu32 "\n",
+                 sts, done, length,
+                 dw_getreg(priv->base, DWMMC_TBBCNT),
+                 dw_getreg(priv->base, DWMMC_TCBCNT));
+          return -ETIMEDOUT;
+        }
+
+      status = dw_getreg(priv->base, DWMMC_STATUS);
+      if (done < length &&
+          (priv->is_write ? (status & DWMMC_STATUS_FIFO_FULL) == 0 :
+                           DWMMC_GET_FCNT(status) != 0))
+        {
+          count = length - done;
+          if (count > sizeof(word))
+            {
+              count = sizeof(word);
+            }
+
+          if (priv->is_write)
+            {
+              word = 0;
+              memcpy(&word, buffer + done, count);
+              dw_putreg(priv->base, priv->fifo_off, word);
+            }
+          else
+            {
+              word = dw_getreg(priv->base, priv->fifo_off);
+              memcpy(buffer + done, &word, count);
+            }
+
+          done += count;
+        }
+      else
+        {
+          /* PIO must service the FIFO before it overruns at transfer speed.
+           * A scheduler tick can exceed that interval; retain short polling
+           * under the transaction deadline until an IRQ/DMA path is ready.
+           */
+
+          up_udelay(1);
+        }
     }
-
-  /* ★ TBBCNT 与 TCBCNT 是两个独立的计数器，正好把"数据卡在哪一段"
-   * 分开：
-   *     TBBCNT  主机 <-> FIFO 已传字节数
-   *     TCBCNT  FIFO <-> 卡   已传字节数
-   *
-   *   TBBCNT 够而 TCBCNT 为 0  -> FIFO 没有往卡里排，问题在卡时钟或
-   *                               FIFO 水位配置
-   *   两者都够但没有 DATA_OVER -> 数据已送达，卡还没给出结束信号
-   *   TBBCNT 不够              -> 我们自己没把数据推完
-   */
-
-  syslog(LOG_ERR,
-         "ERROR: DWMMC 等 DATA_OVER 超时 RINTSTS=0x%08" PRIx32
-         " STATUS=0x%08" PRIx32 " 主机侧=%" PRIu32 " 卡侧=%" PRIu32
-         " 字节（应为 %zu）\n",
-         dw_getreg(priv->base, DWMMC_RINTSTS), dw_getreg(priv->base, DWMMC_STATUS),
-         dw_getreg(priv->base, DWMMC_TBBCNT), dw_getreg(priv->base, DWMMC_TCBCNT),
-         words * 4);
-  return -ETIMEDOUT;
 }
 
 static void rk3576_dwmmc_waitenable(struct sdio_dev_s *dev,
@@ -1824,13 +1929,37 @@ static sdio_eventset_t rk3576_dwmmc_eventwait(struct sdio_dev_s *dev)
       return SDIOWAIT_TRANSFERDONE;
     }
 
-  ret = dw_pio_transfer(priv);
+  /* CMD53 helpers call SENDCMD -> EVENTWAIT -> RECVR5 without an explicit
+   * WAITRESPONSE. Complete the command before moving its payload. SD block
+   * clients have already waited, so their cached result must be preserved.
+   */
+
+  ret = priv->last_result;
+  if (ret == -EBUSY)
+    {
+      ret = rk3576_dwmmc_waitresponse(dev, priv->command);
+    }
+
+  if (ret == OK)
+    {
+      ret = dw_pio_transfer(priv);
+    }
+
+  if (ret < 0)
+    {
+      rk3576_dwmmc_cancel(dev);
+    }
 
   priv->buffer     = NULL;
   priv->remaining  = 0;
   priv->waitevents = 0;
 
-  return (ret == OK) ? SDIOWAIT_TRANSFERDONE : SDIOWAIT_ERROR;
+  if (ret == -ETIMEDOUT)
+    {
+      return SDIOWAIT_TIMEOUT;
+    }
+
+  return ret == OK ? SDIOWAIT_TRANSFERDONE : SDIOWAIT_ERROR;
 }
 
 static void rk3576_dwmmc_callbackenable(struct sdio_dev_s *dev,
@@ -1909,6 +2038,11 @@ struct sdio_dev_s *rk3576_dwmmc_initialize(uint32_t base)
     base == RK3576_DWMMC_SD_BASE ? &g_dwmmc_sd : &g_dwmmc_sdio;
   uint32_t hcon;
   uint32_t depth;
+
+  if (dwmmc_hw(base) == NULL)
+    {
+      return NULL;
+    }
 
   memset(priv, 0, sizeof(*priv));
   priv->base   = base;

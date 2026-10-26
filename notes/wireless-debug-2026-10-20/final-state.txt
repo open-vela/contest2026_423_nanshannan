@@ -1,0 +1,14 @@
+
+NuttShell (NSH)
+nsh> [Ki2c get -b 2 -a 0x51 -r 0x0d; mw 26046214 8; mw 2604602c 8; mw 272004a0; mw 2ae10070; ls -l /tmp/sdio-tf-a.bin; ls -l /tmp/sdio-tf-b.bin; cmp /tmp/sdio-tf-a.bin /tmp/sdio-tf-b.bin; echo cmp_status=$?
+READ Bus: 2 Addr: 51 Subaddr: 0d Value: b0
+  0x26046214 = 0x000000ff
+  0x26046218 = 0x000000ff
+  0x2604602c = 0x00006666
+  0x26046030 = 0x00006666
+  0x272004a0 = 0x00002fbb
+  0x2ae10070 = 0x00ed0bff
+ -rwxrwxrwx   0       32768 /tmp/sdio-tf-a.bin
+ -rwxrwxrwx   0       32768 /tmp/sdio-tf-b.bin
+cmp_status=0
+nsh> 

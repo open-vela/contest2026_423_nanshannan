@@ -76,6 +76,7 @@ apply upstream/frameworks-uv.patch           frameworks/system/utils/uv
 apply upstream/posixspawn-enoent-not-error.patch nuttx
 apply upstream/stdio-stream-limit-open-max.patch nuttx
 apply upstream/bmi160-spi-only-guard.patch    nuttx
+apply upstream/sdio-cmd53-pio-errors.patch   nuttx
 apply upstream/gicv2-shared-dist.patch       nuttx
 apply upstream/es8388-capture-reset.patch    nuttx
 apply upstream/bcm4343x-speed-kconfig.patch  nuttx

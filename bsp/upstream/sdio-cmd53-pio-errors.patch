@@ -1,0 +1,317 @@
+diff --git a/drivers/mmcsd/sdio.c b/drivers/mmcsd/sdio.c
+index a259fa8e..73e594ad 100644
+--- a/drivers/mmcsd/sdio.c
++++ b/drivers/mmcsd/sdio.c
+@@ -31,6 +31,7 @@
+ 
+ #include <nuttx/compiler.h>
+ #include <nuttx/arch.h>
++#include <nuttx/clock.h>
+ #include <nuttx/sdio.h>
+ #include <nuttx/signal.h>
+ 
+@@ -40,6 +41,11 @@
+ 
+ #define SDIO_CMD53_TIMEOUT_MS 1000
+ #define SDIO_IDLE_DELAY_MS    50
++#define SDIO_READY_TIMEOUT_MS 1000
++#define SDIO_READY_POLL_US    10000
++#define SDIO_R4_READY         (1u << 31)
++#define SDIO_R4_FUNCTIONS     (7u << 28)
++#define SDIO_R4_VOLTAGES      0x00ffffffu
+ 
+ /****************************************************************************
+  * Private Types
+@@ -167,6 +173,21 @@ static int sdio_sendcmdpoll(FAR struct sdio_dev_s *dev,
+   return ret;
+ }
+ 
++static int sdio_transfer_setup(FAR struct sdio_dev_s *dev, bool write,
++                               FAR uint8_t *buffer, size_t length)
++{
++#ifdef CONFIG_SDIO_DMA
++  if ((SDIO_CAPABILITIES(dev) & SDIO_CAPS_DMASUPPORTED) != 0)
++    {
++      return write ? SDIO_DMASENDSETUP(dev, buffer, length) :
++                     SDIO_DMARECVSETUP(dev, buffer, length);
++    }
++#endif
++
++  return write ? SDIO_SENDSETUP(dev, buffer, length) :
++                 SDIO_RECVSETUP(dev, buffer, length);
++}
++
+ /****************************************************************************
+  * Public Functions
+  ****************************************************************************/
+@@ -180,6 +201,11 @@ int sdio_io_rw_direct(FAR struct sdio_dev_s *dev, bool write,
+   uint32_t data;
+   int ret;
+ 
++  if (dev == NULL || function > 7 || address > 0x1ffff)
++    {
++      return -EINVAL;
++    }
++
+   /* Setup CMD52 argument */
+ 
+   arg.value = 0;
+@@ -200,9 +226,18 @@ int sdio_io_rw_direct(FAR struct sdio_dev_s *dev, bool write,
+ 
+   /* Send CMD52 command */
+ 
+-  sdio_takelock(dev);
+-  sdio_sendcmdpoll(dev, SD_ACMD52, arg.value);
+-  ret = SDIO_RECVR5(dev, SD_ACMD52, &data);
++  ret = sdio_takelock(dev);
++  if (ret < 0)
++    {
++      return ret;
++    }
++
++  ret = sdio_sendcmdpoll(dev, SD_ACMD52, arg.value);
++  if (ret == OK)
++    {
++      ret = SDIO_RECVR5(dev, SD_ACMD52, &data);
++    }
++
+   sdio_givelock(dev);
+ 
+   if (ret != OK)
+@@ -215,7 +250,8 @@ int sdio_io_rw_direct(FAR struct sdio_dev_s *dev, bool write,
+ 
+   /* Check for errors */
+ 
+-  if (resp.flags.error)
++  if (resp.flags.error || resp.flags.com_crc_error ||
++      resp.flags.illegal_command)
+     {
+       return -EIO;
+     }
+@@ -243,9 +279,28 @@ int sdio_io_rw_extended(FAR struct sdio_dev_s *dev, bool write,
+   union sdio_cmd5x arg;
+   struct sdio_resp_r5 resp;
+   uint32_t data;
++  uint32_t abort_response;
++  unsigned int length;
+   int ret;
+   sdio_eventset_t wkupevent;
+ 
++  /* Do not silently truncate addresses or the nine-bit count. A zero count
++   * in block mode means an unbounded transfer, which this API cannot own.
++   */
++
++  if (dev == NULL || buf == NULL || function > 7 || address > 0x1ffff ||
++      blocklen == 0 || blocklen > 0xffff || nblocks > 511 ||
++      (nblocks == 0 && blocklen > 512))
++    {
++      return -EINVAL;
++    }
++
++  length = blocklen * (nblocks == 0 ? 1 : nblocks);
++  if (inc_addr && length > 0x20000 - address)
++    {
++      return -EINVAL;
++    }
++
+   /* Setup CMD53 argument */
+ 
+   arg.value = 0;
+@@ -270,7 +325,11 @@ int sdio_io_rw_extended(FAR struct sdio_dev_s *dev, bool write,
+       arg.cmd53.byte_block_count = nblocks;
+     }
+ 
+-  sdio_takelock(dev);
++  ret = sdio_takelock(dev);
++  if (ret < 0)
++    {
++      return ret;
++    }
+ 
+   /* Send CMD53 command */
+ 
+@@ -287,26 +346,58 @@ int sdio_io_rw_extended(FAR struct sdio_dev_s *dev, bool write,
+ 
+       if ((SDIO_CAPABILITIES(dev) & SDIO_CAPS_DMABEFOREWRITE) != 0)
+         {
+-          SDIO_DMASENDSETUP(dev, buf, blocklen * nblocks);
+-          SDIO_SENDCMD(dev, SD_ACMD53WR, arg.value);
++          ret = sdio_transfer_setup(dev, true, buf, blocklen * nblocks);
++          if (ret < 0)
++            {
++              goto cancel;
++            }
++
++          ret = SDIO_SENDCMD(dev, SD_ACMD53WR, arg.value);
++          if (ret < 0)
++            {
++              goto cancel;
++            }
+ 
+           wkupevent = SDIO_EVENTWAIT(dev);
+           ret = SDIO_RECVR5(dev, SD_ACMD53WR, &data);
+         }
+       else
+         {
+-          sdio_sendcmdpoll(dev, SD_ACMD53WR, arg.value);
++          ret = sdio_sendcmdpoll(dev, SD_ACMD53WR, arg.value);
++          if (ret < 0)
++            {
++              goto cancel;
++            }
++
+           ret = SDIO_RECVR5(dev, SD_ACMD53WR, &data);
++          if (ret < 0)
++            {
++              goto cancel;
++            }
++
++          ret = sdio_transfer_setup(dev, true, buf, blocklen * nblocks);
++          if (ret < 0)
++            {
++              goto cancel;
++            }
+ 
+-          SDIO_DMASENDSETUP(dev, buf, blocklen * nblocks);
+           wkupevent = SDIO_EVENTWAIT(dev);
+         }
+     }
+   else
+     {
+       wlinfo("prep read %d\n", blocklen * nblocks);
+-      SDIO_DMARECVSETUP(dev, buf, blocklen * nblocks);
+-      SDIO_SENDCMD(dev, SD_ACMD53RD, arg.value);
++      ret = sdio_transfer_setup(dev, false, buf, blocklen * nblocks);
++      if (ret < 0)
++        {
++          goto cancel;
++        }
++
++      ret = SDIO_SENDCMD(dev, SD_ACMD53RD, arg.value);
++      if (ret < 0)
++        {
++          goto cancel;
++        }
+ 
+       wkupevent = SDIO_EVENTWAIT(dev);
+       ret = SDIO_RECVR5(dev, SD_ACMD53RD, &data);
+@@ -317,7 +408,7 @@ int sdio_io_rw_extended(FAR struct sdio_dev_s *dev, bool write,
+ 
+   /* There may not be a response to this, so don't look for one */
+ 
+-  SDIO_RECVR1(dev, SD_ACMD52ABRT, &data);
++  SDIO_RECVR1(dev, SD_ACMD52ABRT, &abort_response);
+   sdio_givelock(dev);
+ 
+   if (ret != OK)
+@@ -336,7 +427,8 @@ int sdio_io_rw_extended(FAR struct sdio_dev_s *dev, bool write,
+       return -ETIMEDOUT;
+     }
+ 
+-  if (resp.flags.error || (wkupevent & SDIOWAIT_ERROR))
++  if (resp.flags.error || resp.flags.com_crc_error ||
++      resp.flags.illegal_command || (wkupevent & SDIOWAIT_ERROR))
+     {
+       wlerr("error 1\n");
+       return -EIO;
+@@ -349,6 +441,11 @@ int sdio_io_rw_extended(FAR struct sdio_dev_s *dev, bool write,
+     }
+ 
+   return OK;
++
++cancel:
++  SDIO_CANCEL(dev);
++  sdio_givelock(dev);
++  return ret;
+ }
+ 
+ int sdio_set_wide_bus(FAR struct sdio_dev_s *dev)
+@@ -384,10 +481,16 @@ int sdio_probe(FAR struct sdio_dev_s *dev)
+   int ret;
+   int bit;
+   uint32_t data = 0;
++  uint32_t ocr;
++  clock_t start;
+ 
+   nxmutex_init(&dev->mutex);
+ 
+-  sdio_takelock(dev);
++  ret = sdio_takelock(dev);
++  if (ret < 0)
++    {
++      return ret;
++    }
+ 
+   /* Set device state from reset to idle */
+ 
+@@ -415,24 +518,58 @@ int sdio_probe(FAR struct sdio_dev_s *dev)
+       goto err;
+     }
+ 
+-  /* Get the maximun and minimum values for VDD */
++  /* Only voltage bits may be used as the next CMD5 argument. A memory-only
++   * card or a response with no voltage window is not an SDIO function.
++   */
+ 
+-  bit = ffs(data);
+-  if (bit)
+-    {
+-      bit -= 1;
+-      data &= 3 << bit;
+-    }
+-  else
++  ocr = data & SDIO_R4_VOLTAGES;
++  if (ocr == 0 || (data & SDIO_R4_FUNCTIONS) == 0)
+     {
+-      ret = -EINVAL;
++      ret = -ENODEV;
+       goto err;
+     }
+ 
+-  ret = sdio_sendcmdpoll(dev, SDIO_CMD5, data);
+-  if (ret != OK)
++  bit = ffs(ocr) - 1;
++  ocr &= 3u << bit;
++  start = clock_systime_ticks();
++
++  /* CMD0 above resets the card again, even when a board-level diagnostic
++   * already observed READY. Read every R4 and do not request an RCA until
++   * this initialization sequence has completed.
++   */
++
++  for (; ; )
+     {
+-      goto err;
++      if (clock_systime_ticks() - start >= MSEC2TICK(SDIO_READY_TIMEOUT_MS))
++        {
++          ret = -ETIMEDOUT;
++          goto err;
++        }
++
++      ret = sdio_sendcmdpoll(dev, SDIO_CMD5, ocr);
++      if (ret != OK)
++        {
++          goto err;
++        }
++
++      ret = SDIO_RECVR4(dev, SDIO_CMD5, &data);
++      if (ret != OK)
++        {
++          goto err;
++        }
++
++      if ((data & SDIO_R4_FUNCTIONS) == 0 || (data & ocr) == 0)
++        {
++          ret = -ENODEV;
++          goto err;
++        }
++
++      if ((data & SDIO_R4_READY) != 0)
++        {
++          break;
++        }
++
++      nxsig_usleep(SDIO_READY_POLL_US);
+     }
+ 
+   /* Device is in Card Identification Mode, request device RCA */

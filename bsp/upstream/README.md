@@ -8,6 +8,7 @@ openvela 工程的其它仓里。按《新平台适配指南》「不得修改�
 
 | 补丁 | 仓 | 内容 |
 |---|---|---|
+| `sdio-cmd53-pio-errors.patch` | `nuttx` | CMD5 等待 READY 并校验 OCR；CMD52/CMD53 拒绝参数截断；CMD53 根据能力选择 PIO/DMA；检查锁、setup、发送失败并清理；保留原始 R5，避免后续 CMD52 覆盖错误；CMD52/CMD53 检查 CRC 和非法命令标志。配套主机回归见 `tests/sdio/`，SKW 实板枚举仍待验证。 |
 | `gicv2-shared-dist.patch` | `nuttx` | 新增 `CONFIG_ARM64_GICV2_SHARED_DIST`：AMP 下 GIC distributor 归 Linux，NuttX 不复位 SPI、不写 GICD_CTLR；ICDICFR（4 个 IRQ 挤一个字节）只校验不写；ITARGETSR / IPRIORITYR 按字节写，把自己用的 SPI 的目标核改成本核（Linux 会把所有 SPI 都指向 A72，不改的话中断型驱动无声挂住）。**amp-dual defconfig 依赖它**：补丁缺失时 olddefconfig 会静默丢掉这一项，NuttX 复位共享的 distributor，Linux 侧中断全乱。 |
 | `es8388-capture-reset.patch` | `nuttx` | ① `AUDIOIOC_CONFIGURE` 先保存采样率/声道/位宽、后调 `es8388_reset()`，reset 把它们恢复成编译期默认值 —— 请求的格式被静默替换。改为 reset 之后再保存。② 录音全零：reset 没写 CHIPLOPOW1/2（热重启继承上一个系统留下的低功耗位），CONTROL1 关着 ENREF、CONTROL2 用低功耗 VREF 缓冲。按厂商 Linux 驱动录音时的寄存器值（CONTROL1 0x36、CONTROL2 0x60、ADCCONTROL4 0x4c、ADCCONTROL7 0x30）改正。 |
 | `bcm4343x-speed-kconfig.patch` | `nuttx` | 工作波特率写死 2000000；24MHz 时钟的 16550 只能 16·n 分频，2M 实际落在 1.5M，控制器被告知切到主机达不到的速率，链路变成噪声。加 `CONFIG_BLUETOOTH_BCM4343X_SPEED`（默认仍 2000000）；顺带 `%x` 配 `ptrdiff_t` 改 `%tx`。 |

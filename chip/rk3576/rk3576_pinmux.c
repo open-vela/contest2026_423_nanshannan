@@ -171,7 +171,8 @@ int rk3576_pinmux_get(int bank, int pin)
  *   寄存器排布出处 drivers/pinctrl/pinctrl-rockchip.c
  *   rk3576_calc_pull_reg_and_bit()：每引脚 2 位，每寄存器 8 个引脚，
  *   bank0 以 pin12 为界分成两段（与 iomux 的分段是两码事，偏移也不同）。
- *   编码（PULL_TYPE_IO_DEFAULT）：0=关 1=上拉 2=下拉 3=保持。
+ *   RK3576_PIN_BANK selects PULL_TYPE_IO_1 for every bank:
+ *   0/2 = disabled, 1 = pull-down, 3 = pull-up. No bus hold.
  *
  ****************************************************************************/
 
@@ -227,7 +228,8 @@ int rk3576_pinmux_setpull(int bank, int pin, unsigned int pull)
   int shift;
   int ret;
 
-  if (pull > 3)
+  if (pull != RK3576_PULL_NONE && pull != RK3576_PULL_UP &&
+      pull != RK3576_PULL_DOWN)
     {
       return -EINVAL;
     }
@@ -253,7 +255,8 @@ int rk3576_pinmux_setpull(int bank, int pin, unsigned int pull)
  *   读回来却是别处的值，只有把设与读配对才能证明这一环成立。
  *
  * Returned Value:
- *   0=关 1=上拉 2=下拉 3=保持；参数非法返回负值。
+ *   Raw encoding: 0/2 disabled, 1 pull-down, 3 pull-up.
+ *   Invalid bank or pin arguments return -EINVAL.
  *
  ****************************************************************************/
 

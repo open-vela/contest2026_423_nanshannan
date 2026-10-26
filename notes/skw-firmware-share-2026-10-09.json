@@ -1,0 +1,133 @@
+{
+  "validation": "structure only; boot and authenticity are not verified",
+  "images": {
+    "iram": {
+      "size": 356616,
+      "sha256": "07d316bbf4dd18cc95671366c5001560f272026454fef1f6e134eb197189a169",
+      "crc16_xmodem": "d34b"
+    },
+    "dram": {
+      "size": 193224,
+      "sha256": "7ddaae63b3281a4127565b2a7306fc74f8e5c7e88343a43c56a17d05a27d2b4b",
+      "crc16_xmodem": "2a29"
+    },
+    "nv": {
+      "size": 220,
+      "sha256": "13e120659acd80066ea71db418cf8518e47086fa4c08cde2b28e63d41672f6ae",
+      "crc16_xmodem": "cb50"
+    }
+  },
+  "prepared_iram": {
+    "size": 356616,
+    "sha256": "c34715d1c883d98be46645c7a159834e390d97c28268b4df9f352b3227ad4654",
+    "crc16_xmodem": "5d11"
+  },
+  "metadata": {
+    "start": 236,
+    "end": 336,
+    "modules": [
+      {
+        "service": "bsp",
+        "image": "iram",
+        "source_address": 1114112,
+        "file_offset": 65536,
+        "destination_address": 1114112,
+        "size": 20232
+      },
+      {
+        "service": "bsp",
+        "image": "dram",
+        "source_address": 539131904,
+        "file_offset": 163840,
+        "destination_address": 539131904,
+        "size": 29224
+      },
+      {
+        "service": "wifi",
+        "image": "iram",
+        "source_address": 1134592,
+        "file_offset": 86016,
+        "destination_address": 1134592,
+        "size": 180020
+      },
+      {
+        "service": "wifi",
+        "image": "dram",
+        "source_address": 539058976,
+        "file_offset": 90912,
+        "destination_address": 539058976,
+        "size": 9664
+      },
+      {
+        "service": "wifi",
+        "image": "dram",
+        "source_address": 539033600,
+        "file_offset": 65536,
+        "destination_address": 539033600,
+        "size": 22852
+      },
+      {
+        "service": "bluetooth",
+        "image": "iram",
+        "source_address": 1314816,
+        "file_offset": 266240,
+        "destination_address": 1314816,
+        "size": 90376
+      },
+      {
+        "service": "bluetooth",
+        "image": "dram",
+        "source_address": 538978576,
+        "file_offset": 10512,
+        "destination_address": 538978576,
+        "size": 7400
+      }
+    ]
+  },
+  "nv": {
+    "slot_offset": 204,
+    "slot_size": 28,
+    "cmfg_size": 28,
+    "pnfg_size": 0,
+    "requires_post_ready_pin_config": false
+  },
+  "download_plan": [
+    {
+      "image": "dram",
+      "address": 538968064,
+      "size": 193224,
+      "function": 1,
+      "sdio_window": 15,
+      "increment_address": true,
+      "latch_once_at_start": true,
+      "chunk_size": 512,
+      "cmd53_count": 378,
+      "last_chunk_size": 200
+    },
+    {
+      "image": "iram",
+      "address": 1048576,
+      "size": 356616,
+      "function": 1,
+      "sdio_window": 15,
+      "increment_address": true,
+      "latch_once_at_start": true,
+      "chunk_size": 512,
+      "cmd53_count": 697,
+      "last_chunk_size": 264
+    }
+  ],
+  "completion": {
+    "function": 0,
+    "address": 352,
+    "value": 1,
+    "ready_sequence": [
+      "BSPREADY",
+      "RDVERSION",
+      "trunk_W"
+    ],
+    "requires_rx_transport": true
+  },
+  "nv_filename": "SWT6621S_NV_SDIO_SHARE.bin",
+  "antenna_selection_verified": false
+}

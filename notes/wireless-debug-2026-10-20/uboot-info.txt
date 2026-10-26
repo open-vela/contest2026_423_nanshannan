@@ -1,0 +1,21 @@
+
+=> version
+U-Boot 2017.09 (Sep 28 2026 - 00:15:06 +0800)
+
+aarch64-none-c (GNU Toolchain for the A-profile Architecture 10.3-2021.07 (arm-10.29)) 10.3.1 20210621
+GNU ld (GNU Toolchain for the A-profichitecture 10.3-2021.07 (arm-10.29)) 2.36.1.20210621
+=> help bootamp
+Unknown command 'bootamp' - try 'help' without arguments for lnown commands
+
+=> printenv bootcmd
+bootcmd=mmc dev 0;mmc read ${kernel_addr_r} 0xc800 0x18000;mmcaddr_r} 0x24800 0x800;mmc read ${ramdisk_addr_r} 0x25000 0x7800;booti ${kernel_addr_r} ${ramdisk_addr_r}:0xf00000 ${fdt_addr_r};ndroid ${devtype} ${devnum};boot_fit;bootrkp;run distro_bootcmd;
+=> mmc list
+mmc@2a310000: 1
+mmc@2a330000: 0 (eMMC)
+=> help rockusb
+rockusb - Use the rockusb Protocol
+
+Usage:
+rockusb <USB_convtype> <dev[:part]>  e.g. rockusb 0 mmc 0
+
+=> 

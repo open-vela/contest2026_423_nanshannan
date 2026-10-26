@@ -16,9 +16,11 @@
 
 #include <errno.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <syslog.h>
 
+#include <nuttx/arch.h>
 #include <nuttx/sdio.h>
 
 #include "skw6621s_sdio.h"
@@ -31,7 +33,7 @@
 #define SKW_VENDOR_ID                0x1ffe
 #define SKW_DEVICE_ID                0x6621
 #define SKW_CCCR_REVISION            0x000
-#define SKW_FBR1_CIS_POINTER         0x109
+#define SKW_CCCR_CIS_POINTER         0x009   /* 公共 CIS，MANFID 在这里 */
 #define SKW_CIS_END                  0x1ffff
 #define SKW_CIS_MAX_WALK             1024
 #define SKW_CIS_MANFID               0x20
@@ -65,7 +67,7 @@ static int skw_read_cis_pointer(FAR struct sdio_dev_s *sdio,
 
   for (i = 0; i < 3; i++)
     {
-      ret = skw_read_f0(sdio, SKW_FBR1_CIS_POINTER + i, &byte);
+      ret = skw_read_f0(sdio, SKW_CCCR_CIS_POINTER + i, &byte);
       if (ret < 0)
         {
           return ret;
@@ -86,7 +88,7 @@ static int skw_read_cis_pointer(FAR struct sdio_dev_s *sdio,
 static int skw_read_manfid(FAR struct sdio_dev_s *sdio,
                            FAR uint16_t *vendor, FAR uint16_t *device)
 {
-  uint32_t pointer;
+  uint32_t pointer = 0;
   uint32_t walked = 0;
   uint8_t code;
   uint8_t length;
@@ -95,6 +97,9 @@ static int skw_read_manfid(FAR struct sdio_dev_s *sdio,
   int i;
 
   ret = skw_read_cis_pointer(sdio, &pointer);
+  syslog(LOG_INFO, "SKW6621S: CIS pointer ret=%d 0x%" PRIx32 "\n",
+         ret, pointer);
+  up_mdelay(10);
   if (ret < 0)
     {
       return ret;
@@ -115,6 +120,9 @@ static int skw_read_manfid(FAR struct sdio_dev_s *sdio,
         {
           break;
         }
+
+      syslog(LOG_INFO, "SKW6621S: CIS 0x%05" PRIx32 " tuple 0x%02x\n",
+             pointer - 1, code);
 
       if (code == 0x00)
         {
@@ -186,8 +194,12 @@ static int skw_read_identity(FAR struct sdio_dev_s *sdio,
         }
     }
 
+  /* The SDK reads this window with sdio_memcpy_fromio (incrementing CMD53).
+   * Fixed-address transfers are used for the separate packet FIFO at 0x20.
+   */
+
   return sdio_io_rw_extended(sdio, false, SKW_FUNCTION,
-                             SKW_DIRECT_WINDOW, false, identity, 16, 0);
+                             SKW_DIRECT_WINDOW, true, identity, 16, 0);
 }
 
 /****************************************************************************
@@ -214,13 +226,22 @@ int skw6621s_sdio_probe(FAR struct sdio_dev_s *sdio,
       return ret;
     }
 
+  syslog(LOG_INFO, "SKW6621S: standard SDIO probe OK\n");
+  up_mdelay(10);
+
   ret = skw_read_f0(sdio, SKW_CCCR_REVISION, &probe.cccr_revision);
+  syslog(LOG_INFO, "SKW6621S: CCCR revision ret=%d val=%02x\n",
+         ret, probe.cccr_revision);
+  up_mdelay(10);
   if (ret < 0 || probe.cccr_revision == 0)
     {
       return ret < 0 ? ret : -ENODEV;
     }
 
   ret = skw_read_manfid(sdio, &probe.vendor, &probe.device);
+  syslog(LOG_INFO, "SKW6621S: CIS MANFID ret=%d %04x:%04x\n",
+         ret, probe.vendor, probe.device);
+  up_mdelay(10);
   if (ret < 0)
     {
       return ret;
@@ -241,6 +262,11 @@ int skw6621s_sdio_probe(FAR struct sdio_dev_s *sdio,
     }
 
   ret = skw_read_identity(sdio, probe.identity);
+  syslog(LOG_INFO, "SKW6621S: identity ret=%d %02x %02x %02x %02x %02x %02x"
+         " %02x %02x\n", ret, probe.identity[0], probe.identity[1],
+         probe.identity[2], probe.identity[3], probe.identity[4],
+         probe.identity[5], probe.identity[6], probe.identity[7]);
+  up_mdelay(10);
   if (ret < 0)
     {
       return ret;

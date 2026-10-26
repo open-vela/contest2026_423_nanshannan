@@ -1,0 +1,161 @@
+cat /sys/bus/sdio/devices/mmc2:0001:1/vendor /sys/bus/sdio/devices/mmc2:0001
+:1/device
+0x1ffe
+0x6621
+~ # echo on > /sys/bus/platform/devices/2a320000.mmc/power/control
+~ # cat /sys/kernel/debug/mmc2/ios /sys/kernel/debug/mmc2/regs
+clock:		200000000 Hz
+actual clock:	198000000 Hz
+vdd:		21 (3.3 ~ 3.4 V)
+bus mode:	2 (push-pull)
+chip select:	0 (don't care)
+power mode:	2 (on)
+bus width:	2 (4 bits)
+timing spec:	6 (sd uhs SDR104)
+signal voltage:	1 (1.80 V)
+driver type:	0 (driver type B)
+STATUS:	0x0001a106
+RINTSTS:	0x01000020
+CMD:	0x20000174
+CTRL:	0x02000030
+INTMASK:	0x0000b7cf
+CLKENA:	0x00010001
+~ # for a in 0x272004a0 0x272008a8 0x2604402c 0x26044030 0x26044034 0x2604602c 0
+x26046030 0x26046114 0x26046118 0x26046214 0x26046218 0x2ae10000 0x2ae10004 0x2a
+e10008 0x2ae1000c 0x2ae10070; do printf "%s " "$a"; devmem "$a" 32; done
+0x272004a0 0x00002F02
+0x272008a8 0x0000E000
+0x2604402c 0x00002222
+0x26044030 0x00009922
+0x26044034 0x00000099
+0x2604602c 0x00002222
+0x26046030 0x00006622
+0x26046114 0x0000FFD7
+0x26046118 0x00007F0F
+0x26046214 0x000000FF
+0x26046218 0x000000FF
+0x2ae10000 0x00000000
+0x2ae10004 0x00000140
+0x2ae10008 0x00000000
+0x2ae1000c 0x000001C0
+0x2ae10070 0x017DF9FF
+~ # for a in 0x2a320000 0x2a320004 0x2a320008 0x2a32000c 0x2a320010 0x2a320014 0
+x2a320018 0x2a320024 0x2a32002c 0x2a320030 0x2a320044 0x2a320048 0x2a320074 0x2a
+320078 0x2a320080 0x2a320130 0x2a320134; do printf "%s " "$a"; devmem "$a" 32; d
+one
+0x2a320000 0x02000030
+0x2a320004 0x00000001
+0x2a320008 0x00000000
+0x2a32000c 0x00000000
+0x2a320010 0x00010001
+0x2a320014 0xFFFFFFFF
+0x2a320018 0x00000001
+0x2a320024 0x0000B7CF
+0x2a32002c 0x20000174
+0x2a320030 0x000010FF
+0x2a320044 0x01000020
+0x2a320048 0x0001A106
+0x2a320074 0x00000001
+0x2a320078 0x00000001
+0x2a320080 0x00000382
+0x2a320130 0x00000004
+0x2a320134 0x00000002
+~ # cat /sys/kernel/debug/clk/clk_summary | grep -iE "sdio|hym|32k"
+ hym8563                              1        1        0       32768          0     0  50000         Y
+          cclk_src_sdio               1        2        0   396000000          0     0  50000         Y
+                hclk_sdio             1        2        0   198000000          0     0  50000         Y
+ xin32k                               0        0        0       32768          0     0  50000         Y
+~ # cat /sys/kernel/debug/regulator/regulator_summary
+ regulator                      use open bypass  opmode voltage current     min     max
+---------------------------------------------------------------------------------------
+ regulator-dummy                  3    5      0 unknown     0mV     0mA     0mV     0mV 
+    8-0037-dovdd                  0                                 0mA     0mV     0mV
+    8-0037-dvdd                   0                                 0mA     0mV     0mV
+    2a230000.ethernet-phy         1                                 0mA     0mV     0mV
+    2a220000.ethernet-phy         1                                 0mA     0mV     0mV
+    regulator-dummy               0                                 0mA     0mV     0mV
+ vcc12v_dcin                      3    3      0 unknown 12000mV     0mA 12000mV 12000mV 
+    vcc12v_dcin                   0                                 0mA     0mV     0mV
+    vcc_sys                      15   17      0 unknown  5000mV     0mA  5000mV  5000mV 
+       vcc_sys                    0                                 0mA     0mV     0mV
+       vcc_2v0_pldo_s3            4    4      0 unknown  2000mV     0mA  2000mV  2000mV 
+          vcc_2v0_pldo_s3         0                                 0mA     0mV     0mV
+          vcca_1v8_s0             2    2      0 unknown  1800mV     0mA  1800mV  1800mV 
+             2ae00000.adc-vref    1                                 0mA     0mV     0mV
+             vcca_1v8_s0          0                                 0mA     0mV     0mV
+          vcca1v8_pldo2_s0        1    1      0 unknown  1800mV     0mA  1800mV  1800mV 
+             vcca1v8_pldo2_s0     0                                 0mA     0mV     0mV
+          vdda_1v2_s0             1    1      0 unknown  1200mV     0mA  1200mV  1200mV 
+             vdda_1v2_s0          0                                 0mA     0mV     0mV
+       vcc_1v1_nldo_s3            6    6      0 unknown  1100mV     0mA  1100mV  1100mV 
+          vcc_1v1_nldo_s3         0                                 0mA     0mV     0mV
+          vdd_0v75_s3             1    1      0 unknown   750mV     0mA   750mV   750mV 
+             vdd_0v75_s3          0                                 0mA     0mV     0mV
+          vdda_ddr_pll_s0         1    1      0 unknown   850mV     0mA   850mV   850mV 
+             vdda_ddr_pll_s0      0                                 0mA     0mV     0mV
+          vdda0v75_hdmi_s0        1    1      0 unknown   837mV     0mA   837mV   837mV 
+             vdda0v75_hdmi_s0     0                                 0mA     0mV     0mV
+          vdda_0v85_s0            1    1      0 unknown   850mV     0mA   850mV   850mV 
+             vdda_0v85_s0         0                                 0mA     0mV     0mV
+          vdda_0v75_s0            1    1      0 unknown   750mV     0mA   750mV   750mV 
+             vdda_0v75_s0         0                                 0mA     0mV     0mV
+       vcc3v3_rtc_s5              1    1      0 unknown  3300mV     0mA  3300mV  3300mV 
+          vcc3v3_rtc_s5           0                                 0mA     0mV     0mV
+       vdd_cpu_big_s0             1    2      0  normal   712mV     0mA   550mV   950mV 
+          cpu4-cpu                0                                 0mA   712mV   950mV
+          vdd_cpu_big_s0          0                                 0mA     0mV     0mV
+       vdd_npu_s0                 0    4      0  normal   725mV     0mA   550mV   950mV 
+          rockchip-suspend-vdd_npu_s0   0                                 0mA     0mV     0mV
+          27700000.npu-rknpu      0                                 0mA   725mV   950mV
+          27700000.npu-rknpu      0                                 0mA     0mV     0mV
+          vdd_npu_s0              0                                 0mA     0mV     0mV
+       vdd_cpu_lit_s0             1    2      0  normal   712mV     0mA   550mV   950mV 
+          cpu0-cpu                0                                 0mA   712mV   950mV
+          vdd_cpu_lit_s0          0                                 0mA     0mV     0mV
+       vcc_3v3_s3                 2    2      0  normal  3300mV     0mA  3300mV  3300mV 
+          vcc_3v3_s3              0                                 0mA     0mV     0mV
+          vcc_3v3_s0              1    1      0 unknown  3300mV     0mA  3300mV  3300mV 
+             vcc_3v3_s0           0                                 0mA     0mV     0mV
+       vdd_gpu_s0                 0    3      0  normal   712mV     0mA   550mV   900mV 
+          27800000.gpu-mali       0                                 0mA   712mV   900mV
+          27800000.gpu-mali       0                                 0mA     0mV     0mV
+          vdd_gpu_s0              0                                 0mA     0mV     0mV
+       vddq_ddr_s0                1    1      0  normal   750mV     0mA     0mV     0mV 
+          vddq_ddr_s0             0                                 0mA     0mV     0mV
+       vdd_logic_s0               1    2      0  normal   725mV     0mA   550mV   800mV 
+          dmc-mem                 0                                 0mA   725mV   800mV
+          vdd_logic_s0            0                                 0mA     0mV     0mV
+       vcc_1v8_s3                 2    2      0  normal  1800mV     0mA  1800mV  1800mV 
+          vcc_1v8_s3              0                                 0mA     0mV     0mV
+          vcc_1v8_s0              1    1      0 unknown  1800mV     0mA  1800mV  1800mV 
+             vcc_1v8_s0           0                                 0mA     0mV     0mV
+       vdd2_ddr_s3                1    1      0  normal   750mV     0mA     0mV     0mV 
+          vdd2_ddr_s3             0                                 0mA     0mV     0mV
+       vdd_ddr_s0                 1    2      0  normal   725mV     0mA   550mV  1200mV 
+          dmc-center              0                                 0mA   725mV  1200mV
+          vdd_ddr_s0              0                                 0mA     0mV     0mV
+       vcca_3v3_s0                1    1      0 unknown  3300mV     0mA  3300mV  3300mV 
+          vcca_3v3_s0             0                                 0mA     0mV     0mV
+       vccio_sd_s0                2    2      0 unknown  1800mV     0mA  1800mV  3300mV 
+          2a310000.mmc-vqmmc      1                                 0mA  1800mV  1950mV
+          vccio_sd_s0             0                                 0mA     0mV     0mV
+       vcca1v8_pldo6_s3           1    1      0 unknown  1800mV     0mA  1800mV  1800mV 
+          vcca1v8_pldo6_s3        0                                 0mA     0mV     0mV
+    vcc5v0_device                 2    3      0 unknown  5000mV     0mA  5000mV  5000mV 
+       vcc5v0_device              0                                 0mA     0mV     0mV
+       vcc5v0_host                3    2      0 unknown  5000mV     0mA  5000mV  5000mV 
+          phy-2602e000.syscon:usb2-phy@2000.1-phy   2                                 0mA     0mV     0mV
+          vcc5v0_host             0                                 0mA     0mV     0mV
+       vbus5v0_typec              0    2      0 unknown  5000mV     0mA  5000mV  5000mV 
+          2-004e-vbus             0                                 0mA     0mV     0mV
+          vbus5v0_typec           0                                 0mA     0mV     0mV
+ vcc_mipidcphy0                   1    1      0 unknown     0mV     0mA     0mV     0mV 
+    vcc_mipidcphy0                0                                 0mA     0mV     0mV
+ vcc_mipidphy1                    1    1      0 unknown     0mV     0mA     0mV     0mV 
+    vcc_mipidphy1                 0                                 0mA     0mV     0mV
+ vcc_mipidphy3                    1    2      0 unknown     0mV     0mA     0mV     0mV 
+    8-0037-avdd                   0                                 0mA     0mV     0mV
+    vcc_mipidphy3                 0                                 0mA     0mV     0mV
+~ # i2cget -f -y 2 0x51 0x0d
+0xb0
+~ # 

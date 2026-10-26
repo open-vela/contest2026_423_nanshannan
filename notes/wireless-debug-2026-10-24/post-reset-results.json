@@ -1,0 +1,44 @@
+[
+  {
+    "post_reset": false,
+    "low_power": true,
+    "cmd0": "0xa0004000",
+    "cmd52_read": {
+      "status": "0x104",
+      "response": "0x0"
+    },
+    "cmd52_reset": {
+      "status": "0x104",
+      "response": "0x0"
+    },
+    "cmd0_result": {
+      "status": "0x4",
+      "response": "0x0"
+    },
+    "cmd5": {
+      "status": "0x104",
+      "response": "0x0"
+    }
+  },
+  {
+    "post_reset": true,
+    "low_power": true,
+    "cmd0": "0xa0004000",
+    "cmd52_read": {
+      "status": "0x104",
+      "response": "0x0"
+    },
+    "cmd52_reset": {
+      "status": "0x104",
+      "response": "0x0"
+    },
+    "cmd0_result": {
+      "status": "0x4",
+      "response": "0x0"
+    },
+    "cmd5": {
+      "status": "0x104",
+      "response": "0x0"
+    }
+  }
+]

@@ -1,0 +1,57 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kmw 26046114 8
+ÿü  0x26046114 = 0x0000ffd7
+  0x26046118 = 0x000055ff
+nsh> ÿû[Kÿümw 2604602c 8
+ÿü  0x2604602c = 0x00006666
+  0x26046030 = 0x00006666
+nsh> ÿû[Kÿümw 272004a0
+ÿü  0x272004a0 = 0x00002fbb
+nsh> ÿû[Kÿümw 2a320044
+ÿü  0x2a320044 = 0x00000000
+nsh> ÿû[Kÿümw 2a320030
+ÿü  0x2a320030 = 0x00000000
+nsh> ÿû[Kÿüampctl status
+ÿü== rptun ==
+  å·²æ³¨å†Œ    : æ˜¯
+  æ¡æ‰‹å®Œæˆ  : æ˜¯
+  æ”¶åˆ°é—¨é“ƒ  : 1
+  å‘å‡ºé—¨é“ƒ  : 0
+  å‘è¢«æŒ¡å›ž  : 0
+  æœ€åŽæ”¶åˆ°  : cmd=00000003 data=524d5347
+== å…±äº«å†…å­˜ ==
+  vring0(å‘) : 47800000
+  vring1(æ”¶) : 47808000
+  ç¼“å†²æ±      : 47a00000 + 2048K
+== mailbox group3ï¼ˆæ”¶ï¼‰==
+  A2B_INTEN  00000101
+  A2B_STATUS 00000000
+  A2B_CMD    00000003
+  A2B_DATA   524d5347
+  B2A_INTEN  00000101
+  B2A_STATUS 00000000
+  B2A_CMD    00000000
+  B2A_DATA   00000000
+== mailbox group0ï¼ˆå‘ï¼‰==
+  A2B_INTEN  00000100
+  A2B_STATUS 00000000
+  A2B_CMD    00000000
+  A2B_DATA   00000000
+  B2A_INTEN  00000101
+  B2A_STATUS 00000000
+  B2A_CMD    00000000
+  B2A_DATA   00000000
+== rpmsg è®¾å¤‡ ==
+  /dev/rpmsg/linux å­˜åœ¨
+nsh> ÿû[Kÿüampctl exec uname -a
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 615s, 45 procs]
+Linux k7-linux 6.1.75 #17 SMP Sat Sep 19 14:46:39 +08 2026 aarch64
+nsh> ÿû[Kÿüdd if=/dev/mmcsd1 of=/tmp/sdio-pull-tf-a.bin bs=512 count=64
+ÿünsh> ÿû[Kÿüdd if=/dev/mmcsd1 of=/tmp/sdio-pull-tf-b.bin bs=512 count=64
+ÿünsh> ÿû[Kÿücmp /tmp/sdio-pull-tf-a.bin /tmp/sdio-pull-tf-b.bin
+ÿünsh> ÿû[Kÿüecho $?
+ÿü0
+nsh> ÿû[Kÿüls -l /tmp/sdio-pull-tf-a.bin
+ÿü -rwxrwxrwx   0       32768 /tmp/sdio-pull-tf-a.bin
+nsh> 

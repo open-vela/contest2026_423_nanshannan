@@ -1,0 +1,58 @@
+
+nsh> [Kuname -a
+NuttX  0.0.0 ed8f69ad-dirty Oct 20 2026 09:42:57 arm64 kickpi-sh> [Kampctl status
+== rptun ==
+  已注册    : 是
+  握手完成  : 是
+  �到门铃  : 1
+  发出门铃  : 0
+  发被挡回  : 0
+  最�md=00000003 data=524d5347
+== 共享内存 ==
+  vring0(发) : 47800000
+  vring1(收) : 4780800
+== mailbox group3（收）==
+  A2B_INTEN  00000101
+  A2B_STATUS 00000000
+  A2B_CMD    00000N  00000101
+  B2A_STATUS 00000000
+  B2A_CMD    00000000
+  B2A_DATA   00000000
+== mailbox gro00
+  A2B_STATUS 00000000
+  A2B_CMD    00000000
+  A2B_DATA   00000000
+  B2A_INTEN  00000101
+000000
+  B2A_DATA   00000000
+== rpmsg 设备 ==
+  /dev/rpmsg/linux 存在
+nsh> [Kbt probe
+[CPU0] PMU: sdgmac 已上电
+[CPU0] SDIO PWREN 00000000 -> 00000001
+[CPU0] SDIO GPIO1_12 mux[CPU0] SDIO GPIO1_13 mux=2 pull=1
+[CPU0] SDIO GPIO1_14 mux=2 pull=1
+[CPU0] SDIO GPIO1_15 mux=2 pull=1
+[CPU0] SDIO GPIO1_16 mux=2 pull=1
+[CPU0] SDIO GPIO1_17 mux=2 pull=1
+[CPU0] DWMMC: VERID=0x5342270a HCON=0x04c434c1 数据总线宽度=32 位
+[CPU0] DWMMC: FIFO 深256 不可插拔实例，跳过插卡检测
+[CPU0] DWMMC: 模组释放复位 WIFI_REG_ON(GPIO1_22)=1 BT_REG_��等 200 ms
+[CPU0] SDIO PWREN=00000001 CTYPE=00000001 DIV=00000000 SRC=00000000
+[CPU0] SDIO USRID=20230001
+[CPU0] SDIO phase before drv=00000004 sample=00000000
+[CPU0] SDIO phase after drv=00000002 sample=00000000
+[CPU0] SDIO idle CMD high=64/64 D0 high=0/64
+[CPU0] SDIO idle STATUS=00000206 UHS=00000000
+[CPU0] SDIO CMD52 read sts=00000002 resp=00000000
+[CPU0] SDIO CMD52 reset sts=00000002 resp=00000000
+[CPU0] DWMMC: CMD0 后 RINTSTS=0x00000004
+[CPU0] DWMMC: CMD5 第0次 RINTSTS=0x00000002 RESP0=0x00000000
+[CPU0] SDIO failed CMD=20000045 STATUS=00000206
+[CPU0] SDIO settled STS=00000006 RESP=00000000 PAD=1
+[CPU0] DWMMC: CMD5 response invalid RINTSTS=0x00000002 RESP0=0x00000000
+[CPU0] SKW6621S: RK3576 SDIO host probe failed: -5
+ret=-5
+nsh> [Kls /dev/mmcsd1
+ /dev/mmcsd1
+nsh> [K
