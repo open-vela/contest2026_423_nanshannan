@@ -41,6 +41,7 @@
 #include "arm64_internal.h"
 #include "rk3576_cru.h"
 #include "rk3576_wdt.h"
+#include "rk3576_reboot.h"
 #include "hardware/rk3576_memorymap.h"
 
 #ifdef CONFIG_RK3576_WDT
@@ -268,6 +269,11 @@ static int rk3576_wdt_start(FAR struct watchdog_lowerhalf_s *lower)
    */
 
   wdt_putreg(WDT_CR, WDT_CR_EN);
+
+  /* 上弦：若之后由看门狗复位，下次开机据此判 RWDT（见 rk3576_reboot.c） */
+
+  rk3576_bootmode_arm_watchdog();
+
   /* 上层重新接管了，取消驱动自己的喂狗 */
 
   priv->autofeeding = false;
@@ -385,14 +391,38 @@ static int rk3576_wdt_getstatus(FAR struct watchdog_lowerhalf_s *lower,
       status->flags |= WDFLAGS_ACTIVE;
     }
 
-  /* ★ 报告**实际生效**的超时，不是上层请求的值。档位是离散的，
-   * 两者往往不同；报请求值会让上层按一个并不存在的超时去安排喂狗。
+  /* ★ 报告请求的超时，timeleft 按"距请求的截止时刻"算（2026-10-25）。
+   *
+   *   档位是 2^(16+i) 个 tclk，不连续：请求 2000ms 实际是 2796ms。
+   *   wdt_top_for_ms() 总是取**不小于**请求值的档位，所以请求值是
+   *   "保证不会早于此刻咬狗"的下界 —— 上层据此安排喂狗只会比必要的
+   *   更勤，是安全方向。实际档位在 settimeout 时打到 syslog。
+   *
+   *   以前这里报实际值（与 Linux dw_wdt 一致），但 xTS 1.3.15 -r 3 要求
+   *   GETSTATUS 的 timeout 等于设定值（drivertest_watchdog.c:487），按
+   *   原文默认参数必然失败。
+   *
+   *   请求值超过最大档时实际值反而更小，那时下界是实际值，照实报。
    */
 
-  status->timeout = priv->actual_ms;
-
   ccvr = wdt_getreg(WDT_CCVR);
-  status->timeleft = (uint32_t)((uint64_t)ccvr * 1000 / WDT_TCLK_HZ);
+
+  if (priv->actual_ms >= priv->timeout_ms)
+    {
+      uint32_t left_hw = (uint32_t)((uint64_t)ccvr * 1000 / WDT_TCLK_HZ);
+      uint32_t elapsed = priv->actual_ms > left_hw ?
+                         priv->actual_ms - left_hw : 0;
+
+      status->timeout  = priv->timeout_ms;
+      status->timeleft = priv->timeout_ms > elapsed ?
+                         priv->timeout_ms - elapsed : 0;
+    }
+  else
+    {
+      status->timeout  = priv->actual_ms;
+      status->timeleft = (uint32_t)((uint64_t)ccvr * 1000 / WDT_TCLK_HZ);
+    }
+
   return OK;
 }
 

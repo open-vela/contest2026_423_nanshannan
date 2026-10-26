@@ -1,0 +1,682 @@
+[CPU0] default_fatal_handler: (IFSC/DFSC) for Data/Instruction aorts: level 2 translation fault
+[CPU0] arm64_exception_handler: CurrentEL: MODE_EL1
+[CPU0] arm64_exception_handler: ESR_ELn: 00006
+[CPU0] arm64_exception_handler: FAR_ELn: 0x10000000
+[CPU0] arm64_exception_handler: ELR_ELn: 0x4a438760
+[CPU0] print_ec_ DABT (current EL)
+[CPU0] print_ec_cause: Data Abort taken without a change in Exception level
+[CPU0] dump_assert_info: Current Version: NuttX  0.0.0 ed8f69ad-dirty Oct 25 2026 07:38:11 arm6rt_info: Assertion failed panic: at file: common/arm64_fatal.c:571 task(CPU0): Telnet_session pr0] up_dump_register: stack = 0x4a6f23d0
+[CPU0] up_dump_register: x0:   0x4a6f23d0          x1:  0x3c0               x3:   0x4b0e7620
+[CPU0] up_dump_register: x4:   0x1                 x5:   x0                 x7:   0x0
+[CPU0] up_dump_register: x8:   0x4a5fbb00          x9:   0x9600000                x11:  0x0
+[CPU0] up_dump_register: x12:  0x0                 x13:  0x0
+[CPU0]        x15:  0x0
+[CPU0] up_dump_register: x16:  0x4a425258          x17:  0x0
+[CPU0] up_dump_r9:  0x4a6f23d0
+[CPU0] up_dump_register: x20:  0x4b0e1e30          x21:  0x4a5be8e6
+[CPU0] up_d  x23:  0x4a5bdd69
+[CPU0] up_dump_register: x24:  0x1                 x25:  0x4a6f0000
+[CPU0]        x27:  0x23b
+[CPU0] up_dump_register: x28:  0x6                 x29:  0x4b0e7490
+[CPU0]      
+[CPU0] up_dump_register: 
+[CPU0] up_dump_register: STATUS Registers:
+[CPU0] up_dump_reg[CPU0] up_dump_register: SPSR:      0x20000045        
+[CPU0] up_dump_register: ELR:       0x4aer: SP_EL0:    0x0               
+[CPU0] up_dump_register: SP:        0x4b0e7480        
+[CPU0            
+[CPU0] dump_stackinfo: User Stack:
+[CPU0] dump_stkinfo:   base: 0x4b0e5e70
+[CPU0] dump_stackinfo:   size: 00007984
+[CPU0] dump_stackinfo:     sp: 0x4b0e7480
+[CPU0] stack_dump:  000000004b0e7440: 000000004a6f23d0 000000004a5bdbd2 00000000400000004b0e1e30 000000004a6f0000 00000000000003c0 000000000000023b 000000004b0e1f70
+[CPU0] stac0e1f70 000000004a434fbc 000000004b0e75d0 000000004a414c0c 000000004a5fa1b0 000000004a5c8542 0000stack_dump:  000000004b0e74c0: 000000004a6d8e88 000000004a5fa241 000000004a5c0f1e 00000000000000000000004b0e75d0 000007cf4a414bec
+[CPU0] stack_dump:  000000004b0e7500: 000000004b0e75d0 000000a6f23d0 000000004a5bdbd2 000000004a5bdd69 000000000000023b ffff00587474754e
+[CPU0] stack_dump: 00000000000000 0000000000000000 0000000000000000 0000000000000000 302e300000000000 0000000000003mp:  000000004b0e7580: 3936663864650000 79747269642d6461 2035322074634f20 3a37302036323032 00000ffffffe0 0000000000003436
+[CPU0] stack_dump:  000000004b0e75c0: 0000000000000000 0000000000000000000004b0e27b0 0000000000000000 0000000000000000 0000000000000004
+[CPU0] stack_dump:  00000000000000 000000004a5c0f1e 0000000000000000 0000000000000004 0000000000000000 0000000010000000 0000000004b0e7640: 000000004a435404 fefefefefefefeff 3c0c0c0c0c0c0c0c 0000000000000000 000000004a5fb0000000000000000
+[CPU0] stack_dump:  000000004b0e7680: 0000000000000000 0000000000000000 000000000002a 0000000000000000 0000000000000000 000000004b0e27b0
+[CPU0] stack_dump:  000000004b0e76c0000000000000004 0000000010000000 0000000010000000 000000004a5c0f1e 0000000000000000 000000004a5c7700: 0000000000000000 000000004b0e7960 000000004a4386fc 000000004b0e7960 000000004a438760 0000000000000
+[CPU0] stack_dump:  000000004b0e7740: 0000000030d0180d 0000000000000000 00000000000000ffffff80ffffffd0 0000000000000000 0000000000000000
+[CPU0] stack_dump:  000000004b0e7780: 000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000
+[CP00000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000
+[CPU0] stack_dump:  000000004b0e7800: 0000000000000000 0000000000000000 0000000000000000 000000000000 0000000000000000 0000000000000000
+[CPU0] stack_dump:  000000004b0e7840: 000000000000000000000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000
+[CPU0] stac000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000 0000 stack_dump:  000000004b0e78c0: 0000000000000000 0000000000000000 0000000000000000 00000000000000000000000000000 0000000000000000
+[CPU0] stack_dump:  000000004b0e7900: 0000000000000000 0000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000
+[CPU0] stack_dump: 000000000000000 0000000000000000 000000044a439e28 000000004b0e79c0 000000004a43865c 000000004b0emp:  000000004b0e7980: 0000000000000003 000000004b0e7b90 000000004b0e2adc 0000000000000003 0000000000018 0000000000000000
+[CPU0] stack_dump:  000000004b0e79c0: 000000004b0e7a00 000000004a435a000000004b0e7b90 0000000000000001 0000000000000000 000000004a435da8
+[CPU0] stack_dump:  00000004373ac 000000004b0e27b0 000000004b0e2adc 000000004b0e7b90 0000000000000003 0000000000000000 0000000004b0e7a40: 0000000000000002 0000000000000000 0000000000000018 0000000000000000 000000004b0e7 000000004a457c50
+[CPU0] stack_dump:  000000004b0e7a80: 000000004b0e7cf0 000000004a434fb4 00000b0e2adc 0000000000000001 0000000000000001 0000000000000000
+[CPU0] stack_dump:  000000004b0e7ac0000000000000000 0000000000000000 000000004b0e7b10 000000004a5fbb00 0000000000000000 000000000000e7b00: 0000000000000100 ffffffffffffffff 000000004b0e2aea 0000000000000000 0000000000000000 00004b0e7c50
+[CPU0] stack_dump:  000000004b0e7b40: 000000004b0e7c20 ffffffffffffffff 00000000ffffff0000000000000000 0000000000000000 0000000000000000
+[CPU0] stack_dump:  000000004b0e7b80: 000000b0e2adc 000000004b0e2adf 000000004b0e2ae8 0000000000000000 0000000000000000 0000000000000000
+[C00000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000
+[CPU0] stack_dump:  000000004b0e7c00: 0000000000000000 0000000000000000 0000000000000000 0000000000000 0000000000000000 0000000000000000
+[CPU0] stack_dump:  000000004b0e7c40: 00000000000000000000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000
+[CPU0] stac000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000 0000 stack_dump:  000000004b0e7cc0: 0000000000000000 0000000000000000 0000000000000000 0000000000000000000004b0e7d30 000000004a435008
+[CPU0] stack_dump:  000000004b0e7d00: 000000004b0e27b0 0000000000000 0000000000000000 000000004b0e1e30 000000004b0e7d60 000000004a42dd9c
+[CPU0] stack_dump: 00000004b0e1e30 000000004a434fbc 0000000000000000 000000004b0e7d70 000000004a41966c 000000000000mp:  000000004b0e7d80: 0000000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000 0000000000000000
+[CPU0] sched_dumpstack: backtrace|42: 0x000000004a438760 0x000000004aa4373ac 0x000000004a434fb4 0x000000004a435008 0x000000004a42dd9c 0x000000004a41966c
+[CPU0] dump up_dump_register: stack = 0x4a6f2710
+[CPU0] up_dump_register: x0:   0x0                 x1:   x2c0               x3:   0x1000
+[CPU0] up_dump_register: x4:   0x10                x5:   0x2a700x7fc2              x7:   0x6
+[CPU0] up_dump_register: x8:   0x2                 x9:   0xa20002                x11:  0x2
+[CPU0] up_dump_register: x12:  0x1c                x13:  0x16
+[CPU0]        x15:  0x2ad40000
+[CPU0] up_dump_register: x16:  0x0                 x17:  0x0
+[CPU0] u      x19:  0x0
+[CPU0] up_dump_register: x20:  0x0                 x21:  0x0
+[CPU0] up_dump_re  0x4a400094
+[CPU0] up_dump_register: x24:  0x4a769000          x25:  0x4a414278
+[CPU0] up_dum x27:  0x0
+[CPU0] up_dump_register: x28:  0x0                 x29:  0x4a768ff0
+[CPU0] up_dump_CPU0] up_dump_register: 
+[CPU0] up_dump_register: STATUS Registers:
+[CPU0] up_dump_register: Pp_dump_register: SPSR:      0x60000245        
+[CPU0] up_dump_register: ELR:       0x4a434c7c  L0:    0x4a769000        
+[CPU0] up_dump_register: SP:        0x4a768ff0        
+[CPU0] up_dumbeef
+[CPU0] dump_stackinfo: User Stack:
+[CPU0] dump_stackinfo:   base: 0x4a7670b0
+[CPU0] dumpump_stackinfo:     sp: 0x4a768ff0
+[CPU0] stack_dump:  000000004a768fb0: d55f5dcfffadff67 7ddff7abf3dde bbfcf0d0eff8d49f 74b75776d78f6fe5 0000000000000000 0000000000000000
+[CPU0] stack_dump: 00000004a400158 0000000000000000 0000000000000000 0000000000000000 0000000000000000 000000000000mpstack: backtrace| 1: 0x000000004a434c7c
+[CPU0] dump_fatal_info: Dump CPU2: PAUSED
+[CPU0] up_PU0] up_dump_register: x0:   0x0                 x1:   0x3
+[CPU0] up_dump_register: x2:   0x2c0p_dump_register: x4:   0x10                x5:   0x2a701100
+[CPU0] up_dump_register: x6:   0x7fump_register: x8:   0x2                 x9:   0xa200023
+[CPU0] up_dump_register: x10:  0xf     _register: x12:  0x1c                x13:  0x16
+[CPU0] up_dump_register: x14:  0x0             register: x16:  0x0                 x17:  0x0
+[CPU0] up_dump_register: x18:  0x0               x20:  0x0                 x21:  0x0
+[CPU0] up_dump_register: x22:  0x0                 x23:  0x4:  0x4a76b000          x25:  0x4a414278
+[CPU0] up_dump_register: x26:  0x0                 x27  0x0                 x29:  0x4a76aff0
+[CPU0] up_dump_register: x30:  0x4a415954        
+[CPU0egister: STATUS Registers:
+[CPU0] up_dump_register: PC:        0x4a434c7c        
+[CPU0] up_du     
+[CPU0] up_dump_register: ELR:       0x4a434c7c        
+[CPU0] up_dump_register: SP_EL0: _register: SP:        0x4a76aff0        
+[CPU0] up_dump_register: EXE_DEPTH: 0xdeadbeefdeadbeef[CPU0] dump_stackinfo:   base: 0x4a7690b0
+[CPU0] dump_stackinfo:   size: 00008016
+[CPU0] dump_ stack_dump:  000000004a76afb0: fbfeed7f6ffef3fd fffe67e0fff35f99 fb17dff5ffff23df f7f1fefbdf37f 0000000000000000 0000000000000000
+[CPU0] stack_dump:  000000004a76aff0: 0000000000000000 000000000000 0000000000000000 0000000000000000 0000000000000000 0000000000000000
+[CPU0] sched_dumpst
+[CPU0] dump_fatal_info: Dump CPU3: PAUSED
+[CPU0] up_dump_register: stack = 0x4a6f2d90
+[CPU0]        x1:   0x4
+[CPU0] up_dump_register: x2:   0x2c0               x3:   0x1000
+[CPU0] up_du x5:   0x2a701100
+[CPU0] up_dump_register: x6:   0x7fc2              x7:   0x6
+[CPU0] up_dump_9:   0xa200023
+[CPU0] up_dump_register: x10:  0xf                 x11:  0x2
+[CPU0] up_dump_reg  0x16
+[CPU0] up_dump_register: x14:  0x0                 x15:  0x2ad40000
+[CPU0] up_dump_regi0x0
+[CPU0] up_dump_register: x18:  0x0                 x19:  0x0
+[CPU0] up_dump_register: x20:0] up_dump_register: x22:  0x0                 x23:  0x4a400094
+[CPU0] up_dump_register: x24:  
+[CPU0] up_dump_register: x26:  0x0                 x27:  0x0
+[CPU0] up_dump_register: x28:  0xPU0] up_dump_register: x30:  0x4a415954        
+[CPU0] up_dump_register: 
+[CPU0] up_dump_regisp_register: PC:        0x4a434c7c        
+[CPU0] up_dump_register: SPSR:      0x60000245         0x4a434c7c        
+[CPU0] up_dump_register: SP_EL0:    0x4a76d000        
+[CPU0] up_dump_reg[CPU0] up_dump_register: EXE_DEPTH: 0xdeadbeefdeadbeef
+[CPU0] dump_stackinfo: User Stack:
+[CPU
+[CPU0] dump_stackinfo:   size: 00008016
+[CPU0] dump_stackinfo:     sp: 0x4a76cff0
+[CPU0] staefefffe 19d5f573fafed7d3 8bef77df7fb922de ffef6b5fc3f1375f f5f7f7dbdefffbdd 353ebf7f7fbdc2ee 000 stack_dump:  000000004a76cff0: 0000000000000000 000000004a400158 0000000000000000 0000000000000 0000000000000000 0000000000000000
+[CPU0] sched_dumpstack: backtrace| 3: 0x000000004a434c7c
+[CRI POLICY   TYPE    NPX STATE   EVENT      SIGMASK          STACKBASE  STACKSIZE      USED   FIL---   ---     0 --- -------- ------- --- ------- ---------- ---------------- 0x4a761000      409ump_tasks:   ----   ---     1 --- -------- ------- --- ------- ---------- ---------------- 0x4a7 irq
+[CPU0] dump_tasks:   ----   ---     2 --- -------- ------- --- ------- ---------- --------8     7.0%    irq
+[CPU0] dump_tasks:   ----   ---     3 --- -------- ------- --- ------- ------ 4096       288     7.0%    irq
+[CPU0] dump_task:       0     0     0   0 FIFO     Kthread -   x4a7650b0      8016      1072    13.3%    CPU0 IDLE
+[CPU0] dump_task:       1     0     1   0 F  0000000000000000 0x4a7670b0      8016       848    10.5%    CPU1 IDLE
+[CPU0] dump_task:         Running            0000000000000000 0x4a7690b0      8016       848    10.5%    CPU2 IDLE
+[CP FIFO     Kthread -   Running            0000000000000000 0x4a76b0b0      8016       848    10.5   4     0     0 192 RR       Kthread -   Waiting Semaphore  0000000000000000 0x4a6f6b50      79d5600 0x4a6d5688
+[CPU0] dump_task:       5     0     1 100 RR       Kthread -   Waiting Semapho7952      1504    18.9%    lpwork 0x4a6d5540 0x4a6d55c8
+[CPU0] dump_task:      38    22     0  phore  0000000000000000 0x4b08a4f0     16208      1456     8.9%    ai_agent 0x4a48ef7c 0
+[CPU0]R       Task    -   Waiting Semaphore  0000000000000000 0x4a770780      7984      2320    29.0% 9     0     1 224 RR       Kthread -   Waiting Semaphore  0000000000000000 0x4ae7c020      3840 4ae7bcd0 0x4ae7bd58
+[CPU0] dump_task:      42    42     0 100 RR       Task    -   Running        7984      3760    47.0%    Telnet_session
+[CPU0] dump_task:      12    12     1 100 RR      00000020000 0x4ae830e0      7984      1776    22.2%    telnetd
+[CPU0] dump_task:      13    13  Signal     0000000000000000 0x4ae860b0      1840      1200    65.2%    tpmon
+[CPU0] dump_task:  Task    -   Waiting Signal     0000000000000000 0x4ae87b90     32560      7088    21.7%    kic2    22     0 100 RR       Task    -   Waiting Signal     0000000000000000 0x4b08e6c0     32560 U0] dump_task:      24    22     0  50 FIFO     pthread -   Waiting Semaphore  0000000000000000 0%    ai_agent 0x4a486d84 0x4ae7fd30
+[CPU0] dump_task:      26    22     0  40 FIFO     pthread -   Waiting Semaphore  0000000000000000 0x4b0dc960      8016      1408    17.5%    ai_agent 0x4a486e24 0x4ae7fd30
+[CPU0] dump_task:      27    22     1   3 FIFO     pthread -   Waiting Signal     0000000000000000 0x4b0deb1     8016      1200    14.9%    ai_agent 0x4a486e4c 0x4ae7fd30
+[CPU0] dump_task:      30    22     0  50 FIFO     pthread -   Wing Semaphore  0000000000000000 0x4b0e9e60     20304      2224    10.9%    ai_agent 0x4a486dac 0x4ae7fd30
+[CPU0] dump_task:      31    22     1  60 FIFO     pthread -   Waiting Semaphore  0000000000000000 0x4b0eee70     32592      4048    12.4%    ai_agena486dfc 0x4b0e0ec0
+[CPU0] sched_dumpstack: backtrace| 0: 0x000000004a434c7c 0x000000004a400158
+[CPU0] sched_dumpstack: backtra: 0x000000004a434c7c
+[CPU0] sched_dumpstack: backtrace| 2: 0x000000004a434c7c
+[CPU0] sched_dumpstack: backtrace| 3: 0x000000007c
+[CPU0] sched_dumpstack: backtrace| 4: 0x000000004a4177b8 0x000000004a418408 0x000000004a41a7e8 0x000000004a419694
+[CPU0] sched_dumpstack: backtrace| 5: 0x000000004a4177b8 0x000000004a41847e8 0x000000004a419694
+[CPU0] sched_dumpstack: backtrace|38: 0x000000004a4177b8 0x000000004a418cf8 0x000000004a48efec 0x000000004a597308 0x000000004a5b0d5c
+[CPU0] sched_dumpstack: backtrace|8408 0x000000004a427f74 0x000000004a458dfc 0x000000004a458e84 0x000000004a458ebc 0x000000004a458dumpstack: backtrace| 7: 0x000000004a4377a4 0x000000004a435274 0x000000004a434e94 0x000000004a43dd9c 0x000000004a41966c
+[CPU0] sched_dumpstack: backtrace| 9: 0x000000004a4177b8 0x000000004a4119694
+[CPU0] sched_dumpstack: backtrace|42: 0x000000004a438760 0x000000004a43865c 0x000000004a4434fb4 0x000000004a435008 0x000000004a42dd9c 0x000000004a41966c
+[CPU0] sched_dumpstack: backtra418408 0x000000004a579f20 0x000000004a56f578 0x000000004a56b494 0x000000004a57a768 0x000000004a5d_dumpstack: backtrace|12: 0x000000004a4a79ac 0x000000004a42dd9c 0x000000004a41966c
+[CPU0] sche4a4177b8 0x000000004a420608 0x000000004a420080 0x000000004a430d78 0x000000004a57d588 0x000000004ed_dumpstack: backtrace|14: 0x000000004a4177b8 0x000000004a420608 0x000000004a420080 0x0000000044a42dd9c 0x000000004a41966c
+[CPU0] sched_dumpstack: backtrace|22: 0x000000004a4177b8 0x0000000004a4760e4 0x000000004a4879c4 0x000000004a42dd9c 0x000000004a41966c
+[CPU0] sched_dumpstack: back04a418408 0x000000004a5b11e8 0x000000004a597068 0x000000004a493298 0x000000004a486efc 0x00000000ched_dumpstack: backtrace|26: 0x000000004a4177b8 0x000000004a4188 0x000000004a5b11e8 0x000000004a597068 0x000000004a494958 0x000000004a597308 0x000000004a5b0d5cacktrace|27: 0x000000004a4177b8 0x000000004a420608 0x000000004a420080 0x000000004a4760e4 0x000000004a49574c 0x000000004a597308 00004a5b0d5c
+[CPU0] sched_dumpstack: backtrace|30: 0x000000004a4177b8 0x000000004a418408 0x000000004a5b11e8 0x000000004a59d8dc 000004a4889f8 0x000000004a597308 0x000000004a5b0d5c
+[CPU0] sched_dumpstack: backtrace|31: 0x000000004a4177b8 0x000000004a418408 000004a597274 0x000000004a493254 0x000000004a491234 0x000000004a597308 0x000000004a5b0d5c
+[CPU0] Local: openvel Remote: linux Headrx 0 Headtx 0
+[CPU0] Dump rpmsg info between cpu (master: no)openvel <==> linux:
+[CPU0] rpmsg ept list:
+[CPU0]   ept NS 0xba98: s=53 d=53 r=1 pr=127 p=0x4ae7ba88
+[CPU0] rpmsg virtqueues:
+[CPU0] VQ: rx_vq - size=64; free=64; queued=0; desc_head_idx=ilable_idx=0; avail.idx=0; used_cons_idx=0; used.idx=0; avail.flags=0x1; used.flags=0x0
+[CPU0] VQ: tx_vq - size=64; free=64; qu0; desc_head_idx=0; available_idx=0; avail.idx=64; used_cons_idx=0; used.idx=0; avail.flags=0x0; used.flags=0x0
+[CPU0] rpmsg bulist:
+[CPU0]   RX buffer total 64 unretrieved 0 retrieved 0 pending 0:
+[CPU0]   TX buffer total 64 unretrieved 64 retrieved 64 sent 0:
+DDR 2f85f4b2d4 cym 24/11/07-19:07:28,fwver: v1.09
+In
+ch0 ttot6
+ch1 ttot6
+ch0 ttot7
+LPDDR5, 2736MHz
+channel[0] BW=16 Col=10 Bk=16 CS0 Row=16 CS=1 Die BW=16 Size=2048MB
+ch1 ttot7channel[1] BW=16 Col=10 Bk=16 CS0 Row=16 CS=1 Die BW=16 Size=2048MB
+Manufacturer ID:0xff
+CH0 RX Vref:25.3%, RX DQS Vref:31.6%, TX Vref:19.0%,0.0%
+DQ roc:
+p1 n1, p0 n3, p3 n0, p0 n1, p1 n0, p0 n1, p3 n0, p3 np6 n0, p5 n0, p3 n0, p2 n1, p3 n6, p3 n0, 
+
+DQ rds:l0 l0 l0 l0 l0 l0 l0 l0 , l0 l0 l0 l0 h1 l0 l0 l0 
+DQS roc: p2, n0, p1, n0
+
+CH1 RX Vref:25.3%, RX DQS Vref:30.8%, TX Vref:21.0%,0.0%
+DQ roc:
+p3 n0, p5 n0, p4 n1, p2 n0, p4 n0, p4 n0, p2 n0, p7 n p6 n0, p5 n0, p2 n0, p3 n0, p4 n0, p5 n1, p5 n0, 
+
+DQ rds:h1 h1 l0 l0 h1 h1 h1 l0 , l0 l0 l0 h1 h1 l0 h1 h2 
+DQS roc: p1, n0, p2, n0
+
+stride=0x3, ddr_config=0x2
+hash bank_mask0-3 0x0 0x2100 0x44200 0x88400, rank_mask0 0x0
+change to F1: 534MHz
+ch0 ttot6
+ch1 ttot6
+change to F2: 1320MHz
+ch0 ttot8
+ch1 ttot8
+change to F3: 1968MHz
+ch0 ttot6
+ch1 ttot6
+change to F0: 2736MHz
+ch0 ttot7
+ch1 ttot7
+out
+U-Boot SPL board init
+U-Boot SPL 2017.09-g60e6e79d7a0-250604 #lxh (Jun 09 2025 - 11:08:59), fwver: v1.08
+sfc cmd=00H(6BH-x4)
+unknown raw ID 0 0 0
+unrecognized JEDEC id bytes: 00, 00, 00
+Trying to boot from MMC2
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+partet_info_efi: *** ERROR: Invalid GPT ***
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_get_info_efi: *** ERROGUID Partition Table Header signature is wrong: 0xX != 0xX
+partOR: Invalid GPT ***
+GUID Partition Table Header signature is wrrt_get_info_efi: *** ERROR: Invalid Backup GPT ***
+No misc partition
+GUID Partition Table Header signature is wrong: 0xX != 0xet_info_efi: *** ERROR: Invalid GPT ***
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_get_info_efi: *** ERROGUID Partition Table Header signature is wrong: 0xX != 0xX
+partR: Invalid GPT ***
+GUID Partition Table Header signature is wrort_get_info_efi: *** ERROR: Invalid Backup GPT ***
+spl: partition error
+Trying fit image at 0xector
+Not fit magic
+Trying fit image at 0x5000 sector
+Not fit magic
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_get_info_efi: *** ERRORGUID Partition Table Header signature is wrong: 0xX != 0xX
+partackup GPT ***
+GUID Partition Table Header signature is wrong: 0t_info_efi: *** ERROR: Invalid GPT ***
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_get_info_efi: *** ERRORBackup GPT ***
+Trying to boot from MMC1
+SPL: A/B-slot: _a, successful: 0, tries-remain: 7
+Trying fit image at 0x4000 sector
+## Verified-boot: 0
+## Checking atf-1 0x40060000 ... sha256(868eaf583a...) + OK
+## Checking uboot 0x40200000 ... sha256(806b55f426...) + OK
+## Checking fdt 0x40341178 ... sha256(368bbb2e69...) + OK
+## Checking atf-2 0x400f0000 ... sha256(8afb712810...) + OK
+## Checking atf-3 0x3fe70000 ... sha256(8b5729c8c7...) + OK
+## Checking optee 0x48400000 ... sha256(4f2fb58a31...) + OK
+Jumping to U-Boot(0x40200000) via ARM Trusted Firmware(0x4006000)
+Total: 178.107/375.721 ms
+
+INFO:    Preloader serial: 0
+NOTICE:  BL31: v2.3():v2.3-931-g4d7e811c6:derrick.huang, fwver: :  BL31: Built : 19:19:38, May 26 2025
+INFO:    SOC (0x35760101)
+INFO:    spec: 0x1
+INFO:    test version: 0x0
+INFO:    soc set status: 0x1050
+INFO:    ARM GICv2 driver initialized
+INFO:    bypass memory repair
+INFO:    dfs DDR fsp_params[0].freq_mhMHz
+INFO:    dfs DDR fsp_params[1].freq_mhz= 534MHz
+INFO:    dfs DDR fsp_params[2].freq_mhz= 1320MHz
+INFO:    dfs DDR fsp_params[3].freq_mhz= 1968MHz
+INFO:    Using opteed sec cpu_context!
+INFO:    boot cpu mask: 1
+INFO:    BL31: Initializing runtime services
+INFO:    BL31: InitiaI/TC: 
+I/TC: OP-TEE version: 3.13.0-1004-g667b54418 #hisping.li(gcc version 10.2.1 20201103 (GNU Toolchain for the A-profile Ar020.11 (arm-10.16))) #2 Mon May 12 01:52:55 UTC 2025 aarch64, fwver: v1.06 
+I/TC: OP-TEE memory size: TEEOS 0x200000 TA 0xc0000lizing
+I/TC: Primary CPU switching to normal world boot
+INFO:    BL31: Preparing for EL3 exit to normantry point address = 0x40200000
+INFO:    SPSR = 0x3c9
+
+
+U-Boot 2017.09 (Sep 19 2026 - 16:56:07 +0800)
+
+Model: KICKPI-K7 (RK3576) for U-Boot
+MPIDR2ad40000
+DRAM:  4 GiB
+Sysmem: init
+Relocation Offset: bda1c000
+Relocation fdt: fb9d9e50 - fb9fecd8
+CR: M/C/I
+optee api revision: 2.0
+mmc@2a310000: 1, mmc@2a330000: 0
+Bootdev(atags): <NULL> <NULL>
+Use emmc as default boot media
+MMC0: HS400 Enhanced Strobe, 200MUsing default environment
+
+MMC:   Model: KICKPI-K7 (RK3576) for U-Boot
+boot mode: watchdog
+RESC: 'dtbo', blk@0x0000a000
+Device is: UNLOCKED
+Rockchip UBOOT DRM driver version: v1.0.1
+Assign plane mask automatically
+VOP have 1 active VPvp0 have layer nr:0[], primary per nr:1[3 ], primary plane: 3
+vp2 have layer nr:0[], primary plane: 0
+disp info 2, type:16, id, screen_info type[0] or id[0] mismatched
+Using display timing dts
+dsi@27d80000:  detailed mod    H: 0720 0752 0767 0799
+    V: 1280 1301 1316 1328
+bus_format: 100e
+VOP update mode to: 72VP1 set crtc_clock to 83334KHz
+Unsupported bt709f at 10bit csc depth, use bt601f instead
+VOP V0x0] fmt[0] addr[0xfdf00000]
+final DSI-Link bandwidth: 555560 Kbps x 4
+CLK: (sync kernel. arm: enter 1008000 KHz, init 1008000 KHz, kernel 0N/A)
+  bpll 816000 KHz
+  lpll 816000 KHz
+  vpll 594000 K31 KHz
+  cpll 1000000 KHz
+  gpll 1188000 KHz
+  ppll 1300000 KHz
+  aclk_bus_root 396000 KHz
+oot 100000 KHz
+  hclk_bus_root 198000 KHz
+  aclk_top 786431 KHz
+  aclk_top_mid 396000 KHz
+  pclk_top 100000 KHz
+  hclk_top  KHz
+Net:   Net Initialization Skipped
+No ethernet found.
+Hit key to stop autoboot('CTRL+C'):  1  0 
+switch to partitions #0, OK
+mmc0(part 0) is current device
+
+MMC read: dev # 0, block 14848 blocks read: OK
+
+MMC read: dev # 0, block # 14336, count 544 ... 544 blocks read: OK
+
+MMC read: dev # 0, block # 24576, count 8192 ... 8192 blocks read: OK
+AMP: FIT 需要 3595776 字节（7023 扇区），读取窗口 8192 扇区
+AMP: loaded kernel@0x40400000 dtb@0x4f000000 fit@0x60000000 frng from FIT at 0000000060000000
+## Loading loadables from FIT Image at 60000000 ...
+   Trying ion:  openvela (NuttX) on A53 cluster
+     Type:         Firmware
+     Compression:  uncompres   Data Size:    3592192 Bytes = 3.4 MiB
+     Architecture: AArch64
+     Load Address: 0x4a400Hash value:   5b146784d2e821fffc42a85b165e485c669a25ab6e8c286c36bf1fc8dc3857b3
+   Verifying Has+ OK
+   Loading loadables from 0x60000e00 to 0x4a400000
+AMP: linux via amp_linux_cmd: booti 0x40400000 - 0x4f000000
+Fdt Ramdisk skip relocation
+## Flattened Device Tree blob at 0x4f000000
+   Booting using the fdt b at 0x4f000000
+   Using Device Tree in place at 000000004f000000, end 000000004vp0, plane_mask:0x0, primary-id:0, curser-id:-1
+vp1, plane_mask:0x8, primary-id:3, curser-id:-1
+vp2, plane_mask:0x0, primary-id:0, curser-id:-1
+## reserved-memory:
+  drm-logo@0: addr=fdf00000 size=708000
+  ramoops@40110000: addr=40110000 size=e0000
+  rpmsg@47800000: addr=47800000 size=100000
+  rpmsg-dma@47a00000: addr=47a00000 size=200000
+  openvela@4a400000: addr=4a400000 size=4000000
+  uboot@f0000000: addr=f0000000 size=10000000
+Adding bank: 0x40 - 0x48400000 (size: 0x08200000)
+Adding bank: 0x49400000 - 0x100000000 (size: 0xb6c00000)
+Addiize: 0x40000000)
+AMP: linux fdt at 0x4f000000
+AMP: Brought up cpu[100] with statSecondary CPU 4 initializing
+ux handeI/TC: Secondary CPU 4 swithing to normal world boot
+d off, back on cpu[0]
+AMP: loadables done, bootcpu entry 0x4a400000  armed (INTEN=0x00000101), not waiting for peer
+AMP: flushing djump
+AMP: Brought up primary cpu[0, self] with state 0x12, entry 0x4a400000 ...OK
+- Ready to Boot Primary CPU
+- Boot from EL2
+- Boot from EL1
+- Boot to C runtime for OS Initialize
+[boot] mmu_init 前
+[boot] mmu_init 后（MMU 已开，代码仍在映射内）
+[bo��
+[boot] board_initialize 后[boot] earlyserialinit 后（此后走 syslog，波特率见 UART0_BAUD）
+[boot] arm64_chip_boot 结束，进 nx_start
+I/TC: Secondary CPU 1 initializing
+[CPU0] I/TC: Secondary CPU 1 switc world boot
+复�I/TC: Secondary CPU 2 initializing
+�状-I/TC: Secondary CPU 2 switching to normal world boot
+� R�e�:ad I/TC:ndary CPU 3 initializing
+yGL -B tI/TC: Secondary CPU 3 switching to normal world boot
+_oR ReBSadoT_oy StTt S=o0 eBcx0ooo0ndt0 PUS00e- 
+ co�Rn-�e�ad�d�  yB�C�Po o�tt�o U� �fBr�
+o=o-otm0 x SB5 2oeEL4oco22cnt 3
+f0d 8rCo
+m[PCPU EU0L]2
+ -C
++ +Bo:o �t� �� �E��L�2��
+已注册 @0x4a6cdaa8
+[CPU0] CXX: .eh_frame 已注册 @0x4a6cdaa8
+[CPU0] GPIO: 控制器版本 0x010219c8（与实测一致）
+[CPU0] GPIO: /dev/gpio0 = work-led (gpio0-12)
+[CPU0] GPIO: /dev/gpio1 = fan-pwr (gpio2-11)
+[CPU0] GPIO: /dev/gp2 = testpin-out (gpio4-4)
+[CPU0] GPIO: /dev/gpio3 = testpin (gpio4-6, 输入=1)
+[CPU0] I2C0: 空闲电平 SCL=1 SDA=1（应均为 1）
+[CPU0] I2C0: 版本 6 2C0-:  Bo�o�t� �f��ro SmC LE=Lg1p
+i-o B0-o1o7t �fr�o9m S DELA=1-gp
+ iBoo0ot- 18f�ro��m9 EL
+[记载：触摸 GT9xx@0x5d（5 寸屏 FPC Pin23/24，时钟在 PMU 域））
+[CPU0] I2C1: 版服用沿用 U-Boot）
+[CPU0] I2C: /dev/i2c1 就绪（dtb 记载：PMIC RK806@0x23）
+[CPU0] I2C=1（应均为 1）
+[CPU0] I2C2: 版本 6 源 200MHz SCL≈100kHz mux=0
+[CPU0] I2C2: 复用 SC0] I2C: /dev/i2c2 就绪（dtb �- �B�o�ot�� �t�oR TCC r HuYntM8i5m6e- 3 @fBo0oxor 5t O1�tSo �� 1 
+@fC 0oxrr 4unOe�tS �iIm�nei
+ tfiora lOizS [eCI
+nPUi0ti] alI2izC3e: 
+空闲电平 SCL=1 SD�本 6 源 200MHz SCL≈100kHz mux=0
+[CPU0] I2C3: 复用 SCL=gpio4-13→11 SDA=gpio4-12→11
+[载：音频 codec ES8388@0x10）
+[CPU0] I2C4: 空闲电平 SCL=0 SDA=0（应均为 1）
+[CPU0z SCL≈100kHz mux=0
+[CPU0] I2C4: 复用 SCL=gpio3-16→11 SDA=gpio3-15→11
+[CPU0] I2C: /dev/��）dtb 记载 imx415_0@0x37）
+[CPU0] I2C5: 空闲电平 SCL=0 SDA=0（应均为 1）
+[CPU0] SCL≈100kHz mux=0
+[CPU0] I2C5: 复用 SCL=gpio3-20→11 SDA=gpio3-17→11
+[CPU0] I2C: /dev/i�）dtb 记载 imx415_1@0x37）
+[CPU0] I2C7: 空闲电平 SCL=1 SDA=1（应均为 1）
+[CPU0]  SCL≈100kHz mux=0
+[CPU0] I2C7: 复用 SCL=gpio3-0→11 SDA=gpio3-1→11
+[CPU0] I2C: /dev/i2c�）
+[CPU0] I2C6: 空闲电平 SCL=1 SDA=0（应均为 1）
+[CPU0] I2C6: 版本 6 源 200MHz S I2C6: 复用 SCL=gpio0-2→11 SDA=gpio0-5→11
+[CPU0] I2C: /dev/i2c6 就绪（dtb 记载：（[CPU0] I2C8: 空闲电平 SCL=1  1）
+[CPU0] I2C8: 版本 6 源 200MHz SCL≈100kHz mux=0
+[CPU0] I2C8: 复用 SCL=gpio2-14→11 SDA=gpio2-15→11
+[CPU0] I2C:/i2c8 就绪（dtb 记载：（探测用）dtb 记载 imx415_3@0x37）
+[CPU0] I2C9: 空闲电平 SCL=1 SDA=1（应均为 1）
+[CPU0] I2C9: 版本 6 源 200MHz� SCL=gpio1-5→10 SDA=gpio1-6→10
+[CPU0] I2C: /dev/i2c9 就绪（dtb 记载：（探测用）CPU0] ERROR: MPU6050 @I2C7:0x68 无应答或 ID 不符（ret=-6 WHO_AM_I=0x00，应为 0x68）
+
+[CPU0] RTC: CLKOUT 32.768kHz 已使能（供 WiFi/蓝牙模组�[CPU0] HYM8563: 应答正常 CTL1=0x00 CTL2=0x00
+[CPU0] RTC: /dev/rtc0 就绪（HYM8563@I2C2:0x）
+[CPU0] SPI4: 版本 0x00110002 FIFO 64 源 200MHz SCLK 20000000Hz 上拉(clk/mosi/miso)=3/3�扩展口）
+[CPU0] LCD: 沿用 U-Boot 的面板状态 PWREN(gpio0-22)=1（未复位、未断�P2 状态（未改动）====
+[CPU0]   SYS_CTRL_MIPI0_INFACE  0x80100037
+[CPU0]   SYS_AUTO_GATING        0x9fffff7f
+[CPU0]   SYS_PORT_CTRL_IMD      0x0000003f
+[CPU0]   VP0_DSP_CTRL           0x8000000f
+[CPU0]   VP0_MIPI_CTRL          0x80000000
+[CPU0]   VP0_COLOR_BAR_CTRL     0x00000000
+[CPU0]   VP0_HTOTAL_HS_END      0x032000c8
+[CPU0]   VP0_HACT_ST_END        0x01900258
+[CPU0]   VP0_VTOTAL_VS_END      0x00fa000a
+[CPU0]   VP0_VACT_ST_END        0x000a00fa
+[CPU0]   VP1_DSP_CTRL           0x00060000
+[CPU0]   VP1_MIPI_CTRL          0x00000000
+[CPU0]   VP1_COLOR_BAR_CTRL     0x00000000
+[CPU0]   VP1_HTOTAL_HS_END      0x031f000f
+[CPU0]   VP1_HACT_ST_END        0x002f02ff
+[CPU0]   VP1_VTOTAL_VS_END      0x0530000f
+[CPU0]   VP1_VACT_ST_END        0x001b051b
+[CPU0]   VP2_DSP_CTRL           0x8000000f
+[CPU0]   ESMART0_REGION0_CTRL   0x00000000
+[CPU0]   ESMART0_REGION0_MST    0x00000000
+[CPU0]   ESMART0_REGION0_VIR    0x00000000
+[CPU0]   ESMART0_REGION0_ACT    0x00000000
+[CPU0]   ESMART0_REGION0_DSP    0x00000000
+[CPU0]   OVL_CTRL_VP0           0x00000000
+[CPU0]   OVL_LAYER_SEL_VP0      0x0000ffff
+[CPU0]   OVL_CTRL_VP1           0x00000000
+[CPU0]   OVL_LAYER_SEL_VP1      0x0000fff2
+[CPU0]   CLUSTER0_WIN0_CTRL0    0x00000000
+[CPU0]   CLUSTER0_WIN0_YRGB_MST 0x00000000
+[CPU0]   CLUSTER0_WIN0_VIR      0x00000000
+[CPU0]   CLUSTER0_WIN0_ACT_INFO 0x00000000
+[CPU0]   CLUSTER0_WIN0_DSP_INFO 0x00000000
+[CPU0]   CLUSTER0_WIN0_DSP_ST   0x00000000
+[CPU0]   CLUSTER1_WIN0_CTRL0    0x00000000
+[CPU0]   CLUSTER1_WIN0_YRGB_MST 0x00000000
+[CPU0]   ESMART1_REGION0_CTRL   0x00400001
+[CPU0]   ESMART1_REGION0_MST    0xfdf00000
+[CPU0] ==== U-Boot 留下的 DSI 状态（未改动）====
+[CPU0]   PWR_UP             0x3130302a
+[CPU0]   SOFT_RESET         0x00000007
+[CPU0]   MODE_CTRL          0x00000000
+[CPU0]   MODE_STATUS        0x00000003
+[CPU0]   CORE_STATUS        0x00000303
+[CPU0]   MANUAL_MODE_CFG    0x00000001
+I/TC: Secondary CPU 5 initializing
+I/TC: Secondary CPU I/TC: Secondary CPU 6 initializing
+I/TC: Secondary CPU 6 switchot
+[CPU0]   PHY_MODE_CFG       0x00I/TC: Secondary CPU 7 initializing
+000I/TC: Secondary CPU 7rld boot
+130
+[CPU0]   PHY_CLK_CFG        0x00000600
+[CPU0]   PHY_LP2HS          0x0007654f
+[CPU0]   PHY_HS2LP          0x00068e23
+[CPU0]   PHY_IPI_RATIO      0x0001aaab
+[CPU0]   PHY_SYS_RATIO      0x000025fd
+[CPU0]   DSI_GENERAL_CFG    0x00000002
+[CPU0]   DSI_VCID_CFG       0x00000000
+[CPU0]   DSI_VID_TX_CFG     0x00000002
+[CPU0]   IPI_COLOR_MAN      0x00000050
+[CPU0]   IPI_VID_HSA        0x00064000
+[CPU0]   IPI_VID_HBP        0x000d5555
+[CPU0]   IPI_VID_HACT       0x012c0000
+[CPU0]   IPI_VID_HLINE      0x014ceaab
+[CPU0]   IPI_VID_VSA        0x0000000f
+[CPU0]   IPI_VID_VBP        0x0000000c
+[CPU0]   IPI_VID_VACT       0x00000500
+[CPU0]   IPI_VID_VFP        0x00000015
+[CPU0]   IPI_PIX_PKT_CFG    0x000002d0
+[CPU0] VOP2: ESMART0 归VP0 CTRL=0x00000000 MST=0x00000000 VIR=00] VOP2: ESMART1 归VP1 CTRL=0x00400001 MST=0xfdf00000 VIR=720
+[CPU0] VOP2: 已备份 U-Boot �02cf
+[CPU0] VOP2: VP1 图层将铺满 720x1280，起点 (0,0)
+[CPU0] VOP2: ESMART1 AXI_CTRL=0x原格式 0（0=ARGB8888 2=RGB888 3=RGB565）
+[CPU0] VOP2: VP1 取数紧急度已开 HURRY0=02000000000
+[CPU0] VOP2: 帧缓冲 720x1280 跨距 2880 字节 @0x4a772700
+[CPU0] VOP2: 回读 ACT=0x04ff02IR=720 MST=0x4a772700 CTRL=0x00400001
+[CPU0] VOP2: 回读 SCL_CTRL=0x00000000 SCL_FACTOR=0x1000x1280 ARGB8888 双缓冲 7372800 字节 @0x4a772700
+[CPU0] 显示: /dev/fb0 就绪
+[CPU0] mailbox: group3 @2ae53000, 收 IRQ 1�（引导器留下的）
+[CPU0] AMP: rptun 就绪 对端=linux vring0=47800000 vring1=478080000 收=group3
+[CPU0] PL330: 首次 DMAGO ch=0 ns=1 mc=0x4a75fc80 DS=00000200
+[CPU0] PL330: 首�001 FSC=00000000
+[CPU0] PL330 自检: go后 CS=00200005 CPC=4a75fc97 DBGST=00000000 DS=000002004B OK
+[CPU0] PL330: dmac0 就绪 通道=8 外设口=32 事件=16 安全态=非安全 PERIPH_ID=�
+[CPU0] SAI: mclk_to_io 已开 0x26046400 = 0x0000001d
+[CPU0] SAI1 时钟: SEL46=00000001 源AI1 时钟: SEL28=00001d2b (audio_int 分频) SEL12=03105091 SEL13=00000000 (audio_frac_0)
+[CPUk(-3)=1 lrck(-5)=1 sdo0(-7)=1 sdi0(-11)=1（期望均为 1）
+[CPU0] SAI1: VERSION=0x23073576 X1 lrck→1 sdo0→1 sdi0→1
+[CPU0] SAI: CLR 自清超时 CLR=0x00000007 (TXC RXC FSC)，退复位
+[CPU0] SAI: CRU 复位后 CLR=0x00000000 XFER=0x00000000 CLKGATE9=0x00000000
+[CPU0] SAI 环回: 00000000 2222 aaaacccc eeee1110 33325554 77769998 bbbadddc
+[CPU0] SAI 环回: 非零 7/8 TX_CNT=000000f8 RX_CNT=000000fa —— RX 通路正问题在片外
+[CPU0] 音频: 喇叭功放 GPIO2_B1 随放音开关
+[CPU0] 音频: /dev/audio/pcm0 放音 + pcm1 录音（ES8388@I2C3:0x10 + SAI1）
+[CPU0] RNG: 自检通过 vs 0x9ad5…）
+[CPU0] 随机数: /dev/random 就绪
+[CPU0] TIMER: 闹钟自检 INTSTATUS=0x010x100us CTRL回读=0x00000000 CH0计数 0->0
+[CPU0] TIMER: /dev/oneshot 用 CH0(闹钟,IRQ 77)�数 2422 拍
+[CPU0] 定时器: /dev/oneshot 就绪
+[CPU2] GMAC0: 25M 使能前 [dCiPvU=03]9  �劸��� �C�C=V0R 
+6[5C5P3U50 ]- >G M6A5C503:5  2�5�M� �倷�� �tclk 未动（使能后才计数��d�i�v =13090 0s0emls=�1� ��漡���䄽��� �1�2� �彮=�0�
+� 1118[4CmPsU�0�]� �G�M�A�C�0�:� �2�5 �� �2�0�0� �枬硻 ��﫼��=0
+ [�C�P�U�0�]� =W0D T�:� ��⯀��� �★无跳变，时钟没到引� M1 5� �忮螃齙光 �8 9d4i7v8=m3s9� �s�e�l�=�1� �卼䕸躄 �2 ^g(21-63+0i )� �䟸誃 �t=c0lk
+�P�U�0�]� �� �C�P�L�L�/�4�0� :� �/�d�e�v�/ wdaitvc=h3d9o gs0e l�=�1� �廼���
+��功�te�ln�et=d0 H1): 
+2nsh5>M [ K焊盘 g2-30 采样 200 次 高=0 跳变=0 —— ★无跳变，时钟没到[CPU1] 触摸: FT 系列应答 芯片ID=0x8756（原厂日志为PU1] 触摸: /dev/input0 就绪（FT8756 @I2C0:0x38, 中断模弼�
+[CPU1] PMU: sdgmac 已上电
+[CPU1] DWMMC: VERID=0x5342270a HCON=0x04c434c1 数据总线宽�CPU1] DWMMC: FIFO 深度≈128（dtb 记载 256） CDETECT=0x00000000 —— 检测到卡在位
+[CPU1] DWMMC: CMD0 后 RINTSTS=0x00000004
+[CPU1] DWMMC: CMD8 RINTSTS=0x00000004 RESP0=0x000001aa —— 回显正确，命令通路正常[CPU1] DWMMC: sdio_dev 就绪 FIFO 窗口=0x200 深度=128
+[CPU1] mmcsd_widebus: No card inserted.
+[CPU1] DWMMC: requested=400000Hz parent=24000000Hz div=60 card=4[CPU1] mmcsd_cardidentify: WARNING: CMD1 RECVR3: -38.  NOTE: ThiSD cards.
+[CPU1] DWMMC: requested=25000000Hz parent=1188000000Hz div=48 caz
+[CPU1] DWMMC: requested=25000000Hz parent=1188000000Hz div=48 ca0Hz
+[CPU1] SD 卡: /dev/mmcsd1 就绪
+[CPU1] 摄像头: cam0 MCLK gpio3-31 功能3，gpll/32 = 37125000Hz
+[CPU1] I2C4 写-起始条件 a=37 hit=20 ipd=00 fcnt=0
+[CPU1] 摄像头: cam1 MCLK gpio4-0 功能3，gpll/32 = 37125000Hz
+[CPU1] I2C5 写-起始条件 a=37 hit=20 ipd=00 fcnt=0
+[CPU1] 摄像头: cam3 MCLK gpio4-1 功能3，gpll/32 = 37125000[CPU1] 摄像头: IMX415 已识别 cam3 @I2C8:0x37 型号=0x514�[CPU1] 摄像头: 共发现 1 个 IMX415
+[CPU1] 摄像头: /dev/video0 就绪（IMX415 1932x1096 SBGGR10）
+[CPU1] 界面: kickpi_ui 已启动（pid 14）
+显示: 720x1280 PARTIAL, 绘制缯用
+LV[CPU3] [agent] AI Agent - Vela AI Agent starting (build: 2026-13:12:53)
+[CPU3] [agent] [boot +0ms] P0: timezone set
+GL[CPU3] [agent] [boot +0ms] P0: storage ready
+ [CPU3] [agent] [boot +1eap: arena=63516672 free=53913808 used=9602864
+he[CPU3] [cfgstoore ready at /data/ai_agent/config/config.json
+[CPU3] [agent] [boot +2ms] P1: config_store_initialized (depth 16)
+[CPU3] [agent] [boot +3ms] P1: message_bus_init (rc=0)
+[CPU3] [memory] Initnt
+ap:[CPU3] [memory] Created file: /data/ai_agent/config/SOUL.md
+ [CPU3] [memory] Created filPU3] [memory] Created file: /data/ai_agent/memory/MEMORY.md
+se[CPU3] [memory] Created file: /da3] [memory] Created file: /data/ai_agent/config/cron.json
+=7[CPU3] [memory] Created directory: memory] Memory store initialized successfully
+[CPU3] [agent] [boot +7ms] P1: memory_store_init ger initialized at /data/ai_agent/sessions
+[CPU3] [agent] [boot +8ms] P1: session_mgr_init (rc=g...
+75[CPU3] [proxy] No proxy (direct connection)
+[CPU3] [agent] [boot +9ms] P2: http_proxy_i ready
+a[CPU3] [feishu] No Feishu credentials. Use CLI: set_feishu_app <app_id> <app_secret>
+[_bot_init (rc=0)
+l=2[CPU3] [llm] No API key. Use CLI: set_llm <preset> <key>
+[CPU3] [agent] [b48[CPU3] [llm_router] Router initialized: 0 backends, profile=0
+[CPU3] [agent] [boot +12ms] P3:s] Registered tool provider: node
+[CPU3] [node_mgr] Node manager initialized (max 8 nodes)
+[CPager_init (rc=0)
+432 [CPU3] [mcp_reg] MCP tool registry initialized
+[CPU3] [mcp_bridge] MCP brtered tool provider: mcp_client
+[CPU3] [mcp_client] MCP client initialized
+p[CPU3] [web_search/ set_search_key
+[CPU3] [tools] Registered tool: web_search
+[CPU3] [tools] Registered tool: netool: get_weather
+[CPU3] [tools] Registered tool: get_current_time
+[CPU3] [tools] Registered tred tool: write_file
+[CPU3] [tools] Registered tool: edit_file
+[CPU3] [tools] Registered tool:tool: cron_add
+[CPU3] [tools] Registered tool: cron_list
+[CPU3] [tools] Registered tool: cron_l: fetch_url
+[CPU3] [tools] Registered tool: analyze_image
+[CPU3] [tools] Registered tool: cam tool: run_shell
+[CPU3] [tools] Registered tool: get_battery
+[CPU3] [tools] Registered tool: gred tool: get_screen_state
+[CPU3] [tools] Registered tool: get_heartrate
+[CPU3] [tools] RegistRegistered tool: vibrate
+[CPU3] [tools] Registered tool: feishu_doc_create
+[CPU3] [tools] Regi[tools] Registered tool: feishu_doc_read
+[CPU3] [tools] Registered tool: feishu_doc_list
+[CPU3t_members
+[CPU3] [tools] Registered tool: feishu_send_mention
+[CPU3] [tools] Registered tool: ed tool: music_play
+[CPU3] [tools] Registered tool: music_pause
+[CPU3] [tools] Registered toolred tool: music_stop
+[CPU3] [tools] Registered tool: music_seek
+[CPU3] [tools] Registered toolgistered tool: music_status
+[CPU3] [tools] Registered tool: launch_quickapp
+[CPU3] [tools] Reg2
+[CPU3] [tools] Tools JSON built (37 builtin + 2 providers)
+[tools] Tool registry initialized
+[CPU3] [agent] [boot +30ms] P3ry_init (rc=0)
+[CPU3] [guard] Tool guard initialized (max_input=32768, rate_window=60s, rate_ma tool_guard_init (rc=0)
+[CPU3] [skills] Initializing skills system
+[CPU3] [skills] Installed bs/weather.md
+[CPU3] [skills] Installed built-in skill: /data/ai_agent/skills/daily-briefing.mdkill: /data/ai_agent/skills/skill-creator.md
+[CPU3] [skills] Installed built-in skill: /data/ai] [skills] Installed built-in skill: /data/ai_agent/skills/reminder.md
+[CPU3] [skills] Installes/note-taker.md
+[CPU3] [skills] Installed built-in skill: /data/ai_agent/skills/translate.md
+[ll: /data/ai_agent/skills/news-digest.md
+[CPU3] [skills] Installed built-in skill: /data/ai_agells] Installed built-in skill: /data/ai_agent/skills/task-manager.md
+[CPU3] [skills] Skills sys] [boot +38ms] P3: skill_loader_init (rc=0)
+[CPU3] [agent] Agent loop initialized
+[CPU3] [agenrc=0)
+[CPU3] [cron] No cron file, starting fresh
+[CPU3] [agent] [boot +40ms] P3: cron_service_beat service initialized (file: /data/ai_agent/HEARTBEAT.md, interval: 1800s)
+[CPU3] [agent] [b[CPU3] [node_cli] Node client initialized
+[CPU3] [agent] [boot +42ms] P3: node_client_init (rc=oice_channel_init (rc=0)
+[CPU3] NSH commands registered
+[CPU3] [agent] [boot +43ms] P4: nsh_coagentagent]]  O[ubtobootu n+d4 3dmiss]p aPt5c:h  osuttabrotuendd 
+dispatch thread started
+[CPUval 10s)
+[CPU2] [heartbeat] Heartbeat started (every 30 min)
+[CPU2] [agent] [boot +45ms] P5: c][ agent[]agent ][ bNoeottw o+r4k5 mwsa]t cPh5e:r  nsettawrotrekd_w
+a[tCcPhU 2t]h r[enetmgra]d [tCiPaUl2s].  [Uagents]e  [CbLoIo:t  s+e4t7_mwsi]f iP 6<:s snisdh>_ c<opmamsasn>ds
+_[sCtPaUr3t]gentt]e d[.b oToytp e+ 4'7hmesl]p 'A If oArg ecnotm mraenaddsy.. 
+Ty[pCeP U'1h]e l[pcli']  iCnL
+vela> [CPU0] PMU: sdgmac 已上电
+[CPU0] GMAC0: 125M 分频 CLKSEL_C��回读 7）
+[CPU0] GMAC0: 复用 14 脚 bank3 功能3（抽柒3）
+[CPU0] GMAC0: GRF[0x20]=0x00000000
+[CPU0] GMAC0: RGMII 延时 tx=0x21 rx=关（回读 0x[CPU1] [llm_router] Backend 0 configured: token-plan-cn.xiaomimiom
+[CPU1] [llm] LLM config updated atomically: token-plan-cn.xiaomimimo.com/v1/chat/completions)
+LLM backend: token-[CPU1] [llm] Vision LLM config updated: model=mimo-v2.5 host=token-plan-cn.xiaomimimo.com
+p[CPU1] 界面:gent 已启动，后端 token-plan-cn.xiaomimimo.com（mimo-v2.5
+lan-cn.xiaomimimo.com:443/v1/chat/completions (model: mimo-v2.5) [router slot 0]
+API key savedo.com (model: mimo-v2.5)
+Vision API key saved.
+[CPU0] GMAC0: MAE0621A 厂商初始化完成（时钟模式=晶�）
+[CPU0] GMAC0: DMA 块写测试 TXDESC_RL 原值=0x00000000 写 0x3f 读回=0x0000003f → 可写
+[CPU0] GMAC0: MAC 块写� ADDR0_HIGH 写 0x1234 读回=0x00001234
+[CPU0] GMAC0: 复位前 DMA_MODE=0x00000000 MAC_VERSION=0x00003051
+[CPU0] GMAC0: 写后立刻回读 DMA_MODE=0x00000001
+[CPU0] GMAC0: MAC_VERSION=0x51 HW_FEATURE0=0x1a1173f7 PHY@0 已应答
+[CPU0] GMAC0: 链路=未建立 自协商=未完成 对端能力 LP=0x0000（探测结束即时读取，未完成不等）
+[CPU0] PMU: sdgmac 已上SEL_CON(31)[4:0]=7（回读 7）
+[CPU0] GMAC1: 复用 14 脚 bank2 功能2（抽查 rxclk g2-1800000
+[CPU0] GMAC1: RGMII 延时 tx=0x20 rx=关（回读 0x000000a0）
+[CPU0] GMAC1: MAE0621A 厂商初始化完成（时钟模式=晶振）
+[CPU0] GMAC1: DMA 块写�TXDESC_RL 原值=0x00000000 写 0x3f 读回=0x0000003f → 可�1: MAC 块写测试 ADDR0_HIGH 写 0x1234 读回=0x00001234
+[CPU0] GMAC1: 复位前 DMA_MODE=0x0] GMAC1: 写 SWR 后立刻回读 DMA_MODE=0x00000001
+[CPU0] GMAC1: MAC_VERSION=0x51 HW_FEATURE=7b74:4411  ← PHY 已应答
+[CPU0] GMAC1: 链路=未建立 自协商=未完成 对端能力 L�即时读取，未完成不等）
+[CPU0] 网络: eth0 已注册（GMAC1）
+[CPU0] ETH: DMA_MO[CPU0] GMAC1: 速率 1000M，GRF[0x24]=0x00000000
+[CPU0] ETH: eth0 就绪 MACCR=00002003 IE=000 iface eth0 addr 192.168.1.50
+[CPU1] [netmgr] Network connected: 192.168.1.50
+[CPU1] [netmgr] CPU1] [agent] Network connected: 192.168.1.50
+[CPU0] [[feishuC[P]UC2 ]P F[Uagente]1 iA]gse nht[ece  khteeaapt:s  5k3s5 4e0s2r0t8va
+errt[ CePsUd1t] a[
+agentr][ tBCuefPfdeUr s0:o ]cnt x =[8p1l9=_81i9
+2d/
+app[_CsPeU[0c]C r[Pagente]U tT1o.o]l   oUu[tspnode_cliuet] :p o oNls:o e2  txg _1]t  [ agent<]c iToodonl>sf  JiS<OgNs uleoracdeerdd:e ,1t0 3>6n5 ob
+ydtee scl
+ient disabled
+[Crted!

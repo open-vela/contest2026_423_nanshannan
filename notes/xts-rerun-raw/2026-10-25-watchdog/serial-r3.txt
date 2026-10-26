@@ -1,0 +1,12 @@
+[CPU0] [==========] tests: Running 4 test(s).
+[CPU0] [ RUN      ] drivertest_watchdog_feeding
+tchdog_feeding
+[CPU0] [ RUN      ] drivertest_watchdog_interrupts
+[CPU0] [       OK ] driverte     ] drivertest_watchdog_loop
+[CPU0] [       OK ] drivertest_watchdog_loop
+[CPU0] [ RUN     T: 请求 2000ms，档位 10 实际 2796ms（档位为 2^(16+i) 个 tclk，不连续）
+[CPU0] �一次生效），改由驱动按 699ms 接管喂狗 —— 与原厂 dw_wdt 的 WDOG_HW_RUNNIN[CPU0] WDT: capture 已装（先中断后复位），CR=0x000000[CPU0] WDT: capture 已摘（直接复位），CR=0x00000001
+[CT: 硬件停不掉（DW 的 CR.EN 写一次生效），改由驱�按 699ms 接管喂狗 —— 与原厂 dw_wdt 的 WDOG_HW_RUNNING 等价
+[CPU0] [       OK ] drivertest_watchdog_api
+[CPU0] [==========] tests: 4 test(s) run.
+[CPU0] [  PASSED  ] 4 test(s).

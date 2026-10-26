@@ -28,6 +28,7 @@
 
 #include <nuttx/config.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <syslog.h>
 
@@ -49,6 +50,31 @@
 #define RK3576_REBOOT_NORMAL      0x5242c300
 #define RK3576_REBOOT_LOADER      0x5242c301
 #define RK3576_REBOOT_RECOVERY    0x5242c303
+#define RK3576_REBOOT_WATCHDOG    0x5242c308
+
+/* ★ 看门狗复位的判定靠这个寄存器，而不是 CRU_GLB_RST_ST（2026-10-25）
+ *
+ *   CRU_GLB_RST_ST 在 ATF（闭源 BL31）里就被读走清零了 —— 串口上
+ *   ATF 打印 "soc warm boot, reset status: 0x1050"，轮到 openvela 读到 0，
+ *   xTS 1.3.15 于是把看门狗复位判成 CHIPPOR。
+ *
+ *   做法：看门狗一使能，就往重启模式寄存器写 BOOT_WATCHDOG（"上弦"）。
+ *     - 看门狗把板子复位：寄存器跨复位保留，U-Boot 见到 BOOT_WATCHDOG
+ *       只打印 "boot mode: watchdog"、**不清**（boot_mode.c：代表重启
+ *       原因的值留给下一级），openvela 开机读到它 -> RWDT。
+ *     - 软件重启：rk3576_do_reset() 先写 NORMAL/LOADER，把标记盖掉。
+ *     - 上电：寄存器内容不定（10-26 实测 0x7ccb56e6），U-Boot 不清；
+ *       不是 0x5242c3xx 就判 CHIPPOR。
+ *
+ *   不需要复位前软件还能动 —— xTS 的 -r 1/-r 2 是关中断死循环，那时
+ *   看门狗中断根本进不来，"在中断里记一笔"的办法行不通。
+ *
+ *   板上实测：写 0x5242c308 后由看门狗复位，ATF 报 0x1050、U-Boot 报
+ *   "boot mode: watchdog"，openvela 读回 0x5242c308。
+ */
+
+static uint32_t g_bootmode;
+static bool g_bootmode_latched;
 
 /* ★ 直接回 BootROM 的下载模式（maskrom），等价于按住 recovery 键上电。
  *
@@ -138,4 +164,39 @@ void rk3576_reboot_maskrom(void)
          "即将重启进 maskrom（BootROM 下载模式），无需按 recovery 键。\n"
          "之后直接 rkdeveloptool db + wl 烧写。\n");
   rk3576_do_reset(RK3576_REBOOT_MASKROM);
+}
+
+uint32_t rk3576_bootmode_latch(void)
+{
+  if (!g_bootmode_latched)
+    {
+      g_bootmode = getreg32(RK3576_PMU0_GRF_ADDR + RK3576_REBOOT_MODE_OFF);
+      g_bootmode_latched = true;
+
+      /* 读过就还原成 NORMAL：没开看门狗的配置不会再上弦，留着
+       * BOOT_WATCHDOG 会让下一次与看门狗无关的复位也被判成看门狗。
+       */
+
+      if (g_bootmode == RK3576_REBOOT_WATCHDOG)
+        {
+          putreg32(RK3576_REBOOT_NORMAL,
+                   RK3576_PMU0_GRF_ADDR + RK3576_REBOOT_MODE_OFF);
+        }
+    }
+
+  return g_bootmode;
+}
+
+bool rk3576_bootmode_is_watchdog(void)
+{
+  return rk3576_bootmode_latch() == RK3576_REBOOT_WATCHDOG;
+}
+
+void rk3576_bootmode_arm_watchdog(void)
+{
+  /* 先锁存本次启动的原因，再覆盖 */
+
+  rk3576_bootmode_latch();
+  putreg32(RK3576_REBOOT_WATCHDOG,
+           RK3576_PMU0_GRF_ADDR + RK3576_REBOOT_MODE_OFF);
 }

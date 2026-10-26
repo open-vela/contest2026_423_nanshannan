@@ -126,31 +126,37 @@ static void kickpi_k7_register_eh_frame(void)
 }
 #endif
 
+/* 启动时锁存的 CRU_GLB_RST_ST，board_reset_cause() 用 */
+
+static uint32_t g_glb_rst_st;
+
 #ifdef CONFIG_BOARD_LATE_INITIALIZE
-/* ★ 启动时把复位状态原值打出来（**只读不清**）。
+/* ★ 启动时锁存复位原因，并把原值打出来。
  *
- *   xTS 1.3.15 的 drivertest_watchdog_api 断言上一次复位原因是 RWDT，
- *   实测我们报的是 CHIPPOR（cmocka: "1 != 2"，drivertest_watchdog.c:460）。
- *   两种可能必须分开：
- *     a) 寄存器在我们读到之前已经被 U-Boot/BL31 清掉了 -> 原值为 0
- *     b) 我们的位掩码不对                              -> 原值非 0 但没命中
- *
- *   board_reset_cause() 是读完就清的（写 1 清），所以不能拿它来看；
- *   这里在启动时单独读一次、不写回，留给后面的 boardctl 用。
+ *   两个来源都在这里读一次：
+ *     - CRU_GLB_RST_ST：本应记录看门狗复位，但实测在 ATF 里就被清掉了，
+ *       openvela 读到恒为 0。仍然读，ATF 哪天不清了就能直接用。
+ *     - 重启模式寄存器（PMU0 GRF OS_REG16）：看门狗使能时写入
+ *       BOOT_WATCHDOG，见 rk3576_reboot.c。**必须在看门狗注册之前锁存**，
+ *       board_late_initialize 早于 board_app_initialize，满足。
  */
 
-static void kickpi_dump_reset_status(void)
+static void kickpi_latch_reset_status(void)
 {
-  uint32_t st = getreg32(RK3576_CRU_ADDR + 0x0c04);
+  g_glb_rst_st = getreg32(RK3576_CRU_ADDR + 0x0c04);
+
+  /* 写 1 清，免得残留到下一次与它无关的复位 */
+
+  putreg32(g_glb_rst_st, RK3576_CRU_ADDR + 0x0c04);
 
   syslog(LOG_INFO,
-         "复位状态: GLB_RST_ST=0x%08" PRIx32 "（bit5/6/11-15 任一置位=看门狗）\n",
-         st);
+         "复位状态: GLB_RST_ST=0x%08" PRIx32 " 重启模式=0x%08" PRIx32 "\n",
+         g_glb_rst_st, rk3576_bootmode_latch());
 }
 
 void board_late_initialize(void)
 {
-  kickpi_dump_reset_status();
+  kickpi_latch_reset_status();
 
 #ifdef CONFIG_SMP
   /* 双系统下启动阶段会丢调度 SGI，丢了 NuttX 不会补发 ——
@@ -222,50 +228,59 @@ int board_reset(int status)
  * Name: board_reset_cause
  *
  * Description:
- *   报告本次启动的复位原因。
+ *   报告本次启动的复位原因，同一次启动里多次调用结果相同。
  *
- *   依据 TRM Part1 的 CRU_GLBRST_ST（0x27200000 + 0x0C04）：
- *     bit15 PMU_WDT   bit14 NPU_WDT  bit13 WDT_S
- *     bit12 WDT_NS    bit11 BUS_WDT  bit10 DDR_WDT
- *     bit6  由看门狗复位（细分看 [15:11]）
- *     bit5  看门狗的第二级复位
- *   全 0 表示是上电复位（POR）。
+ *   依据（按优先级）：
+ *   1. CRU_GLBRST_ST（0x27200000 + 0x0C04，TRM Part1）：
+ *        bit15 PMU_WDT  bit14 NPU_WDT  bit13 WDT_S  bit12 WDT_NS
+ *        bit11 BUS_WDT  bit10 DDR_WDT  bit6 看门狗复位  bit5 第二级复位
+ *      实测被 ATF 清零，一般读到 0。
+ *   2. 重启模式寄存器（rk3576_reboot.c）：
+ *        BOOT_WATCHDOG -> 看门狗复位
+ *        0x5242c3xx（NORMAL 等，软件重启后由 U-Boot 写回）-> 软件复位
+ *        其他 -> 上电（寄存器上电值不定，实测 0x7ccb56e6 / 0x7cc356e6）
  *
- *   ★ 读完要清，否则下一次启动仍会看到上一次的原因 —— xTS 的看门狗
- *     用例正是靠"上电时是 POR、看门狗触发后是 WDT"这个变化来判定的，
- *     不清的话第二次判断必然错。清除用 GLBRST_ST 写 1 清。
+ *   已知盲区：Linux 侧发起的 PSCI SYSTEM_RESET、以及不掉电的硬件复位，
+ *   都不经过 openvela 的重启路径，若此时看门狗已上弦会被判成看门狗。
  *
  ****************************************************************************/
 
 int board_reset_cause(FAR struct boardioc_reset_cause_s *cause)
 {
-  uint32_t st;
+  uint32_t mode;
 
   if (cause == NULL)
     {
       return -EINVAL;
     }
 
-  st = getreg32(RK3576_CRU_ADDR + 0x0c04);
+  mode = rk3576_bootmode_latch();
 
-  if (st & ((1u << 6) | (1u << 5) | (0x1fu << 11)))
+  if (g_glb_rst_st & ((1u << 6) | (1u << 5) | (0x1fu << 11)))
     {
       cause->cause = BOARDIOC_RESETCAUSE_SYS_RWDT;
+      cause->flag  = g_glb_rst_st;
     }
-  else if (st == 0)
+  else if (rk3576_bootmode_is_watchdog())
     {
-      cause->cause = BOARDIOC_RESETCAUSE_SYS_CHIPPOR;
+      cause->cause = BOARDIOC_RESETCAUSE_SYS_RWDT;
+      cause->flag  = mode;
+    }
+  else if ((mode & 0xffffff00) == 0x5242c300)
+    {
+      /* 只有软件重启会写 0x5242c3xx（NORMAL / LOADER / ...） */
+
+      cause->cause = BOARDIOC_RESETCAUSE_CORE_SOFT;
+      cause->flag  = mode;
     }
   else
     {
-      cause->cause = BOARDIOC_RESETCAUSE_UNKOWN;
+      /* 上电：寄存器内容不定。10-26 断电上电实测读到 0x7ccb56e6，不是 0 */
+
+      cause->cause = BOARDIOC_RESETCAUSE_SYS_CHIPPOR;
+      cause->flag  = mode;
     }
 
-  cause->flag = st;
-
-  /* 写 1 清，供下次启动区分 */
-
-  putreg32(st, RK3576_CRU_ADDR + 0x0c04);
   return OK;
 }
 #endif
