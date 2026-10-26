@@ -46,9 +46,37 @@ int kickpi_k7_bt_probe(void)
 
 int kickpi_k7_bt_initialize(void)
 {
-  /* HCI must not register before firmware boot and RX framing exist. */
+  struct skw6621s_probe_s result;
+  FAR struct sdio_dev_s *sdio;
+  int ret;
 
-  syslog(LOG_WARNING,
-         "SKW6621S: firmware/HCI initialization is not implemented yet\n");
-  return -ENOSYS;
+  /* Probe resets the module (WL_REG_ON), so the CP starts from ROM.
+   * HCI must not register before the RX transport exists; this only
+   * proves the first firmware boot.
+   */
+
+  ret = rk3576_dwmmc_probe(RK3576_DWMMC_SDIO_BASE);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  sdio = rk3576_dwmmc_initialize(RK3576_DWMMC_SDIO_BASE);
+  if (sdio == NULL)
+    {
+      return -ENODEV;
+    }
+
+  ret = skw6621s_sdio_probe(sdio, &result);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  /* Antenna NV (ALONE / SHARE) is not confirmed for K7; it only affects
+   * RF, not the boot handshake.
+   */
+
+  return skw6621s_boot(sdio, &result, "/data/skw",
+                       "SWT6621S_NV_SDIO_SHARE.bin");
 }

@@ -35,4 +35,13 @@ struct skw6621s_probe_s
 int skw6621s_sdio_probe(FAR struct sdio_dev_s *sdio,
                         FAR struct skw6621s_probe_s *result);
 
+/* First firmware boot after a fresh probe.  Loads SWT6621S_IRAM_SDIO.bin,
+ * SWT6621S_DRAM_SDIO.bin and the given NV file from dir, downloads them and
+ * waits (bounded) for the LOOPCHECK BSPREADY / trunk_W handshake.
+ */
+
+int skw6621s_boot(FAR struct sdio_dev_s *sdio,
+                  FAR const struct skw6621s_probe_s *probe,
+                  FAR const char *dir, FAR const char *nvname);
+
 #endif /* __CONTEST_SKW6621S_SDIO_H */

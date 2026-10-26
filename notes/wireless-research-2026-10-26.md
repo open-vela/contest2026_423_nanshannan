@@ -92,6 +92,29 @@ SKW6621S: ID 1ffe:6621, chip SV6160LITE, SDIO v2, block 512
 本日两次刷写在 "Reading current AMP FIT region" 时 USB 掉线、板子卡在 loader，只能断电。两次之前
 同一次开机里都跑过 `bt probe`；冷启动或看门狗复位后、没碰模组时刷写都成功。是否相关未证实。
 
+## 固件启动成功（同日）
+
+`bt init`（`chip/rk3576/skw6621s/skw6621s_boot.c`）按原厂 `skw_sdio_boot_cp` 的顺序：
+F0 0x165 ← 1（原厂不论主机收包方式**总是写 ADMA**）、0x167 ← 1（K7 无唤醒脚，关 CP 睡眠）、
+CCCR IEN ← 0x03、0x16 bit1（异步中断）→ DRAM@0x20200000、IRAM@0x00100000（NV CMFG 28 字节合并到
+IRAM+0xcc）按 512 字节 CMD53 写 F1 0x0f → 0x160 ← 1 → 轮询 CCCR 0x05 bit1，有挂起就从 F1 0x20 读
+0x600+512 字节。
+
+```
+SKW6621S: download done in 3538 ms
+SKW6621S: rx 1 pac, valid 79, next 0, hdr 0x013f004f
+SKW6621S: LOOPCHECK "trunk_W426 20250611-01:36:19, sl…"
+SKW6621S: handshake 0 after 46 polls, 251 ms
+```
+
+写 0x160 后约 250ms 收到 LOOPCHECK 通道的版本串，CP 固件在跑（`serial-bt-init-fw-boot.txt`）。
+没看到 BSPREADY：固件直接报版本，或在开始轮询之前就发了，未区分。版本串被 64 字节缓冲截断。
+
+固件经 HTTP 传到 `/data/skw/`（不进仓库）。注意：WSL 镜像网络下默认 MSS 的 http.server 传不动大文件
+（板子 recv 10 秒超时，EAGAIN），服务端 `TCP_MAXSEG=536` 后正常。
+
+天线 NV 用的 SHARE，未确认。
+
 ## 下一步
 
-固件下载（SDIO v2 协议）→ 蓝牙 HCI → WiFi 数据通路。
+服务启动（F0 0x1b0 bit2 = BT start，等 BTREADY）→ 蓝牙 HCI 通道 → 接 NuttX 蓝牙栈；WiFi 在其后。

@@ -78,9 +78,9 @@ CHIP_CSRCS += rk3576_dwmmc.c
 endif
 
 ifeq ($(CONFIG_RK3576_SKW6621S),y)
-CHIP_CSRCS += skw6621s/skw6621s_sdio.c
+CHIP_CSRCS += skw6621s/skw6621s_sdio.c skw6621s/skw6621s_boot.c
 
-skw6621s/skw6621s_sdio.o: | skw6621s-object-dir
+skw6621s/skw6621s_sdio.o skw6621s/skw6621s_boot.o: | skw6621s-object-dir
 
 .PHONY: skw6621s-object-dir
 skw6621s-object-dir:
