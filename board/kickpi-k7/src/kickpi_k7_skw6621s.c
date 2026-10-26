@@ -77,6 +77,12 @@ int kickpi_k7_bt_initialize(void)
    * RF, not the boot handshake.
    */
 
-  return skw6621s_boot(sdio, &result, "/data/skw",
-                       "SWT6621S_NV_SDIO_SHARE.bin");
+  ret = skw6621s_boot(sdio, &result, "/data/skw",
+                      "SWT6621S_NV_SDIO_SHARE.bin");
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return skw6621s_bt_hci_init("/data/skw/sv6160lite.nvbin");
 }

@@ -33,6 +33,7 @@
 #include <nuttx/clock.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/mutex.h>
 #include <nuttx/sdio.h>
 
 #include "skw6621s_sdio.h"
@@ -68,6 +69,14 @@
 #define SKW_RX_MAX_PAC          8
 #define SKW_RX_BUF_SIZE         (SKW_PAC_SIZE * SKW_RX_MAX_PAC + SKW_BLK_SIZE)
 #define SKW_LOOPCHECK_CH        1
+#define SKW_BT_CMD_CH           2        /* SDIO2_BT_CMD_PORT */
+#define SKW_BT_DATA_CH          5        /* SDIO2_BT_DATA_PORT */
+#define SKW_AP2CP_IRQ           0x1b0    /* service start/stop bits */
+#define SKW_BT_START_BIT        0x04     /* 1 << ((BT_SERVICE << 1) | START) */
+
+#define SKW_FLAG_VERSION        (1 << 0)
+#define SKW_FLAG_BTREADY        (1 << 1)
+#define SKW_FLAG_ASSERT         (1 << 2)
 
 #define SKW_BOOT_TIMEOUT_MS     3000
 #define SKW_POLL_MS             5
@@ -292,99 +301,205 @@ static int skw_send(FAR struct sdio_dev_s *sdio, uint8_t channel,
                              false, pkt, SKW_BLK_SIZE, 0);
 }
 
-/* skw_sdio2_sdma_parser + the LOOPCHECK branch of skw_sdio2_handle_packet.
- * Returns 1 when the version string arrived.
+
+/* Driver state kept after boot: the RX buffer and flags are reused by the
+ * Bluetooth transport.  All bus access goes through lock.
  */
 
-static int skw_parse(FAR struct sdio_dev_s *sdio, FAR uint8_t *buf,
-                     unsigned int npac)
+struct skw_ctx_s
+{
+  FAR struct sdio_dev_s *sdio;
+  FAR uint8_t *rxbuf;
+  unsigned int npac;
+  uint32_t flags;
+  uint32_t acks;
+  skw6621s_hci_cb_t cb;
+  FAR void *cbarg;
+  mutex_t lock;
+};
+
+static struct skw_ctx_s g_skw =
+{
+  .npac = 1,
+  .lock = NXMUTEX_INITIALIZER,
+};
+
+/* skw_sdio2_sdma_parser + skw_sdio2_handle_packet.  Every non-ack packet
+ * carries a 12-byte sub-header after the 4-byte header; the payload is at
+ * +16 and is len - 12 bytes.  A 12-byte packet is the CP's TX ack.
+ */
+
+static void skw_parse(FAR struct skw_ctx_s *ctx, unsigned int npac)
 {
   unsigned int i;
-  int done = 0;
 
   for (i = 0; i < npac; i++)
     {
-      FAR uint8_t *p = buf + i * SKW_PAC_SIZE;
+      FAR uint8_t *p = ctx->rxbuf + i * SKW_PAC_SIZE;
       uint32_t hdr = skw_le32(p);
       unsigned int len = hdr & 0xffff;
       unsigned int ch = hdr >> 24;
-      char cmd[64];
-      size_t n;
+      FAR const uint8_t *pl = p + 16;
+      size_t plen;
 
       if ((hdr >> 23) & 1)
         {
           break;
         }
 
-      if (len == 0 || len > SKW_PAC_SIZE - 4)
+      if (len < 12 || len > SKW_PAC_SIZE - 4)
         {
           syslog(LOG_WARNING, "SKW6621S: rx bad header 0x%08" PRIx32 "\n",
                  hdr);
           break;
         }
 
-      if (ch != SKW_LOOPCHECK_CH || len < 12)
+      if (len == 12)
         {
-          syslog(LOG_INFO, "SKW6621S: rx ch %u len %u\n", ch, len);
+          ctx->acks++;
           continue;
         }
 
-      /* Payload string starts at +16 and is len - 12 bytes long */
+      plen = len - 12;
 
-      n = len - 12 < sizeof(cmd) - 1 ? len - 12 : sizeof(cmd) - 1;
-      memcpy(cmd, p + 16, n);
-      cmd[n] = '\0';
-      syslog(LOG_INFO, "SKW6621S: LOOPCHECK \"%s\"\n", cmd);
+      if (ch == SKW_LOOPCHECK_CH)
+        {
+          char cmd[96];
+          size_t n = plen < sizeof(cmd) - 1 ? plen : sizeof(cmd) - 1;
 
-      if (strncmp(cmd, "BSPREADY", 8) == 0)
-        {
-          int ret = skw_send(sdio, SKW_LOOPCHECK_CH, "RDVERSION", 9);
-          syslog(LOG_INFO, "SKW6621S: sent RDVERSION: %d\n", ret);
+          memcpy(cmd, pl, n);
+          cmd[n] = '\0';
+          syslog(LOG_INFO, "SKW6621S: LOOPCHECK \"%s\"\n", cmd);
+
+          if (strncmp(cmd, "BSPREADY", 8) == 0)
+            {
+              int ret = skw_send(ctx->sdio, SKW_LOOPCHECK_CH, "RDVERSION", 9);
+              syslog(LOG_INFO, "SKW6621S: sent RDVERSION: %d\n", ret);
+            }
+          else if (strncmp(cmd, "trunk_W", 7) == 0)
+            {
+              ctx->flags |= SKW_FLAG_VERSION;
+            }
+          else if (strncmp(cmd, "BTREADY", 7) == 0)
+            {
+              ctx->flags |= SKW_FLAG_BTREADY;
+            }
+          else if (strncmp(cmd, "BSPASSERT", 9) == 0)
+            {
+              ctx->flags |= SKW_FLAG_ASSERT;
+            }
+
+          continue;
         }
-      else if (strncmp(cmd, "trunk_W", 7) == 0)
+
+      if ((ch == SKW_BT_CMD_CH || ch == SKW_BT_DATA_CH) && plen >= 1)
         {
-          done = 1;
+          /* H4: first byte is the packet type; 0x07 is the CP's log */
+
+          if (pl[0] == 0x07)
+            {
+              continue;
+            }
+
+          if (ctx->cb != NULL)
+            {
+              ctx->cb(ctx->cbarg, pl[0], pl + 1, plen - 1);
+            }
+          else
+            {
+              syslog(LOG_INFO, "SKW6621S: ch %u type %02x len %zu\n",
+                     ch, pl[0], plen - 1);
+            }
+
+          continue;
         }
-      else if (strncmp(cmd, "BSPASSERT", 9) == 0)
+
+      syslog(LOG_INFO, "SKW6621S: rx ch %u len %u (dropped)\n", ch, len);
+    }
+}
+
+/* One RX pass under the lock: read only if F1 interrupt is pending, and
+ * keep reading while the CP says more packets follow.
+ */
+
+static int skw_rx_once(FAR struct skw_ctx_s *ctx)
+{
+  uint8_t pend;
+  int loops = 0;
+  int ret;
+
+  ret = skw_f0_read(ctx->sdio, SKW_CCCR_INTPEND, &pend);
+  if (ret < 0 || (pend & 0x02) == 0)
+    {
+      return ret < 0 ? ret : 0;
+    }
+
+  do
+    {
+      unsigned int n = ctx->npac;
+      size_t len = SKW_PAC_SIZE * n + SKW_BLK_SIZE;
+      uint32_t nsize;
+
+      ret = sdio_io_rw_extended(ctx->sdio, false, SKW_FUNCTION,
+                                SKW_PK_WINDOW, false, ctx->rxbuf,
+                                SKW_BLK_SIZE, len / SKW_BLK_SIZE);
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "SKW6621S: rx read %zu: %d\n", len, ret);
+          return ret;
+        }
+
+      nsize = skw_le32(ctx->rxbuf + len - 4);
+      skw_parse(ctx, n);
+
+      ctx->npac = nsize == 0 ? 1 :
+                  nsize > SKW_RX_MAX_PAC ? SKW_RX_MAX_PAC : nsize;
+      if (nsize == 0)
+        {
+          break;
+        }
+    }
+  while (++loops < 16);
+
+  return 1;
+}
+
+/* Poll until a flag shows up, bounded */
+
+static int skw_wait_flag(FAR struct skw_ctx_s *ctx, uint32_t flag,
+                         unsigned int timeout_ms)
+{
+  clock_t start = clock_systime_ticks();
+  int ret;
+
+  while (TICK2MSEC(clock_systime_ticks() - start) < timeout_ms)
+    {
+      nxmutex_lock(&ctx->lock);
+      ret = skw_rx_once(ctx);
+      nxmutex_unlock(&ctx->lock);
+
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      if (ctx->flags & SKW_FLAG_ASSERT)
         {
           return -EIO;
         }
+
+      if (ctx->flags & flag)
+        {
+          return OK;
+        }
+
+      if (ret == 0)
+        {
+          up_mdelay(SKW_POLL_MS);
+        }
     }
 
-  return done;
-}
-
-static int skw_rx(FAR struct sdio_dev_s *sdio, FAR uint8_t *buf,
-                  FAR unsigned int *npac)
-{
-  unsigned int n = *npac;
-  size_t len = SKW_PAC_SIZE * n + SKW_BLK_SIZE;
-  uint32_t nsize;
-  uint32_t valid;
-  int ret;
-
-  ret = sdio_io_rw_extended(sdio, false, SKW_FUNCTION, SKW_PK_WINDOW,
-                            false, buf, SKW_BLK_SIZE, len / SKW_BLK_SIZE);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "SKW6621S: rx read %zu: %d\n", len, ret);
-      return ret;
-    }
-
-  nsize = skw_le32(buf + len - 4);
-  valid = skw_le32(buf + len - 8);
-  syslog(LOG_INFO, "SKW6621S: rx %u pac, valid %" PRIu32 ", next %" PRIu32
-         ", hdr 0x%08" PRIx32 "\n", n, valid, nsize, skw_le32(buf));
-
-  ret = skw_parse(sdio, buf, n);
-
-  if (nsize == 0)
-    {
-      nsize = 1;
-    }
-
-  *npac = nsize > SKW_RX_MAX_PAC ? SKW_RX_MAX_PAC : nsize;
-  return ret;
+  return -ETIMEDOUT;
 }
 
 /****************************************************************************
@@ -395,6 +510,7 @@ int skw6621s_boot(FAR struct sdio_dev_s *sdio,
                   FAR const struct skw6621s_probe_s *probe,
                   FAR const char *dir, FAR const char *nvname)
 {
+  FAR struct skw_ctx_s *ctx = &g_skw;
   struct skw_image_s iram =
   {
     0
@@ -410,14 +526,10 @@ int skw6621s_boot(FAR struct sdio_dev_s *sdio,
     0
   };
 
-  FAR uint8_t *rxbuf = NULL;
-  unsigned int npac = 1;
   uint32_t iram_addr = 0;
   uint32_t dram_addr = 0;
   clock_t start;
-  uint8_t pend;
   uint8_t reg;
-  int polls = 0;
   int ret;
 
   if (probe->protocol != SKW6621S_SDIO_V2)
@@ -441,16 +553,22 @@ int skw6621s_boot(FAR struct sdio_dev_s *sdio,
       ret = skw_prepare(&iram, &nv, &iram_addr, &dram_addr);
     }
 
-  if (ret == OK)
+  if (ret == OK && ctx->rxbuf == NULL)
     {
-      rxbuf = kmm_malloc(SKW_RX_BUF_SIZE);
-      ret = rxbuf == NULL ? -ENOMEM : OK;
+      ctx->rxbuf = kmm_malloc(SKW_RX_BUF_SIZE);
+      ret = ctx->rxbuf == NULL ? -ENOMEM : OK;
     }
 
   if (ret < 0)
     {
       goto out;
     }
+
+  nxmutex_lock(&ctx->lock);
+  ctx->sdio = sdio;
+  ctx->npac = 1;
+  ctx->flags = 0;
+  ctx->acks = 0;
 
   /* skw_sdio_set_dma_type / skw_sdio_slp_feature_en.  K7 has no
    * host/chip wake GPIOs, so the SDK would disable CP sleep.
@@ -478,6 +596,7 @@ int skw6621s_boot(FAR struct sdio_dev_s *sdio,
 
   if (ret < 0)
     {
+      nxmutex_unlock(&ctx->lock);
       syslog(LOG_ERR, "SKW6621S: pre-download config: %d\n", ret);
       goto out;
     }
@@ -489,66 +608,131 @@ int skw6621s_boot(FAR struct sdio_dev_s *sdio,
       ret = skw_dt_write(sdio, iram_addr, iram.data, iram.size);
     }
 
+  if (ret == OK)
+    {
+      syslog(LOG_INFO, "SKW6621S: download done in %u ms\n",
+             (unsigned int)TICK2MSEC(clock_systime_ticks() - start));
+      ret = skw_f0_write(sdio, SKW_DL_DONE, 1);
+    }
+
+  nxmutex_unlock(&ctx->lock);
   if (ret < 0)
     {
       goto out;
     }
 
-  syslog(LOG_INFO, "SKW6621S: download done in %u ms\n",
-         (unsigned int)TICK2MSEC(clock_systime_ticks() - start));
-
-  ret = skw_f0_write(sdio, SKW_DL_DONE, 1);
-  if (ret < 0)
-    {
-      goto out;
-    }
-
-  /* Bounded handshake: poll INT pending, read when F1 is pending.  If it
-   * never shows up, read once anyway (the SDK kicks its RX thread on the
-   * CP-ready timeout as well) so the log says what the FIFO holds.
-   */
+  /* Bounded handshake: BSPREADY -> RDVERSION -> trunk_W */
 
   start = clock_systime_ticks();
-  ret = -ETIMEDOUT;
-  while (TICK2MSEC(clock_systime_ticks() - start) < SKW_BOOT_TIMEOUT_MS)
-    {
-      int r;
-
-      polls++;
-      r = skw_f0_read(sdio, SKW_CCCR_INTPEND, &pend);
-      if (r < 0)
-        {
-          ret = r;
-          break;
-        }
-
-      if ((pend & 0x02) == 0)
-        {
-          up_mdelay(SKW_POLL_MS);
-          continue;
-        }
-
-      r = skw_rx(sdio, rxbuf, &npac);
-      if (r != 0)
-        {
-          ret = r > 0 ? OK : r;
-          break;
-        }
-    }
-
-  syslog(LOG_INFO, "SKW6621S: handshake %d after %d polls, %u ms\n", ret,
-         polls, (unsigned int)TICK2MSEC(clock_systime_ticks() - start));
-
-  if (ret == -ETIMEDOUT)
-    {
-      npac = 1;
-      skw_rx(sdio, rxbuf, &npac);
-    }
+  ret = skw_wait_flag(ctx, SKW_FLAG_VERSION, SKW_BOOT_TIMEOUT_MS);
+  syslog(LOG_INFO, "SKW6621S: handshake %d, %u ms\n", ret,
+         (unsigned int)TICK2MSEC(clock_systime_ticks() - start));
 
 out:
-  kmm_free(rxbuf);
   kmm_free(iram.data);
   kmm_free(dram.data);
   kmm_free(nv.data);
+  return ret;
+}
+
+int skw6621s_bt_start(void)
+{
+  FAR struct skw_ctx_s *ctx = &g_skw;
+  clock_t start;
+  int ret;
+
+  if (ctx->sdio == NULL || (ctx->flags & SKW_FLAG_VERSION) == 0)
+    {
+      return -ENODEV;
+    }
+
+  if (ctx->flags & SKW_FLAG_BTREADY)
+    {
+      return OK;
+    }
+
+  /* send_modem_service_command(BT_SERVICE, SERVICE_START) */
+
+  nxmutex_lock(&ctx->lock);
+  ret = skw_f0_write(ctx->sdio, SKW_AP2CP_IRQ, SKW_BT_START_BIT);
+  nxmutex_unlock(&ctx->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  start = clock_systime_ticks();
+  ret = skw_wait_flag(ctx, SKW_FLAG_BTREADY, SKW_BOOT_TIMEOUT_MS);
+  syslog(LOG_INFO, "SKW6621S: BT service start %d, %u ms\n", ret,
+         (unsigned int)TICK2MSEC(clock_systime_ticks() - start));
+  return ret;
+}
+
+void skw6621s_set_hci_cb(skw6621s_hci_cb_t cb, FAR void *arg)
+{
+  nxmutex_lock(&g_skw.lock);
+  g_skw.cb = cb;
+  g_skw.cbarg = arg;
+  nxmutex_unlock(&g_skw.lock);
+}
+
+int skw6621s_poll(void)
+{
+  int ret;
+
+  if (g_skw.sdio == NULL)
+    {
+      return -ENODEV;
+    }
+
+  nxmutex_lock(&g_skw.lock);
+  ret = skw_rx_once(&g_skw);
+  nxmutex_unlock(&g_skw.lock);
+
+  if (ret >= 0 && (g_skw.flags & SKW_FLAG_ASSERT))
+    {
+      ret = -EIO;
+    }
+
+  return ret;
+}
+
+int skw6621s_hci_send(uint8_t type, FAR const uint8_t *data, size_t len)
+{
+  uint8_t h4[SKW_BLK_SIZE - 8];
+  uint8_t ch;
+  int ret;
+
+  if (g_skw.sdio == NULL || (g_skw.flags & SKW_FLAG_BTREADY) == 0)
+    {
+      return -ENODEV;
+    }
+
+  /* btseekwave_send_frame: commands on the cmd port, ACL on data port */
+
+  if (type == 0x01)
+    {
+      ch = SKW_BT_CMD_CH;
+    }
+  else if (type == 0x02)
+    {
+      ch = SKW_BT_DATA_CH;
+    }
+  else
+    {
+      return -EINVAL;
+    }
+
+  if (len + 1 > sizeof(h4))
+    {
+      return -E2BIG;
+    }
+
+  h4[0] = type;
+  memcpy(h4 + 1, data, len);
+
+  nxmutex_lock(&g_skw.lock);
+  ret = skw_send(g_skw.sdio, ch, (FAR const char *)h4, len + 1);
+  nxmutex_unlock(&g_skw.lock);
   return ret;
 }

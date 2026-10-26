@@ -115,6 +115,28 @@ SKW6621S: handshake 0 after 46 polls, 251 ms
 
 天线 NV 用的 SHARE，未确认。
 
+## 蓝牙 HCI 通道打通（同日）
+
+按原厂 skwbt（`btseekwave_open` / `btseekwave_download_nv`）：
+
+- 启动蓝牙服务：F0 0x1b0 ← 0x04（`1 << ((BT_SERVICE<<1)|START)`），LOOPCHECK 收 `BTREADY`。
+- HCI 走 H4：命令在端口 2，ACL 在端口 5；CP 发来的包在 4 字节包头后有 12 字节子头（序号），有效数据在 +16；
+  长度恰为 12 的包是 CP 对主机发送的确认。类型 0x07 是 CP 日志。
+- 初始化：Read Local Version → NVDS（0xFC80，`sv6160lite.nvbin` 跳过 4 字节头后按 TLV 打包成 <252 字节一页，
+  DSP 日志项强制关）→ HCI Reset → Read BD_ADDR。
+
+```
+LOOPCHECK "BTREADY"
+SKW BT: read local version 0: hci 0c rev 5302 ...
+SKW BT: NV 37 bytes, 1 pages, ret 0
+SKW BT: reset 0
+SKW BT: BD_ADDR 0: 60:48:9c:b5:16:e3
+```
+
+（`serial-bt-hci-init.txt`）。收包仍是轮询，单包发送上限 504 字节。
+
+刷写前用 `mw 2ae10004=00400000` 把 WL_REG_ON 拉低、模组回到复位，这次跑过 `bt init` 后刷写成功（一次）。
+
 ## 下一步
 
-服务启动（F0 0x1b0 bit2 = BT start，等 BTREADY）→ 蓝牙 HCI 通道 → 接 NuttX 蓝牙栈；WiFi 在其后。
+接 NuttX 蓝牙栈（bt_driver_s + 收包线程）；WiFi 在其后。
