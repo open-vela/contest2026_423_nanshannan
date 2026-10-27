@@ -10,6 +10,13 @@
  * the CP answers with CMD_ACK (header, u16 status, return data) and
  * reports scan results as SCAN_REPORT events.  Commands are sent one at a
  * time and each waits (bounded) for its ack.
+ *
+ * Connecting follows the STA_SME_EXT path (skw_join / skw_auth /
+ * skw_assoc): JOIN with the scanned IEs, AUTH (open system) and ASSOC,
+ * each answered by an RX_MGMT event carrying the AP's frame.  The RSN
+ * 4-way handshake is ours (skw6621s_wpa.c); EAPOL frames are sent as
+ * TX_DATA_FRAME commands, as the vendor driver does for every
+ * "filtered" protocol, and arrive on data port 7.
  ****************************************************************************/
 
 /****************************************************************************
@@ -31,14 +38,24 @@
 #include <nuttx/compiler.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/kthread.h>
+#include <nuttx/mutex.h>
+#include <nuttx/signal.h>
+#include <nuttx/spinlock.h>
+
+#ifdef CONFIG_MM_IOB
+#  include <nuttx/net/netdev_lowerhalf.h>
+#endif
 
 #include "skw6621s_sdio.h"
+#include "skw6621s_wpa.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
 #define SKW_WIFI_CMD_CH             6
+#define SKW_WIFI_DATA_CH            7
 
 /* enum SKW_MSG_TYPE */
 
@@ -52,11 +69,19 @@
 #define SKW_CMD_SYN_VERSION         2
 #define SKW_CMD_OPEN_DEV            3
 #define SKW_CMD_START_SCAN          5
+#define SKW_CMD_JOIN                9
+#define SKW_CMD_AUTH                10
+#define SKW_CMD_ASSOC               11
+#define SKW_CMD_ADD_KEY             12
+#define SKW_CMD_TX_DATA_FRAME       15
+#define SKW_CMD_DISCONNECT          17
 #define SKW_CMD_PHY_BB_CFG          50
 
 /* enum SKW_EVENT_ID */
 
 #define SKW_EVENT_NORMAL_SCAN_CMPL  0
+#define SKW_EVENT_DISCONNECT        2
+#define SKW_EVENT_RX_MGMT           4
 #define SKW_EVENT_SCAN_REPORT       11
 #define SKW_EVENT_CREDIT_UPDATE     16
 
@@ -71,6 +96,42 @@
 #define SKW_SCAN_TIMEOUT_MS         8000
 
 #define SKW_SCAN_MAX_BSS            48
+#define SKW_SCAN_PASSIVE            0x80
+#define SKW_BAND_2GHZ               0
+#define SKW_BAND_5GHZ               1
+#define SKW_BSS_IE_MAX              768
+
+#define SKW_MGMT_TIMEOUT_MS         1000
+#define SKW_EAPOL_TIMEOUT_MS        5000
+
+/* 802.11 management subtypes (frame control byte 0) */
+
+#define WLAN_FC_ASSOC_RESP          0x10
+#define WLAN_FC_REASSOC_RESP        0x30
+#define WLAN_FC_DISASSOC            0xa0
+#define WLAN_FC_AUTH                0xb0
+#define WLAN_FC_DEAUTH              0xc0
+
+/* enum SKW_KEY_TYPE / SKW_CIPHER_TYPE */
+
+#define SKW_KEY_TYPE_PTK            0
+#define SKW_KEY_TYPE_GTK            1
+#define SKW_CIPHER_TYPE_TKIP        3
+#define SKW_CIPHER_TYPE_CCMP        8
+
+/* SDIO RX descriptor (skw_rx_desc, words 13-17): msdu_offset counts from
+ * 52 bytes before the descriptor; the MSDU is an Ethernet frame that is
+ * msdu_len + 6 bytes long.
+ */
+
+#define SKW_RX_DESC_LEN             20
+#define SKW_RX_MSDU_BASE            52
+#define SKW_MSDU_HDR_LEN            6
+
+#define ETH_HLEN                    14
+#define ETH_P_PAE                   0x888e
+#define SKW_FRAME_MAX               1536
+#define SKW_EAPOL_SLOTS             2
 
 /****************************************************************************
  * Private Types
@@ -151,10 +212,92 @@ struct skw_bss_s
 {
   uint8_t bssid[6];
   uint8_t chan;
+  uint8_t band;                         /* SKW_BAND_2GHZ / SKW_BAND_5GHZ */
   int16_t signal;
   uint8_t ssid_len;
   char ssid[33];
 };
+
+/* The BSS being joined: what JOIN needs from the beacon / probe response */
+
+struct skw_target_s
+{
+  struct skw_bss_s bss;
+  uint16_t beacon_int;
+  uint16_t capability;
+  uint16_t ie_len;
+  uint8_t ies[SKW_BSS_IE_MAX];
+};
+
+begin_packed_struct struct skw_join_param_s
+{
+  uint8_t chan_num;
+  uint8_t center_chn1;
+  uint8_t center_chn2;
+  uint8_t bandwidth;
+  uint8_t band;
+  uint16_t beacon_interval;
+  uint16_t capability;
+  uint8_t bssid_index;
+  uint8_t max_bssid_indicator;
+  uint8_t bssid[6];
+  uint16_t roaming;
+  uint16_t bss_ie_offset;
+  uint32_t bss_ie_len;
+} end_packed_struct;
+
+begin_packed_struct struct skw_join_resp_s
+{
+  uint8_t peer_idx;
+  uint8_t lmac_id;
+  uint8_t inst;
+  uint8_t multicast_idx;
+} end_packed_struct;
+
+begin_packed_struct struct skw_auth_param_s
+{
+  uint16_t auth_algorithm;
+  uint16_t key_data_offset;
+  uint16_t key_data_len;
+  uint16_t auth_data_offset;
+  uint16_t auth_data_len;
+  uint16_t auth_ie_offset;
+  uint16_t auth_ie_len;
+} end_packed_struct;
+
+/* struct skw_assoc_req_param: ieee80211_ht_cap (26) + ieee80211_vht_cap
+ * (12), zero as from a supplicant without capability masks.
+ */
+
+begin_packed_struct struct skw_assoc_param_s
+{
+  uint8_t ht_capa[26];
+  uint8_t vht_capa[12];
+  uint8_t bssid[6];
+  uint8_t pre_bssid[6];
+  uint16_t req_ie_offset;
+  uint16_t req_ie_len;
+} end_packed_struct;
+
+begin_packed_struct struct skw_key_param_s
+{
+  uint8_t mac_addr[6];
+  uint8_t key_type;
+  uint8_t cipher_type;
+  uint8_t pn[6];
+  uint8_t key_id;
+  uint8_t key_len;
+  uint8_t key[32];
+} end_packed_struct;
+
+begin_packed_struct struct skw_disconnect_param_s
+{
+  uint8_t type;
+  uint8_t local_state_change;
+  uint16_t reason_code;
+  uint16_t ie_offset;
+  uint16_t ie_len;
+} end_packed_struct;
 
 /****************************************************************************
  * Private Data
@@ -169,6 +312,15 @@ static uint16_t g_cmd_status;
 static uint8_t g_cmd_rsp[512];
 static size_t g_cmd_rsp_len;
 
+/* China: 2.4 GHz 1-13, 5 GHz 36-64 (52-64 DFS: passive) and 149-165 */
+
+static const uint8_t g_chan5g[] =
+{
+  36, 40, 44, 48, 52, 56, 60, 64, 149, 153, 157, 161, 165
+};
+
+#define SKW_SCAN_NCHAN              (13 + sizeof(g_chan5g))
+
 static volatile bool g_scan_done;
 static struct skw_bss_s g_bss[SKW_SCAN_MAX_BSS];
 static unsigned int g_nbss;
@@ -176,6 +328,39 @@ static unsigned int g_nreport;
 
 static uint8_t g_mac[6];
 static bool g_wifi_ready;
+static mutex_t g_cmd_lock = NXMUTEX_INITIALIZER;
+
+/* Connection state; the mgmt / eapol fields are filled by the callback */
+
+static FAR const char *g_want;          /* SSID substring while scanning */
+static uint8_t g_skip_bssid[6];         /* BSS that rejected our auth */
+static bool g_skip_valid;
+static bool g_pn_reuse;                 /* chip priv bit 2: msdu_len in pn[4] */
+static struct skw_target_s g_target;
+static bool g_have_target;
+
+static volatile uint8_t g_mgmt_fc;      /* last auth / assoc reply */
+static volatile uint16_t g_mgmt_status;
+static volatile bool g_mgmt_seen;
+static volatile bool g_deauth;
+static volatile uint16_t g_deauth_reason;
+
+static uint8_t g_eapol[SKW_EAPOL_SLOTS][SKW_WPA_EAPOL_MAX];
+static volatile size_t g_eapol_len[SKW_EAPOL_SLOTS];
+
+static struct skw_join_resp_s g_join;
+static bool g_joined;
+static bool g_connected;
+static unsigned int g_data_dumps;
+static FAR struct skw_wpa_s *g_wpa;
+
+/****************************************************************************
+ * Private Function Prototypes
+ ****************************************************************************/
+
+static void wifi_free_wpa(void);
+static void wifi_netdev_rx(FAR const uint8_t *frame, size_t len);
+static void wifi_netdev_link(bool up);
 
 /****************************************************************************
  * Private Functions
@@ -238,6 +423,7 @@ static void wifi_scan_report(FAR const uint8_t *data, size_t len)
     }
 
   bss->chan = data[0];
+  bss->band = data[1];
   bss->signal = (int16_t)skw_le16(data + 2);
 
   ie = mgmt + 36;
@@ -253,6 +439,156 @@ static void wifi_scan_report(FAR const uint8_t *data, size_t len)
           break;
         }
     }
+
+  /* Keep the strongest match's IEs for JOIN (beacon interval and
+   * capability sit just before them).
+   */
+
+  if (g_want != NULL && bss->ssid_len > 0 && strstr(bss->ssid, g_want) &&
+      !(g_skip_valid && memcmp(g_skip_bssid, bss->bssid, 6) == 0) &&
+      (!g_have_target || memcmp(g_target.bss.bssid, bss->bssid, 6) == 0 ||
+       bss->signal > g_target.bss.signal))
+    {
+      g_target.bss = *bss;
+      g_target.beacon_int = skw_le16(mgmt + 32);
+      g_target.capability = skw_le16(mgmt + 34);
+      g_target.ie_len = mlen - 36 < SKW_BSS_IE_MAX ? mlen - 36 :
+                        SKW_BSS_IE_MAX;
+      memcpy(g_target.ies, ie, g_target.ie_len);
+      g_have_target = true;
+    }
+}
+
+/* skw_event_rx_mgmt: skw_mgmt_hdr then the frame (auth, assoc response,
+ * deauth ...) addressed to us.
+ */
+
+static void wifi_rx_mgmt(FAR const uint8_t *data, size_t len)
+{
+  FAR const uint8_t *f = data + 8;
+  size_t flen;
+  uint8_t fc;
+
+  if (len < 8 + 24 + 2)
+    {
+      return;
+    }
+
+  flen = len - 8;
+  fc = f[0] & 0xfc;
+  syslog(LOG_INFO, "SKW WiFi: rx mgmt fc 0x%02x len %zu from "
+         "%02x:%02x:%02x:..\n", fc, flen, f[10], f[11], f[12]);
+
+  switch (fc)
+    {
+      case WLAN_FC_AUTH:
+        if (flen >= 24 + 6)
+          {
+            syslog(LOG_INFO, "SKW WiFi: auth da %02x:..:%02x alg %u "
+                   "seq %u status %u\n", f[4], f[9], skw_le16(f + 24),
+                   skw_le16(f + 26), skw_le16(f + 28));
+            g_mgmt_status = skw_le16(f + 28);
+            g_mgmt_fc = fc;
+            g_mgmt_seen = true;
+          }
+        break;
+
+      case WLAN_FC_ASSOC_RESP:
+      case WLAN_FC_REASSOC_RESP:
+        if (flen >= 24 + 6)
+          {
+            g_mgmt_status = skw_le16(f + 26);
+            g_mgmt_fc = WLAN_FC_ASSOC_RESP;
+            g_mgmt_seen = true;
+          }
+        break;
+
+      case WLAN_FC_DEAUTH:
+      case WLAN_FC_DISASSOC:
+        g_deauth_reason = skw_le16(f + 24);
+        g_deauth = true;
+        break;
+
+      default:
+        break;
+    }
+}
+
+/* Data port: RX descriptor, then an Ethernet frame */
+
+static void wifi_rx_data(FAR const uint8_t *d, size_t len)
+{
+  FAR const uint8_t *eth;
+  size_t shift;
+  size_t off;
+  size_t flen;
+  unsigned int i;
+
+  /* With the firmware's PN reuse (chip priv bit 2) the vendor driver does
+   * not drop the 4-byte SDIO header on the data port: the RX descriptor
+   * starts at that header, i.e. 4 bytes before d, and msdu_len moves into
+   * pn[4..5].  Seen on the board: msdu_offset at d+14, length at d+12,
+   * Ethernet frame at d+18.  Only descriptor bytes 4.. are read.
+   */
+
+  shift = g_pn_reuse ? 4 : 0;
+  if (len + shift < SKW_RX_DESC_LEN)
+    {
+      return;
+    }
+
+  off = d[18 - shift];
+  flen = skw_le16(g_pn_reuse ? d + 16 - shift : d + 2) + SKW_MSDU_HDR_LEN;
+  if (off < SKW_RX_MSDU_BASE + shift ||
+      off - SKW_RX_MSDU_BASE < SKW_RX_DESC_LEN ||
+      off - SKW_RX_MSDU_BASE - shift + flen > len || flen < ETH_HLEN)
+    {
+      static int dumps;
+
+      syslog(LOG_WARNING, "SKW WiFi: rx data bad desc off %zu len %zu/%zu\n",
+             off, flen, len);
+      if (dumps++ < 2)
+        {
+          for (i = 0; i + 16 <= len && i < 64; i += 16)
+            {
+              syslog(LOG_WARNING, "  %02x: %02x %02x %02x %02x %02x %02x %02x "
+                     "%02x %02x %02x %02x %02x %02x %02x %02x %02x\n", i,
+                     d[i], d[i + 1], d[i + 2], d[i + 3], d[i + 4], d[i + 5],
+                     d[i + 6], d[i + 7], d[i + 8], d[i + 9], d[i + 10],
+                     d[i + 11], d[i + 12], d[i + 13], d[i + 14], d[i + 15]);
+            }
+        }
+
+      return;
+    }
+
+  eth = d + off - SKW_RX_MSDU_BASE - shift;
+
+  if (g_data_dumps < 4)
+    {
+      g_data_dumps++;
+      syslog(LOG_INFO, "SKW WiFi: rx data len %zu off %zu frame %zu "
+             "filter %u type %02x%02x\n", len, off, flen, d[7 - shift],
+             eth[12], eth[13]);
+    }
+
+  if ((eth[12] << 8 | eth[13]) == ETH_P_PAE)
+    {
+      for (i = 0; i < SKW_EAPOL_SLOTS; i++)
+        {
+          if (g_eapol_len[i] == 0 && flen - ETH_HLEN <= SKW_WPA_EAPOL_MAX)
+            {
+              memcpy(g_eapol[i], eth + ETH_HLEN, flen - ETH_HLEN);
+              g_eapol_len[i] = flen - ETH_HLEN;
+              return;
+            }
+        }
+
+      syslog(LOG_WARNING, "SKW WiFi: EAPOL dropped\n");
+      return;
+    }
+
+  wifi_netdev_rx(eth, flen);
 }
 
 static void wifi_rx_cb(FAR void *arg, uint8_t channel,
@@ -262,6 +598,12 @@ static void wifi_rx_cb(FAR void *arg, uint8_t channel,
   uint8_t id;
   uint16_t seq;
   size_t total;
+
+  if (channel == SKW_WIFI_DATA_CH)
+    {
+      wifi_rx_data(data, len);
+      return;
+    }
 
   if (channel != SKW_WIFI_CMD_CH || len < SKW_MSG_HDR_LEN)
     {
@@ -313,6 +655,21 @@ static void wifi_rx_cb(FAR void *arg, uint8_t channel,
           case SKW_EVENT_CREDIT_UPDATE:
             break;
 
+          case SKW_EVENT_RX_MGMT:
+            wifi_rx_mgmt(ev, evlen);
+            break;
+
+          case SKW_EVENT_DISCONNECT:
+            if (evlen >= 2)
+              {
+                g_deauth_reason = skw_le16(ev);
+              }
+
+            g_deauth = true;
+            syslog(LOG_INFO, "SKW WiFi: DISCONNECT event, reason %u\n",
+                   g_deauth_reason);
+            break;
+
           default:
             syslog(LOG_INFO, "SKW WiFi: event %u len %zu\n", id, evlen);
             break;
@@ -333,7 +690,7 @@ static int wifi_cmd(uint8_t inst, uint8_t id, FAR const void *param,
                     size_t plen, FAR void *rsp, size_t rspsize,
                     unsigned int timeout_ms)
 {
-  static uint8_t msg[SKW_MSG_HDR_LEN + 1024];
+  static uint8_t msg[SKW_MSG_HDR_LEN + 8 + SKW_FRAME_MAX];
   size_t total = SKW_MSG_HDR_LEN + plen;
   clock_t start;
   int ret;
@@ -343,6 +700,7 @@ static int wifi_cmd(uint8_t inst, uint8_t id, FAR const void *param,
       return -E2BIG;
     }
 
+  nxmutex_lock(&g_cmd_lock);
   g_cmd_id = id;
   g_cmd_seq++;
   g_cmd_acked = false;
@@ -364,6 +722,7 @@ static int wifi_cmd(uint8_t inst, uint8_t id, FAR const void *param,
   if (ret < 0)
     {
       syslog(LOG_ERR, "SKW WiFi: cmd %u xmit %d\n", id, ret);
+      nxmutex_unlock(&g_cmd_lock);
       return ret;
     }
 
@@ -373,6 +732,7 @@ static int wifi_cmd(uint8_t inst, uint8_t id, FAR const void *param,
       ret = skw6621s_poll();
       if (ret < 0)
         {
+          nxmutex_unlock(&g_cmd_lock);
           return ret;
         }
 
@@ -389,6 +749,7 @@ static int wifi_cmd(uint8_t inst, uint8_t id, FAR const void *param,
                 }
             }
 
+          nxmutex_unlock(&g_cmd_lock);
           return g_cmd_status;
         }
 
@@ -399,6 +760,7 @@ static int wifi_cmd(uint8_t inst, uint8_t id, FAR const void *param,
     }
 
   syslog(LOG_ERR, "SKW WiFi: cmd %u seq %u timeout\n", id, g_cmd_seq);
+  nxmutex_unlock(&g_cmd_lock);
   return -ETIMEDOUT;
 }
 
@@ -501,6 +863,477 @@ static int wifi_calib(FAR const char *path)
   return ret;
 }
 
+static FAR const uint8_t *wifi_find_ie(uint8_t id)
+{
+  FAR const uint8_t *ie = g_target.ies;
+  size_t len = g_target.ie_len;
+  size_t off;
+
+  for (off = 0; off + 2 <= len && off + 2 + ie[off + 1] <= len;
+       off += 2 + ie[off + 1])
+    {
+      if (ie[off] == id)
+        {
+          return ie + off;
+        }
+    }
+
+  return NULL;
+}
+
+/* Poll until the auth / assoc reply (fc) shows up, bounded */
+
+static int wifi_wait_mgmt(uint8_t fc)
+{
+  clock_t start = clock_systime_ticks();
+  int ret;
+
+  while (TICK2MSEC(clock_systime_ticks() - start) < SKW_MGMT_TIMEOUT_MS)
+    {
+      if (g_mgmt_seen && g_mgmt_fc == fc)
+        {
+          return g_mgmt_status;
+        }
+
+      if (g_deauth)
+        {
+          return -ECONNREFUSED;
+        }
+
+      ret = skw6621s_poll();
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      if (ret == 0)
+        {
+          up_mdelay(2);
+        }
+    }
+
+  return -ETIMEDOUT;
+}
+
+/* skw_ndo_xmit for a "filtered" frame: skw_tx_desc_hdr (6 bytes),
+ * skw_tx_desc_conf (2 bytes, no checksum offload), Ethernet frame; sent
+ * as SKW_CMD_TX_DATA_FRAME.
+ */
+
+static uint8_t g_txbuf[8 + SKW_FRAME_MAX];
+static int g_tx_dumps;
+static mutex_t g_tx_lock = NXMUTEX_INITIALIZER;
+
+static int wifi_tx_eth(size_t mlen)
+{
+  FAR uint8_t *buf = g_txbuf;
+  uint8_t peer = (buf[8] & 1) ? g_join.multicast_idx : g_join.peer_idx;
+  uint16_t w0;
+  uint16_t w1;
+  int ret;
+
+  if (!g_joined || mlen < ETH_HLEN || mlen > SKW_FRAME_MAX)
+    {
+      return -EINVAL;
+    }
+
+  w0 = (g_join.inst & 0x3) << 2 | (peer & 0x1f) << 8;  /* tid 0, ether */
+  w1 = (mlen & 0xfff) | (g_join.lmac_id & 0x3) << 12;
+
+  buf[0] = w0 & 0xff;
+  buf[1] = w0 >> 8;
+  buf[2] = w1 & 0xff;
+  buf[3] = w1 >> 8;
+  buf[4] = buf[8 + 12];                 /* eth_type, network order */
+  buf[5] = buf[8 + 13];
+  buf[6] = 0;
+  buf[7] = 0;
+
+  ret = wifi_cmd(g_join.inst, SKW_CMD_TX_DATA_FRAME, buf, 8 + mlen, NULL, 0,
+                 SKW_CMD_TIMEOUT_MS);
+  if (g_tx_dumps < 4)
+    {
+      g_tx_dumps++;
+      syslog(LOG_INFO, "SKW WiFi: tx len %zu type %02x%02x peer %u: %d\n",
+             mlen, buf[8 + 12], buf[8 + 13], peer, ret);
+    }
+
+  return ret > 0 ? -EIO : ret;
+}
+
+static int wifi_tx_frame(FAR const uint8_t *dst, uint16_t proto,
+                         FAR const uint8_t *payload, size_t plen)
+{
+  FAR uint8_t *eth = g_txbuf + 8;
+  int ret;
+
+  if (ETH_HLEN + plen > SKW_FRAME_MAX)
+    {
+      return -E2BIG;
+    }
+
+  nxmutex_lock(&g_tx_lock);
+  memcpy(eth, dst, 6);
+  memcpy(eth + 6, g_mac, 6);
+  eth[12] = proto >> 8;
+  eth[13] = proto & 0xff;
+  memcpy(eth + ETH_HLEN, payload, plen);
+  ret = wifi_tx_eth(ETH_HLEN + plen);
+  nxmutex_unlock(&g_tx_lock);
+  return ret;
+}
+
+static int wifi_add_key(uint8_t type, uint8_t cipher, uint8_t idx,
+                        FAR const uint8_t *key, uint8_t len)
+{
+  struct skw_key_param_s k;
+  int ret;
+
+  memset(&k, 0, sizeof(k));
+  memcpy(k.mac_addr, g_target.bss.bssid, 6);
+  k.key_type = type;
+  k.cipher_type = cipher;
+  k.pn[0] = 1;
+  k.key_id = idx;
+  k.key_len = len;
+  memcpy(k.key, key, len);
+
+  ret = wifi_cmd(g_join.inst, SKW_CMD_ADD_KEY, &k, sizeof(k), NULL, 0,
+                 SKW_CMD_TIMEOUT_MS);
+  explicit_bzero(&k, sizeof(k));
+  syslog(LOG_INFO, "SKW WiFi: ADD_KEY type %u cipher %u idx %u: %d\n",
+         type, cipher, idx, ret);
+  return ret > 0 ? -EIO : ret;
+}
+
+static void wifi_unjoin(void)
+{
+  struct skw_disconnect_param_s d;
+  int ret;
+
+  if (!g_joined)
+    {
+      return;
+    }
+
+  wifi_netdev_link(false);
+  memset(&d, 0, sizeof(d));
+  d.type = g_connected ? 2 : 0;         /* SEND_DEAUTH : DISCONNECT_ONLY */
+  d.local_state_change = !g_connected;
+  d.reason_code = 3;                    /* deauth leaving */
+  ret = wifi_cmd(g_join.inst, SKW_CMD_DISCONNECT, &d, sizeof(d), NULL, 0,
+                 SKW_CMD_TIMEOUT_MS);
+  syslog(LOG_INFO, "SKW WiFi: DISCONNECT: %d\n", ret);
+  g_joined = false;
+  g_connected = false;
+}
+
+static void wifi_free_wpa(void)
+{
+  if (g_wpa != NULL)
+    {
+      explicit_bzero(g_wpa, sizeof(*g_wpa));
+      kmm_free(g_wpa);
+      g_wpa = NULL;
+    }
+}
+
+/* Run the 4-way handshake on EAPOL frames from the data port, bounded */
+
+static int wifi_handshake(FAR struct skw_wpa_s *wpa)
+{
+  clock_t start = clock_systime_ticks();
+  unsigned int i;
+  int step;
+  int ret;
+
+  while (TICK2MSEC(clock_systime_ticks() - start) < SKW_EAPOL_TIMEOUT_MS)
+    {
+      if (g_deauth)
+        {
+          return -ECONNRESET;
+        }
+
+      for (i = 0; i < SKW_EAPOL_SLOTS; i++)
+        {
+          if (g_eapol_len[i] == 0)
+            {
+              continue;
+            }
+
+          step = skw_wpa_rx(wpa, g_eapol[i], g_eapol_len[i]);
+          g_eapol_len[i] = 0;
+          if (step == SKW_WPA_IGNORE)
+            {
+              continue;
+            }
+
+          ret = wifi_tx_frame(wpa->aa, ETH_P_PAE, wpa->out, wpa->out_len);
+          if (ret < 0)
+            {
+              syslog(LOG_ERR, "SKW WiFi: EAPOL tx %d\n", ret);
+              return ret;
+            }
+
+          /* 4/4 goes out in the clear; then install PTK and GTK */
+
+          if (step == SKW_WPA_PTK_DONE)
+            {
+              uint8_t gc = wpa->group_cipher == 2 ? SKW_CIPHER_TYPE_TKIP :
+                           SKW_CIPHER_TYPE_CCMP;
+
+              ret = wifi_add_key(SKW_KEY_TYPE_PTK, SKW_CIPHER_TYPE_CCMP, 0,
+                                 wpa->ptk + 32, 16);
+              if (ret == 0)
+                {
+                  ret = wifi_add_key(SKW_KEY_TYPE_GTK, gc, wpa->gtk_idx,
+                                     wpa->gtk, wpa->gtk_len);
+                }
+
+              return ret;
+            }
+        }
+
+      ret = skw6621s_poll();
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      if (ret == 0)
+        {
+          up_mdelay(2);
+        }
+    }
+
+  return -ETIMEDOUT;
+}
+
+/****************************************************************************
+ * Network device (wlan0)
+ *
+ * netdev_lowerhalf on top of the command channel: TX frames go out as
+ * TX_DATA_FRAME like EAPOL (one ack each, so this is a bring-up data path,
+ * not a fast one); RX frames come from data port 7 through the callback.
+ * A kernel thread polls the bus while associated and answers group-key
+ * rekeys.
+ ****************************************************************************/
+
+#define SKW_POLL_IDLE_US            5000
+
+#ifdef CONFIG_MM_IOB
+static struct netdev_lowerhalf_s g_wlan;
+static netpkt_queue_t g_rxq;
+static spinlock_t g_rxq_lock = SP_UNLOCKED;
+static bool g_wlan_registered;
+static pid_t g_poll_pid = -1;
+
+static int wlan_ifup(FAR struct netdev_lowerhalf_s *dev)
+{
+  return OK;
+}
+
+static int wlan_ifdown(FAR struct netdev_lowerhalf_s *dev)
+{
+  return OK;
+}
+
+static int wlan_transmit(FAR struct netdev_lowerhalf_s *dev,
+                         FAR netpkt_t *pkt)
+{
+  unsigned int len = netpkt_getdatalen(dev, pkt);
+  int ret;
+
+  if (!g_connected || len < ETH_HLEN || len > SKW_FRAME_MAX)
+    {
+      return -ENETDOWN;
+    }
+
+  nxmutex_lock(&g_tx_lock);
+  netpkt_copyout(dev, g_txbuf + 8, pkt, len, 0);
+  ret = wifi_tx_eth(len);
+  nxmutex_unlock(&g_tx_lock);
+  if (ret < 0)
+    {
+      NETDEV_TXERRORS(&dev->netdev);
+    }
+
+  netpkt_free(dev, pkt, NETPKT_TX);
+  netdev_lower_txdone(dev);
+  return OK;
+}
+
+static FAR netpkt_t *wlan_receive(FAR struct netdev_lowerhalf_s *dev)
+{
+  FAR netpkt_t *pkt;
+  irqstate_t flags;
+
+  flags = spin_lock_irqsave(&g_rxq_lock);
+  pkt = netpkt_remove_queue(&g_rxq);
+  spin_unlock_irqrestore(&g_rxq_lock, flags);
+  return pkt;
+}
+
+static const struct netdev_ops_s g_wlan_ops =
+{
+  .ifup     = wlan_ifup,
+  .ifdown   = wlan_ifdown,
+  .transmit = wlan_transmit,
+  .receive  = wlan_receive,
+};
+
+/* Runs in the poller with the bus lock held: copy only, never transmit */
+
+static void wifi_netdev_rx(FAR const uint8_t *frame, size_t len)
+{
+  FAR struct netdev_lowerhalf_s *dev = &g_wlan;
+  FAR netpkt_t *pkt;
+  irqstate_t flags;
+  int ret;
+
+  if (!g_wlan_registered || !g_connected)
+    {
+      return;
+    }
+
+  pkt = netpkt_alloc(dev, NETPKT_RX);
+  if (pkt == NULL)
+    {
+      NETDEV_RXDROPPED(&dev->netdev);
+      return;
+    }
+
+  if (netpkt_copyin(dev, pkt, frame, len, 0) < 0)
+    {
+      netpkt_free(dev, pkt, NETPKT_RX);
+      NETDEV_RXDROPPED(&dev->netdev);
+      return;
+    }
+
+  flags = spin_lock_irqsave(&g_rxq_lock);
+  ret = netpkt_tryadd_queue(pkt, &g_rxq);
+  spin_unlock_irqrestore(&g_rxq_lock, flags);
+  if (ret < 0)
+    {
+      netpkt_free(dev, pkt, NETPKT_RX);
+      NETDEV_RXDROPPED(&dev->netdev);
+      return;
+    }
+
+  netdev_lower_rxready(dev);
+}
+
+static void wifi_netdev_link(bool up)
+{
+  if (!g_wlan_registered)
+    {
+      return;
+    }
+
+  if (up)
+    {
+      netdev_lower_carrier_on(&g_wlan);
+    }
+  else
+    {
+      netdev_lower_carrier_off(&g_wlan);
+    }
+}
+
+static int wifi_netdev_register(void)
+{
+  int ret;
+
+  if (g_wlan_registered)
+    {
+      return OK;
+    }
+
+  memcpy(g_wlan.netdev.d_mac.ether.ether_addr_octet, g_mac, 6);
+  strlcpy(g_wlan.netdev.d_ifname, "wlan0", IFNAMSIZ);
+  g_wlan.quota[NETPKT_RX] = 2;
+  g_wlan.quota[NETPKT_TX] = 1;
+  g_wlan.ops = &g_wlan_ops;
+
+  ret = netdev_lower_register(&g_wlan, NET_LL_ETHERNET);
+  syslog(LOG_INFO, "SKW WiFi: wlan0 register %d\n", ret);
+  if (ret == OK)
+    {
+      g_wlan_registered = true;
+    }
+
+  return ret;
+}
+#else
+static void wifi_netdev_rx(FAR const uint8_t *frame, size_t len)
+{
+}
+
+static void wifi_netdev_link(bool up)
+{
+}
+#endif
+
+/* Poll while joined: deliver RX, answer group rekeys, notice deauth */
+
+static int wifi_poll_thread(int argc, FAR char *argv[])
+{
+  unsigned int i;
+  int step;
+  int ret;
+
+  for (; ; )
+    {
+      if (!g_connected)
+        {
+          nxsig_usleep(50 * 1000);
+          continue;
+        }
+
+      ret = skw6621s_poll();
+
+      if (g_deauth)
+        {
+          syslog(LOG_WARNING, "SKW WiFi: link lost, reason %u\n",
+                 g_deauth_reason);
+          g_connected = false;
+          wifi_netdev_link(false);
+          continue;
+        }
+
+      for (i = 0; g_wpa != NULL && i < SKW_EAPOL_SLOTS; i++)
+        {
+          if (g_eapol_len[i] == 0)
+            {
+              continue;
+            }
+
+          step = skw_wpa_rx(g_wpa, g_eapol[i], g_eapol_len[i]);
+          g_eapol_len[i] = 0;
+          if (step == SKW_WPA_IGNORE)
+            {
+              continue;
+            }
+
+          if (wifi_tx_frame(g_wpa->aa, ETH_P_PAE, g_wpa->out,
+                            g_wpa->out_len) == 0 &&
+              step == SKW_WPA_GTK_DONE)
+            {
+              wifi_add_key(SKW_KEY_TYPE_GTK, g_wpa->group_cipher == 2 ?
+                           SKW_CIPHER_TYPE_TKIP : SKW_CIPHER_TYPE_CCMP,
+                           g_wpa->gtk_idx, g_wpa->gtk, g_wpa->gtk_len);
+            }
+        }
+
+      if (ret <= 0)
+        {
+          nxsig_usleep(SKW_POLL_IDLE_US);
+        }
+    }
+
+  return 0;
+}
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -563,14 +1396,15 @@ int skw6621s_wifi_init(FAR const char *dir)
   chip->fw_wifi_ver[sizeof(chip->fw_wifi_ver) - 1] = '\0';
   chip->fw_plat_ver[sizeof(chip->fw_plat_ver) - 1] = '\0';
   memcpy(g_mac, chip->mac, 6);
+  g_pn_reuse = (chip->priv & (1u << 2)) != 0;
   syslog(LOG_INFO, "SKW WiFi: chip type 0x%" PRIx32 " module 0x%04x, "
          "wifi %s plat %s built %s\n", chip->fw_chip_type,
          chip->calib_module_id, (FAR char *)chip->fw_wifi_ver,
          (FAR char *)chip->fw_plat_ver, (FAR char *)chip->fw_build_time);
   syslog(LOG_INFO, "SKW WiFi: MAC %02x:%02x:%02x:%02x:%02x:%02x, "
-         "bw 0x%" PRIx32 ", %u lmac\n", g_mac[0], g_mac[1], g_mac[2],
-         g_mac[3], g_mac[4], g_mac[5], chip->fw_bw_capa,
-         (unsigned int)(chip->priv >> 24));
+         "bw 0x%" PRIx32 ", %u lmac, priv 0x%08" PRIx32 "\n", g_mac[0],
+         g_mac[1], g_mac[2], g_mac[3], g_mac[4], g_mac[5], chip->fw_bw_capa,
+         (unsigned int)(chip->priv >> 24), chip->priv);
 
   if (chip->fw_chip_type != 0x300)
     {
@@ -636,7 +1470,7 @@ out:
 
 int skw6621s_wifi_scan(void)
 {
-  uint8_t buf[sizeof(struct skw_scan_param_s) + 13 * 3 + 33];
+  uint8_t buf[sizeof(struct skw_scan_param_s) + SKW_SCAN_NCHAN * 3 + 33];
   FAR struct skw_scan_param_s *param = (FAR struct skw_scan_param_s *)buf;
   FAR uint8_t *chan = buf + sizeof(*param);
   clock_t start;
@@ -648,20 +1482,31 @@ int skw6621s_wifi_scan(void)
       return -ENODEV;
     }
 
-  /* skw_scan: 2.4 GHz channels 1-13, one wildcard SSID (active) */
+  /* skw_scan: one wildcard SSID, active except on DFS channels */
 
   memset(buf, 0, sizeof(buf));
-  param->nr_chan = 13;
+  param->nr_chan = SKW_SCAN_NCHAN;
   param->chan_offset = sizeof(*param);
-  for (i = 0; i < 13; i++)
+  for (i = 0; i < SKW_SCAN_NCHAN; i++)
     {
-      chan[i * 3] = i + 1;
-      chan[i * 3 + 1] = 0;             /* SKW_BAND_2GHZ */
-      chan[i * 3 + 2] = 0;
+      if (i < 13)
+        {
+          chan[i * 3] = i + 1;
+          chan[i * 3 + 1] = SKW_BAND_2GHZ;
+        }
+      else
+        {
+          chan[i * 3] = g_chan5g[i - 13];
+          chan[i * 3 + 1] = SKW_BAND_5GHZ;
+          if (chan[i * 3] >= 52 && chan[i * 3] <= 64)
+            {
+              chan[i * 3 + 2] = SKW_SCAN_PASSIVE;
+            }
+        }
     }
 
   param->n_ssid = 1;
-  param->ssid_offset = sizeof(*param) + 13 * 3;
+  param->ssid_offset = sizeof(*param) + SKW_SCAN_NCHAN * 3;
 
   g_nbss = 0;
   g_nreport = 0;
@@ -700,11 +1545,243 @@ int skw6621s_wifi_scan(void)
     {
       FAR struct skw_bss_s *b = &g_bss[i];
 
-      printf("  %02x:%02x:%02x:%02x:%02x:%02x  ch %2u  %4d dBm  %s\n",
+      printf("  %02x:%02x:%02x:%02x:%02x:%02x  ch %3u  %4d dBm  %s\n",
              b->bssid[0], b->bssid[1], b->bssid[2], b->bssid[3],
              b->bssid[4], b->bssid[5], b->chan, b->signal,
              b->ssid_len ? b->ssid : "<hidden>");
     }
 
   return g_scan_done ? OK : -ETIMEDOUT;
+}
+
+static int wifi_connect_once(FAR const char *ssid,
+                             FAR const char *passphrase)
+{
+  FAR struct skw_join_param_s *join = NULL;
+  FAR struct skw_assoc_param_s *assoc = NULL;
+  struct skw_auth_param_s auth;
+  FAR const uint8_t *rsn;
+  FAR struct skw_target_s *t = &g_target;
+  FAR uint8_t *b = &t->bss.bssid[0];
+  clock_t start;
+  int ret;
+
+  if (!g_wifi_ready)
+    {
+      return -ENODEV;
+    }
+
+  wifi_unjoin();
+  wifi_free_wpa();
+
+  /* Scan, keeping the strongest BSS whose SSID contains ssid */
+
+  g_have_target = false;
+  g_want = ssid;
+  ret = skw6621s_wifi_scan();
+  g_want = NULL;
+  if (!g_have_target)
+    {
+      printf("no BSS matching \"%s\" (scan %d)\n", ssid, ret);
+      return -ENOENT;
+    }
+
+  printf("target %02x:%02x:%02x:%02x:%02x:%02x ch %u %d dBm \"%s\" "
+         "cap 0x%04x bi %u, %u IE bytes\n", b[0], b[1], b[2], b[3], b[4],
+         b[5], t->bss.chan, t->bss.signal, t->bss.ssid, t->capability,
+         t->beacon_int, t->ie_len);
+
+  rsn = wifi_find_ie(48);
+  if (rsn != NULL)
+    {
+      if (passphrase == NULL)
+        {
+          return -EINVAL;
+        }
+
+      g_wpa = kmm_zalloc(sizeof(*g_wpa));
+      if (g_wpa == NULL)
+        {
+          return -ENOMEM;
+        }
+
+      start = clock_systime_ticks();
+      ret = skw_wpa_init(g_wpa, passphrase, (FAR const uint8_t *)
+                         t->bss.ssid, t->bss.ssid_len, b, g_mac);
+      if (ret == 0)
+        {
+          ret = skw_wpa_select(g_wpa, rsn);
+        }
+
+      printf("WPA2-PSK: PMK in %u ms, RSN select %d\n",
+             (unsigned int)TICK2MSEC(clock_systime_ticks() - start), ret);
+      if (ret < 0)
+        {
+          goto out;
+        }
+    }
+  else if (t->capability & 0x0010)
+    {
+      printf("privacy without RSN (WEP / WPA1) not supported\n");
+      return -ENOTSUP;
+    }
+
+  /* skw_cmd_join: 20 MHz on the primary channel, the scanned IEs */
+
+  join = kmm_zalloc(sizeof(*join) + t->ie_len);
+  assoc = kmm_zalloc(sizeof(*assoc) + SKW_WPA_IE_MAX);
+  if (join == NULL || assoc == NULL)
+    {
+      ret = -ENOMEM;
+      goto out;
+    }
+
+  join->chan_num = t->bss.chan;
+  join->center_chn1 = t->bss.chan;
+  join->bandwidth = 0;                  /* SKW_CHAN_WIDTH_20 */
+  join->band = t->bss.band;
+  join->beacon_interval = t->beacon_int;
+  join->capability = t->capability;
+  memcpy(join->bssid, b, 6);
+  join->bss_ie_offset = sizeof(*join);
+  join->bss_ie_len = t->ie_len;
+  memcpy(join + 1, t->ies, t->ie_len);
+
+  g_deauth = false;
+  g_mgmt_seen = false;
+  memset((FAR void *)g_eapol_len, 0, sizeof(g_eapol_len));
+  g_data_dumps = 0;
+  g_tx_dumps = 0;
+
+  ret = wifi_cmd(0, SKW_CMD_JOIN, join, sizeof(*join) + t->ie_len,
+                 &g_join, sizeof(g_join), SKW_CMD_TIMEOUT_MS);
+  printf("JOIN %d: peer %u lmac %u inst %u mc %u\n", ret, g_join.peer_idx,
+         g_join.lmac_id, g_join.inst, g_join.multicast_idx);
+  if (ret != 0)
+    {
+      goto out;
+    }
+
+  g_joined = true;
+
+  /* skw_cmd_auth: open system, answered by the AP's auth frame */
+
+  memset(&auth, 0, sizeof(auth));
+  ret = wifi_cmd(g_join.inst, SKW_CMD_AUTH, &auth, sizeof(auth), NULL, 0,
+                 SKW_CMD_TIMEOUT_MS);
+  if (ret == 0)
+    {
+      ret = wifi_wait_mgmt(WLAN_FC_AUTH);
+    }
+
+  printf("AUTH %d\n", ret);
+  if (ret != 0)
+    {
+      /* A positive status is the AP refusing us (e.g. band steering a
+       * dual-band client off 2.4 GHz); the caller may try another BSS.
+       */
+
+      ret = ret > 0 ? -EACCES : ret;
+      goto out;
+    }
+
+  /* skw_cmd_assoc: our RSN IE as the request IEs */
+
+  g_mgmt_seen = false;
+  memcpy(assoc->bssid, b, 6);
+  assoc->req_ie_offset = sizeof(*assoc);
+  if (g_wpa != NULL)
+    {
+      assoc->req_ie_len = g_wpa->ie_len;
+      memcpy(assoc + 1, g_wpa->ie, g_wpa->ie_len);
+    }
+
+  ret = wifi_cmd(g_join.inst, SKW_CMD_ASSOC, assoc,
+                 sizeof(*assoc) + assoc->req_ie_len, NULL, 0,
+                 SKW_CMD_TIMEOUT_MS);
+  if (ret == 0)
+    {
+      ret = wifi_wait_mgmt(WLAN_FC_ASSOC_RESP);
+    }
+
+  printf("ASSOC %d\n", ret);
+  if (ret != 0)
+    {
+      goto out;
+    }
+
+  if (g_wpa != NULL)
+    {
+      start = clock_systime_ticks();
+      ret = wifi_handshake(g_wpa);
+      printf("4-way handshake %d in %u ms\n", ret,
+             (unsigned int)TICK2MSEC(clock_systime_ticks() - start));
+      if (ret != 0)
+        {
+          goto out;
+        }
+    }
+
+  g_connected = true;
+  printf("connected to \"%s\"\n", t->bss.ssid);
+
+#ifdef CONFIG_MM_IOB
+  if (wifi_netdev_register() == OK)
+    {
+      wifi_netdev_link(true);
+    }
+
+  if (g_poll_pid < 0)
+    {
+      g_poll_pid = kthread_create("skwifi_rx", 110, 4096, wifi_poll_thread,
+                                  NULL);
+    }
+#endif
+
+out:
+  if (ret != 0)
+    {
+      if (g_deauth)
+        {
+          printf("deauth / disconnect, reason %u\n", g_deauth_reason);
+        }
+
+      wifi_unjoin();
+      wifi_free_wpa();
+      ret = ret > 0 ? -EIO : ret;
+    }
+
+  kmm_free(join);
+  kmm_free(assoc);
+  return ret;
+}
+
+int skw6621s_wifi_connect(FAR const char *ssid, FAR const char *passphrase)
+{
+  int ret;
+
+  g_skip_valid = false;
+  ret = wifi_connect_once(ssid, passphrase);
+  if (ret == -EACCES)
+    {
+      memcpy(g_skip_bssid, g_target.bss.bssid, 6);
+      g_skip_valid = true;
+      printf("auth refused, trying another BSS\n");
+      ret = wifi_connect_once(ssid, passphrase);
+      g_skip_valid = false;
+    }
+
+  return ret;
+}
+
+int skw6621s_wifi_disconnect(void)
+{
+  if (!g_joined)
+    {
+      return -ENOTCONN;
+    }
+
+  wifi_unjoin();
+  wifi_free_wpa();
+  return OK;
 }

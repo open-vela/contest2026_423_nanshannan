@@ -71,8 +71,10 @@ int skw6621s_bt_hci_init(FAR const char *nvpath);
 int skw6621s_bt_register(FAR const char *nvpath);
 
 /* WiFi transport over the booted CP (SDIO v2 cmd port 6, data port 7).
- * The callback gets the payload after the 16-byte packet header, i.e. the
- * vendor skw_msg; it runs with the bus lock held, like the HCI callback.
+ * On port 6 the callback gets the payload after the 16-byte packet header,
+ * i.e. the vendor skw_msg; on port 7 it gets everything after the 4-byte
+ * header (RX descriptor, then the MSDU).  It runs with the bus lock held,
+ * like the HCI callback, so it must not transmit.
  */
 
 typedef void (*skw6621s_wifi_cb_t)(FAR void *arg, uint8_t channel,
@@ -90,8 +92,15 @@ int skw6621s_wifi_xmit(uint8_t channel, FAR const void *msg, size_t len);
 
 int skw6621s_wifi_init(FAR const char *dir);
 
-/* Bounded active scan on 2.4 GHz channels 1-13, printing each BSS */
+/* Bounded scan of 2.4 GHz 1-13 and 5 GHz 36-64 / 149-165, printing each BSS */
 
 int skw6621s_wifi_scan(void);
+
+/* Join the strongest BSS whose SSID contains ssid (open, or WPA2-PSK
+ * with passphrase), bounded.  Returns OK once the keys are installed.
+ */
+
+int skw6621s_wifi_connect(FAR const char *ssid, FAR const char *passphrase);
+int skw6621s_wifi_disconnect(void);
 
 #endif /* __CONTEST_SKW6621S_SDIO_H */

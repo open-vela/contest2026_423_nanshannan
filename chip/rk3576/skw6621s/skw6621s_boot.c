@@ -76,7 +76,7 @@
 #define SKW_AP2CP_IRQ           0x1b0    /* service start/stop bits */
 #define SKW_BT_START_BIT        0x04     /* 1 << ((BT_SERVICE << 1) | START) */
 #define SKW_WIFI_START_BIT      0x01     /* 1 << ((WIFI_SERVICE << 1) | START) */
-#define SKW_TX_MAX              2048
+#define SKW_TX_MAX              2560     /* 1536-byte frame + eof block */
 
 #define SKW_FLAG_VERSION        (1 << 0)
 #define SKW_FLAG_BTREADY        (1 << 1)
@@ -428,10 +428,20 @@ static void skw_parse(FAR struct skw_ctx_s *ctx, unsigned int npac)
           continue;
         }
 
-      if ((ch == SKW_WIFI_CMD_CH || ch == SKW_WIFI_DATA_CH) &&
-          ctx->wcb != NULL)
+      if (ch == SKW_WIFI_CMD_CH && ctx->wcb != NULL)
         {
           ctx->wcb(ctx->wcbarg, ch, pl, plen);
+          continue;
+        }
+
+      /* skw_rx_cb: data packets only drop the 4-byte header.  With the
+       * firmware's PN reuse the RX descriptor actually starts at that
+       * header; wifi_rx_data() accounts for it.
+       */
+
+      if (ch == SKW_WIFI_DATA_CH && ctx->wcb != NULL)
+        {
+          ctx->wcb(ctx->wcbarg, ch, p + 4, len);
           continue;
         }
 

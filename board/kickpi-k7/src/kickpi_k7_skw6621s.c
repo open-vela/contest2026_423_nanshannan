@@ -116,3 +116,13 @@ int kickpi_k7_wifi_scan(void)
 {
   return skw6621s_wifi_scan();
 }
+
+int kickpi_k7_wifi_connect(FAR const char *ssid, FAR const char *psk)
+{
+  return skw6621s_wifi_connect(ssid, psk);
+}
+
+int kickpi_k7_wifi_disconnect(void)
+{
+  return skw6621s_wifi_disconnect();
+}

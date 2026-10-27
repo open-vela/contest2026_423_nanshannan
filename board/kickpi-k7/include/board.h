@@ -274,6 +274,8 @@ int kickpi_k7_bt_probe(void);
 int kickpi_k7_bt_initialize(void);
 int kickpi_k7_wifi_initialize(void);
 int kickpi_k7_wifi_scan(void);
+int kickpi_k7_wifi_connect(FAR const char *ssid, FAR const char *psk);
+int kickpi_k7_wifi_disconnect(void);
 
 /* LSC（镜头阴影）与 CCM（色彩校正矩阵）。
  *
