@@ -44,16 +44,21 @@ int kickpi_k7_bt_probe(void)
   return skw6621s_sdio_probe(sdio, &result);
 }
 
-int kickpi_k7_bt_initialize(void)
+/* Probe resets the module (WL_REG_ON), so the CP starts from ROM; the
+ * firmware then carries both services.  Antenna NV (ALONE / SHARE) is not
+ * confirmed for K7; it only affects RF, not the boot handshake.
+ */
+
+static int kickpi_k7_skw_boot(void)
 {
   struct skw6621s_probe_s result;
   FAR struct sdio_dev_s *sdio;
   int ret;
 
-  /* Probe resets the module (WL_REG_ON), so the CP starts from ROM.
-   * HCI must not register before the RX transport exists; this only
-   * proves the first firmware boot.
-   */
+  if (skw6621s_booted())
+    {
+      return OK;
+    }
 
   ret = rk3576_dwmmc_probe(RK3576_DWMMC_SDIO_BASE);
   if (ret < 0)
@@ -73,12 +78,15 @@ int kickpi_k7_bt_initialize(void)
       return ret;
     }
 
-  /* Antenna NV (ALONE / SHARE) is not confirmed for K7; it only affects
-   * RF, not the boot handshake.
-   */
+  return skw6621s_boot(sdio, &result, "/data/skw",
+                       "SWT6621S_NV_SDIO_SHARE.bin");
+}
 
-  ret = skw6621s_boot(sdio, &result, "/data/skw",
-                      "SWT6621S_NV_SDIO_SHARE.bin");
+int kickpi_k7_bt_initialize(void)
+{
+  int ret;
+
+  ret = kickpi_k7_skw_boot();
   if (ret < 0)
     {
       return ret;
@@ -89,4 +97,22 @@ int kickpi_k7_bt_initialize(void)
 #else
   return skw6621s_bt_hci_init("/data/skw/sv6160lite.nvbin");
 #endif
+}
+
+int kickpi_k7_wifi_initialize(void)
+{
+  int ret;
+
+  ret = kickpi_k7_skw_boot();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return skw6621s_wifi_init("/data/skw");
+}
+
+int kickpi_k7_wifi_scan(void)
+{
+  return skw6621s_wifi_scan();
 }

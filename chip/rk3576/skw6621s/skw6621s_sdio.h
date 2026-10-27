@@ -14,6 +14,7 @@
 #include <nuttx/config.h>
 #include <nuttx/sdio.h>
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -68,5 +69,29 @@ int skw6621s_bt_hci_init(FAR const char *nvpath);
  */
 
 int skw6621s_bt_register(FAR const char *nvpath);
+
+/* WiFi transport over the booted CP (SDIO v2 cmd port 6, data port 7).
+ * The callback gets the payload after the 16-byte packet header, i.e. the
+ * vendor skw_msg; it runs with the bus lock held, like the HCI callback.
+ */
+
+typedef void (*skw6621s_wifi_cb_t)(FAR void *arg, uint8_t channel,
+                                   FAR const uint8_t *data, size_t len);
+
+bool skw6621s_booted(void);
+uint8_t skw6621s_revision(void);
+int skw6621s_wifi_start(void);
+void skw6621s_set_wifi_cb(skw6621s_wifi_cb_t cb, FAR void *arg);
+int skw6621s_wifi_xmit(uint8_t channel, FAR const void *msg, size_t len);
+
+/* Vendor WiFi init after skw6621s_wifi_start: version sync, chip info,
+ * PHY calibration file from dir, then open a station interface.
+ */
+
+int skw6621s_wifi_init(FAR const char *dir);
+
+/* Bounded active scan on 2.4 GHz channels 1-13, printing each BSS */
+
+int skw6621s_wifi_scan(void);
 
 #endif /* __CONTEST_SKW6621S_SDIO_H */

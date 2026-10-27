@@ -71,12 +71,17 @@
 #define SKW_LOOPCHECK_CH        1
 #define SKW_BT_CMD_CH           2        /* SDIO2_BT_CMD_PORT */
 #define SKW_BT_DATA_CH          5        /* SDIO2_BT_DATA_PORT */
+#define SKW_WIFI_CMD_CH         6        /* SDIO2_WIFI_CMD_PORT */
+#define SKW_WIFI_DATA_CH        7        /* SDIO2_WIFI_DATA_PORT */
 #define SKW_AP2CP_IRQ           0x1b0    /* service start/stop bits */
 #define SKW_BT_START_BIT        0x04     /* 1 << ((BT_SERVICE << 1) | START) */
+#define SKW_WIFI_START_BIT      0x01     /* 1 << ((WIFI_SERVICE << 1) | START) */
+#define SKW_TX_MAX              2048
 
 #define SKW_FLAG_VERSION        (1 << 0)
 #define SKW_FLAG_BTREADY        (1 << 1)
 #define SKW_FLAG_ASSERT         (1 << 2)
+#define SKW_FLAG_WIFIREADY      (1 << 3)
 
 #define SKW_BOOT_TIMEOUT_MS     3000
 #define SKW_POLL_MS             5
@@ -315,8 +320,13 @@ struct skw_ctx_s
   uint32_t acks;
   skw6621s_hci_cb_t cb;
   FAR void *cbarg;
+  skw6621s_wifi_cb_t wcb;
+  FAR void *wcbarg;
+  uint8_t revision;                /* chip identity[15] */
   mutex_t lock;
 };
+
+static uint8_t g_skw_tx[SKW_TX_MAX] aligned_data(8);
 
 static struct skw_ctx_s g_skw =
 {
@@ -384,6 +394,10 @@ static void skw_parse(FAR struct skw_ctx_s *ctx, unsigned int npac)
             {
               ctx->flags |= SKW_FLAG_BTREADY;
             }
+          else if (strncmp(cmd, "WIFIREADY", 9) == 0)
+            {
+              ctx->flags |= SKW_FLAG_WIFIREADY;
+            }
           else if (strncmp(cmd, "BSPASSERT", 9) == 0)
             {
               ctx->flags |= SKW_FLAG_ASSERT;
@@ -411,6 +425,13 @@ static void skw_parse(FAR struct skw_ctx_s *ctx, unsigned int npac)
                      ch, pl[0], plen - 1);
             }
 
+          continue;
+        }
+
+      if ((ch == SKW_WIFI_CMD_CH || ch == SKW_WIFI_DATA_CH) &&
+          ctx->wcb != NULL)
+        {
+          ctx->wcb(ctx->wcbarg, ch, pl, plen);
           continue;
         }
 
@@ -566,6 +587,7 @@ int skw6621s_boot(FAR struct sdio_dev_s *sdio,
 
   nxmutex_lock(&ctx->lock);
   ctx->sdio = sdio;
+  ctx->revision = probe->identity[15];
   ctx->npac = 1;
   ctx->flags = 0;
   ctx->acks = 0;
@@ -735,4 +757,89 @@ int skw6621s_hci_send(uint8_t type, FAR const uint8_t *data, size_t len)
   ret = skw_send(g_skw.sdio, ch, (FAR const char *)h4, len + 1);
   nxmutex_unlock(&g_skw.lock);
   return ret;
+}
+
+/* skw_sdio_cmd_xmit: the WiFi driver frames its own messages.  The header
+ * length covers the block-padded message, and a separate eof block follows.
+ */
+
+int skw6621s_wifi_xmit(uint8_t channel, FAR const void *msg, size_t len)
+{
+  size_t total = (len + 4 + SKW_BLK_SIZE - 1) & ~(SKW_BLK_SIZE - 1);
+  uint32_t hdr;
+  int ret;
+
+  if (g_skw.sdio == NULL || (g_skw.flags & SKW_FLAG_WIFIREADY) == 0)
+    {
+      return -ENODEV;
+    }
+
+  if (total + SKW_BLK_SIZE > SKW_TX_MAX)
+    {
+      return -E2BIG;
+    }
+
+  nxmutex_lock(&g_skw.lock);
+  memset(g_skw_tx, 0, total + SKW_BLK_SIZE);
+  hdr = (uint32_t)(total - 4) | (uint32_t)channel << 24;
+  memcpy(g_skw_tx, &hdr, 4);
+  memcpy(g_skw_tx + 4, msg, len);
+  hdr = (uint32_t)(SKW_BLK_SIZE - 4) | 1u << 23 | (uint32_t)channel << 24;
+  memcpy(g_skw_tx + total, &hdr, 4);
+  ret = sdio_io_rw_extended(g_skw.sdio, true, SKW_FUNCTION, SKW_PK_WINDOW,
+                            false, g_skw_tx, SKW_BLK_SIZE,
+                            (total + SKW_BLK_SIZE) / SKW_BLK_SIZE);
+  nxmutex_unlock(&g_skw.lock);
+  return ret;
+}
+
+int skw6621s_wifi_start(void)
+{
+  FAR struct skw_ctx_s *ctx = &g_skw;
+  clock_t start;
+  int ret;
+
+  if (ctx->sdio == NULL || (ctx->flags & SKW_FLAG_VERSION) == 0)
+    {
+      return -ENODEV;
+    }
+
+  if (ctx->flags & SKW_FLAG_WIFIREADY)
+    {
+      return OK;
+    }
+
+  /* send_modem_service_command(WIFI_SERVICE, SERVICE_START) */
+
+  nxmutex_lock(&ctx->lock);
+  ret = skw_f0_write(ctx->sdio, SKW_AP2CP_IRQ, SKW_WIFI_START_BIT);
+  nxmutex_unlock(&ctx->lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  start = clock_systime_ticks();
+  ret = skw_wait_flag(ctx, SKW_FLAG_WIFIREADY, SKW_BOOT_TIMEOUT_MS);
+  syslog(LOG_INFO, "SKW6621S: WiFi service start %d, %u ms\n", ret,
+         (unsigned int)TICK2MSEC(clock_systime_ticks() - start));
+  return ret;
+}
+
+void skw6621s_set_wifi_cb(skw6621s_wifi_cb_t cb, FAR void *arg)
+{
+  nxmutex_lock(&g_skw.lock);
+  g_skw.wcb = cb;
+  g_skw.wcbarg = arg;
+  nxmutex_unlock(&g_skw.lock);
+}
+
+bool skw6621s_booted(void)
+{
+  return g_skw.sdio != NULL && (g_skw.flags & SKW_FLAG_VERSION) != 0;
+}
+
+uint8_t skw6621s_revision(void)
+{
+  return g_skw.revision;
 }

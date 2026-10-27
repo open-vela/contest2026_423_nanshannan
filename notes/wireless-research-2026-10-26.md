@@ -158,6 +158,39 @@ btsak bnep0 scan start / get
 
 刷写前把 WL_REG_ON 拉低，跑过 `bt init` 后又刷写成功一次（共两次）。
 
+## WiFi 命令通道打通，2.4G 扫描通过（10-27）
+
+参照 SDK `swt6621s_wifi`（rkwifibt 里 `skwifi` 是 SKW6316 用的那份，不是这颗）的 `skw_drv_probe`：
+
+| 步骤 | 做法 | 实板结果 |
+|---|---|---|
+| 服务启动 | F0 0x1b0 写 `1 << ((WIFI_SERVICE=0)<<1 \| START)` = 0x01，等 LOOPCHECK `WIFIREADY` | 17 ms |
+| SYN_VERSION (2) | 无参数，回 cmd[256] + event[256] 版本 | 0，GET_INFO / OPEN_DEV / START_SCAN 都是 v1，和驱动一致 |
+| GET_INFO (1) | 参数 u64 主机毫秒，回 `skw_chip_info`（234 字节） | chip type 0x300 (SWT6621S)，MAC 60:48:9c:b5:16:e2（蓝牙是 :e3） |
+| PHY_BB_CFG (50) | 校准文件按 512 字节分块 `{seq, end, len, data[512]}` | `SWT6621S_SEEKWAVE_R00001.bin`，5 块全 0 |
+| OPEN_DEV (3) | inst 0，`{mode=1 STA, flags=0, mac}` | 0 |
+| START_SCAN (5) | `skw_scan_param` + 13 个 `{chan, band=0, flags=0}` + 1 个通配 SSID（33 字节） | 570 ms 收到 SCAN_REPORT 22～24 条，NORMAL_SCAN_CMPL 结束 |
+
+线上格式（WiFi 驱动自己组帧，平台层 ADMA 原样写出）：
+- 4 字节 v2 头：通道 6，**长度 = 按 512 补齐后的总长 − 4**（和蓝牙不同，蓝牙填的是载荷长），eof=0；
+  后面 `skw_msg` 头 8 字节（inst[3:0] | type[7:4]、id、seq、total_len、resv），再跟参数；
+- 再追加一整块 512 字节的 eof 块（头：通道 6、长度 508、bit23=1）；整体按块模式写 F1 0x20。
+- 收方向和蓝牙一样：载荷在包内 +16。CMD_ACK = 消息头 + u16 status + 返回数据；EVENT 的数据在消息头之后。
+
+校准文件名 `<chipid>_<project>_R<vendor:02X><revision:03X>.bin`：chipid 来自 fw_chip_type 0x300 → SWT6621S，
+project 默认 SEEKWAVE，vendor 只在 calib_module_id 某个半字节为 0xf 时置位（本板 0x0000 → 00），
+revision 是 SDIO 身份串第 16 字节（本板 1）。所以本板用 R00001。四个校准文件都传到了 `/data/skw`。
+
+命令：`bt wifi`（模组没起就先下载固件，已起就复用——蓝牙和 WiFi 共用一份固件）、`bt wifi scan`。
+
+结果（`serial-wifi-init-scan.txt`、`telnet-wifi-scan.txt`，第三方 SSID/BSSID 已打码）：
+两次（中间重启）都扫到 6～7 个 AP，最强 -53～-56 dBm，信道与 SSID 前后一致。**WiFi 收信号正常**，
+蓝牙 RSSI 偏弱更可能是蓝牙自身的天线/NV 设置，不是射频整体有问题。
+
+还没有：关联（JOIN/AUTH/ASSOC）、WPA2 四次握手（驱动是 STA_SME_EXT，认证帧和密钥在主机侧）、
+数据通道（端口 7、信用 CREDIT_UPDATE、收包描述符 52 字节）、NuttX 网卡接口。5G 未扫。
+
 ## 下一步
 
-蓝牙：连接 / GATT 未测；广播（advertise）未测；RSSI 偏弱待查天线。WiFi 在其后；WiFi 在其后。
+WiFi：关联开放 AP → 数据通道 + 网卡 → WPA2（需要主机侧四次握手）。
+蓝牙：连接 / GATT 未测；广播（advertise）未测；RSSI 偏弱待查天线。

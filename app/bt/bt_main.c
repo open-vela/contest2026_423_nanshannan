@@ -7,6 +7,8 @@
  *
  *   bt probe   Bounded transport and chip-ID probe
  *   bt init    Firmware and HCI initialization after probe validation
+ *   bt wifi    WiFi service and vendor init (boots the module if needed)
+ *   bt wifi scan  2.4 GHz scan after bt wifi
  *
  * ★ 分成两条命令是有代价换来的：init 在模组不应答时会长时间重试，
  *   而它是前台任务，NSH 一直等着、控制台没有提示符、loader 发不进去，
@@ -31,6 +33,21 @@ int main(int argc, char *argv[])
       return ret < 0 ? 1 : 0;
     }
 
+  if (argc >= 2 && strcmp(argv[1], "wifi") == 0)
+    {
+      if (argc >= 3 && strcmp(argv[2], "scan") == 0)
+        {
+          ret = kickpi_k7_wifi_scan();
+        }
+      else
+        {
+          ret = kickpi_k7_wifi_initialize();
+        }
+
+      printf("ret=%d\n", ret);
+      return ret < 0 ? 1 : 0;
+    }
+
   if (argc < 2 || strcmp(argv[1], "probe") == 0)
     {
       ret = kickpi_k7_bt_probe();
@@ -38,6 +55,6 @@ int main(int argc, char *argv[])
       return ret < 0 ? 1 : 0;
     }
 
-  printf("用法: bt probe|init\n");
+  printf("用法: bt probe|init|wifi [scan]\n");
   return 1;
 }

@@ -272,6 +272,8 @@ int rk3576_hdmi_probe(void);
 
 int kickpi_k7_bt_probe(void);
 int kickpi_k7_bt_initialize(void);
+int kickpi_k7_wifi_initialize(void);
+int kickpi_k7_wifi_scan(void);
 
 /* LSC（镜头阴影）与 CCM（色彩校正矩阵）。
  *

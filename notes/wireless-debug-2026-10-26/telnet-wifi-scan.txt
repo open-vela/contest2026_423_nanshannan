@@ -1,0 +1,24 @@
+# 2026-10-27 实板 telnet：bt wifi 后连续两次 bt wifi scan（中间重启一次）
+## 第一次（刷机后首次启动）
+bt wifi scan
+scan done in 571 ms: 24 reports, 6 BSS
+  86:0a:37:xx:xx:xx  ch  4   -95 dBm  <ssid>
+  c0:49:43:xx:xx:xx  ch  6   -74 dBm  <ssid>
+  4c:10:d5:xx:xx:xx  ch 11   -56 dBm  <ssid>
+  4e:10:d5:xx:xx:xx  ch  7   -92 dBm  <hidden>
+  68:77:da:xx:xx:xx  ch  9   -84 dBm  <ssid>
+  3c:67:c9:xx:xx:xx  ch 11   -94 dBm  <ssid>
+ret=0
+## 第二次（reboot 后重新 bt wifi）
+bt wifi scan
+scan done in 570 ms: 22 reports, 7 BSS
+  4c:10:d5:xx:xx:xx  ch  1   -95 dBm  <ssid>
+  86:0a:37:xx:xx:xx  ch  4   -94 dBm  <ssid>
+  c0:49:43:xx:xx:xx  ch  5   -75 dBm  <ssid>
+  4e:10:d5:xx:xx:xx  ch 10   -62 dBm  <hidden>
+  68:77:da:xx:xx:xx  ch 10   -80 dBm  <ssid>
+  4c:10:d5:xx:xx:xx  ch 11   -53 dBm  <ssid>
+  3c:67:c9:xx:xx:xx  ch 11   -96 dBm  <ssid>
+ret=0
+
+注：周边 AP 的 BSSID 后三字节与 SSID 已打码（第三方信息不进仓库）。
