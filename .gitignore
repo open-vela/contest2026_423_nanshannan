@@ -50,3 +50,7 @@ Make.dep
 # 杂项
 __pycache__/
 *:Zone.Identifier
+
+# NuttX apps 构建生成的标记文件
+.built
+.depend

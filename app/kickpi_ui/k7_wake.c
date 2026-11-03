@@ -126,13 +126,18 @@ struct wake_s
   int             last_gain;
   int             keep_idx;
   int             level;
+  int             peak;
+  bool            offline;
   time_t          woken_until;
+  char            cur_wav[32];     /* 正在处理的那句的录音 */
 
   /* 事件（一次只留一个，界面每 250ms 取） */
 
   int             ev;
   char            ev_text[512];
   char            ev_question[512];
+  char            ev_wav[32];
+  char            got_wav[32];     /* 界面最近取走的那个事件的 */
 };
 
 static struct wake_s g_wake =
@@ -176,6 +181,7 @@ static int wake_ept_cb(struct rpmsg_endpoint *ept, void *data, size_t len,
 
       case 'L':
         a = strtoul(buf, NULL, 10);
+        w->peak = (int)(a > 32767 ? 32767 : a);
         w->level = (int)(a * 100 / 32768);
         break;
 
@@ -722,6 +728,7 @@ static void wake_publish(struct wake_s *w, int ev, const char *text,
   snprintf(w->ev_text, sizeof(w->ev_text), "%s", text);
   snprintf(w->ev_question, sizeof(w->ev_question), "%s",
            question != NULL ? question : "");
+  snprintf(w->ev_wav, sizeof(w->ev_wav), "%s", w->cur_wav);
   pthread_mutex_unlock(&w->lock);
 }
 
@@ -799,6 +806,15 @@ static void *wake_asr_thread(void *arg)
       seg = w->seg[0];
       memmove(&w->seg[0], &w->seg[1], (w->seg_n - 1) * sizeof(seg));
       w->seg_n--;
+
+      /* 录制中：这句话不出板子 */
+
+      if (w->offline)
+        {
+          pthread_mutex_unlock(&w->lock);
+          continue;
+        }
+
       w->recognizing = true;
       pthread_mutex_unlock(&w->lock);
 
@@ -846,6 +862,7 @@ static void *wake_asr_thread(void *arg)
 
           if (ret == 0)
             {
+              snprintf(w->cur_wav, sizeof(w->cur_wav), "%s", path);
               wake_handle_text(w, text);
             }
 
@@ -996,6 +1013,29 @@ void k7_wake_get_status(struct k7_wake_status_s *st)
   st->recognizing = w->recognizing;
   st->woken       = w->woken_until != 0 && time(NULL) <= w->woken_until;
   st->level       = w->level;
+  st->peak        = w->peak;
+  st->offline     = w->offline;
+  pthread_mutex_unlock(&w->lock);
+}
+
+void k7_wake_set_offline(bool offline)
+{
+  struct wake_s *w = &g_wake;
+
+  pthread_mutex_lock(&w->lock);
+  w->offline = offline;
+  w->woken_until = 0;
+  pthread_mutex_unlock(&w->lock);
+  syslog(LOG_INFO, "唤醒: %s\n", offline ? "录制中，暂停上传识别"
+                                         : "恢复识别");
+}
+
+void k7_wake_event_wav(char *path, size_t cap)
+{
+  struct wake_s *w = &g_wake;
+
+  pthread_mutex_lock(&w->lock);
+  snprintf(path, cap, "%s", w->got_wav);
   pthread_mutex_unlock(&w->lock);
 }
 
@@ -1010,6 +1050,7 @@ int k7_wake_get_event(char *text, size_t tcap, char *question, size_t qcap)
     {
       snprintf(text, tcap, "%s", w->ev_text);
       snprintf(question, qcap, "%s", w->ev_question);
+      memcpy(w->got_wav, w->ev_wav, sizeof(w->got_wav));
       w->ev = K7_WAKE_NONE;
     }
 

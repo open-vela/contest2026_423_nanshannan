@@ -14,11 +14,7 @@
  *     - 界面每次发同样的问题，agent 在 0ms 内直接复用上一次的回答。
  *   桌面问答本身不需要工具编排：拍照 + 一次视觉请求就够了，快、可控。
  *
- * ★ 请求
- *
- *   POST /v1/chat/completions，model mimo-v2.5，"thinking":{"type":"disabled"}，
- *   user content = [image_url(data:image/jpeg;base64,...), text]。
- *   回答在 choices[0].message.content。
+ * ★ 请求见 k7_llm.c（带图的那一种）。
  ****************************************************************************/
 
 #include <nuttx/config.h>
@@ -35,23 +31,14 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
-#include <cJSON.h>
-
-#include "k7_net.h"
+#include "k7_llm.h"
 #include "k7_vision.h"
 
-#ifdef __has_include
-#  if __has_include("k7_agent_key.h")
-#    include "k7_agent_key.h"
-#  endif
-#endif
-
 #define VISION_JPEG     "/tmp/k7-vision.jpg"
-#define VISION_PATH     "/v1/chat/completions"
-#define VISION_RESP_CAP (64 * 1024)
 #define VISION_JPEG_MAX (1024 * 1024)
 
-/* 拍照：跑 v4l2cap，最多等 10 秒。
+/* 拍照：跑 v4l2cap（摄像头归 Linux 时是 ampctl snap，参数相同），
+ * 最多等 10 秒。
  *
  * ★ 判断"拍完了"看文件，不看 waitpid。
  *
@@ -66,7 +53,12 @@ static int vision_snapshot(void)
 {
   char *argv[] =
   {
-    "v4l2cap", "1280", "720", VISION_JPEG, NULL
+#ifdef CONFIG_KICKPI_K7_CAMERA_LINUX
+    "ampctl", "snap",
+#else
+    "v4l2cap",
+#endif
+    "1280", "720", VISION_JPEG, NULL
   };
 
   struct stat st;
@@ -77,7 +69,7 @@ static int vision_snapshot(void)
   int ret;
 
   unlink(VISION_JPEG);
-  ret = posix_spawn(&pid, "v4l2cap", NULL, NULL, argv, NULL);
+  ret = posix_spawn(&pid, argv[0], NULL, NULL, argv, NULL);
   if (ret != 0)
     {
       return -ret;
@@ -196,38 +188,19 @@ out:
 
 int k7_vision_ask(const char *question, char *answer, size_t cap)
 {
-#ifndef K7_AGENT_LLM_KEY
-  (void)question;
-  snprintf(answer, cap, "没有配置模型 Key（k7_agent_key.h）。");
-  return -ENOTSUP;
-#else
-  static const char auth[] = "Bearer " K7_AGENT_LLM_KEY;
-  const vela_header_t hdrs[] =
-  {
-    { "Authorization", auth },
-    { NULL, NULL }
-  };
-
-  cJSON *root = NULL;
-  cJSON *content;
-  cJSON *part;
-  cJSON *msgs;
-  cJSON *m;
-  char *uri = NULL;
-  char *body = NULL;
-  char *resp = NULL;
   struct timespec t0;
   struct timespec t1;
-  int status;
+  char *uri;
+  int size;
   int ret;
 
   clock_gettime(CLOCK_MONOTONIC, &t0);
 
-  ret = vision_snapshot();
-  if (ret < 0)
+  size = vision_snapshot();
+  if (size < 0)
     {
-      snprintf(answer, cap, "拍照失败（%d），请稍后再试。", ret);
-      return ret;
+      snprintf(answer, cap, "拍照失败（%d），请稍后再试。", size);
+      return size;
     }
 
   uri = vision_load_datauri();
@@ -237,77 +210,15 @@ int k7_vision_ask(const char *question, char *answer, size_t cap)
       return -ENOMEM;
     }
 
-  root = cJSON_CreateObject();
-  cJSON_AddStringToObject(root, "model", K7_AGENT_VISION_MODEL);
-  cJSON_AddStringToObject(cJSON_AddObjectToObject(root, "thinking"),
-                          "type", "disabled");
-  cJSON_AddNumberToObject(root, "max_completion_tokens", 512);
-  msgs = cJSON_AddArrayToObject(root, "messages");
-  m = cJSON_CreateObject();
-  cJSON_AddStringToObject(m, "role", "user");
-  content = cJSON_AddArrayToObject(m, "content");
-
-  part = cJSON_CreateObject();
-  cJSON_AddStringToObject(part, "type", "image_url");
-  cJSON_AddStringToObject(cJSON_AddObjectToObject(part, "image_url"),
-                          "url", uri);
-  cJSON_AddItemToArray(content, part);
-
-  part = cJSON_CreateObject();
-  cJSON_AddStringToObject(part, "type", "text");
-  cJSON_AddStringToObject(part, "text", question);
-  cJSON_AddItemToArray(content, part);
-
-  cJSON_AddItemToArray(msgs, m);
+  ret = k7_llm_chat(uri, question, 512, answer, cap);
   free(uri);
-  uri = NULL;
-
-  body = cJSON_PrintUnformatted(root);
-  cJSON_Delete(root);
-  root = NULL;
-
-  resp = malloc(VISION_RESP_CAP);
-  if (body == NULL || resp == NULL)
+  if (ret == 0)
     {
-      snprintf(answer, cap, "内存不够。");
-      ret = -ENOMEM;
-      goto out;
+      clock_gettime(CLOCK_MONOTONIC, &t1);
+      syslog(LOG_INFO, "视觉: 照片 %d 字节，用时 %ld ms\n", size,
+             (long)((t1.tv_sec - t0.tv_sec) * 1000 +
+                    (t1.tv_nsec - t0.tv_nsec) / 1000000));
     }
 
-  status = vela_https_post_json(K7_AGENT_LLM_HOST, "443", VISION_PATH, hdrs,
-                                body, resp, VISION_RESP_CAP);
-  if (status != 200)
-    {
-      resp[status > 0 ? 200 : 0] = '\0';
-      syslog(LOG_ERR, "视觉: HTTP %d %s\n", status, resp);
-      snprintf(answer, cap, "请求模型失败（HTTP %d）。", status);
-      ret = status < 0 ? status : -EIO;
-      goto out;
-    }
-
-  root = cJSON_Parse(resp);
-  m = cJSON_GetObjectItem(cJSON_GetObjectItem(
-        cJSON_GetArrayItem(cJSON_GetObjectItem(root, "choices"), 0),
-        "message"), "content");
-  if (!cJSON_IsString(m))
-    {
-      snprintf(answer, cap, "模型没有给出回答。");
-      ret = -EPROTO;
-      goto out;
-    }
-
-  snprintf(answer, cap, "%s", m->valuestring);
-  clock_gettime(CLOCK_MONOTONIC, &t1);
-  syslog(LOG_INFO, "视觉: 照片 %d 字节，用时 %ld ms\n", ret,
-         (long)((t1.tv_sec - t0.tv_sec) * 1000 +
-                (t1.tv_nsec - t0.tv_nsec) / 1000000));
-  ret = 0;
-
-out:
-  cJSON_Delete(root);
-  cJSON_free(body);
-  free(resp);
-  free(uri);
   return ret;
-#endif
 }

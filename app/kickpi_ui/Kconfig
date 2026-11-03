@@ -26,4 +26,17 @@ config LVX_DEMO_CONTEST2026_423_KICKPI_UI_STACKSIZE
 		★ arm64 的栈帧比 32 位大得多，LVGL 的渲染调用层次又深，
 		  给小了会在渲染中途踩栈，表现为随机断言而非栈溢出报错。
 
+config LVX_DEMO_CONTEST2026_423_KICKPI_UI_MQTT_HOST
+	string "家居 MQTT broker 地址"
+	default "127.0.0.1"
+	---help---
+		家居页经 MQTT 对接的 broker（mosquitto、Home Assistant 的
+		Mosquitto 插件等），填 IPv4 地址。板上
+		自带 broker（k7mqttd）时填 127.0.0.1。留空则家居页显示"未配置"。
+		主题约定见 app/kickpi_ui/k7_home.h。
+
+config LVX_DEMO_CONTEST2026_423_KICKPI_UI_MQTT_PORT
+	int "家居 MQTT broker 端口"
+	default 1883
+
 endif # LVX_USE_DEMO_CONTEST2026_423_KICKPI_UI

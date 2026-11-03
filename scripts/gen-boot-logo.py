@@ -5,6 +5,8 @@
 产物：logo.bmp、logo_kernel.bmp（同一张图，U-Boot → bootamp 之间不闪）、
       resource-logo.img（写 dtbo 分区 LBA 40960，见 amp/uboot/0011）。
 
+画面是 kickpi_ui 开机动画的第一帧（见 render()），界面起来后接着动。
+
 ★ 格式照出厂 logo：8 位调色板 + RLE8 压缩（kernel-6.1/logo.bmp 就是
   654x270 bpp8 comp1）。U-Boot 的 bmpdecoder 对这种格式是验证过的；全屏
   720x1280 的 24 位图要 2.7MB，两张就放不进 4MB 的分区，而 RLE8 下
@@ -20,51 +22,63 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-W, H = 720, 1280
-BG = (10, 14, 28)
-ACCENT = (64, 156, 255)
-WHITE = (240, 244, 250)
-GREY = (140, 150, 170)
+W, H = 720, 1280                # 面板（竖屏）尺寸，BMP 按它存
+LW, LH = H, W                   # 界面（横屏）尺寸，按它画
+BG = (0x0e, 0x11, 0x16)         # 以下颜色与 kickpi_ui_main.c 的 UI_* 一致
+TRACK = (0x24, 0x2b, 0x36)      # UI_SURFACE2
+TEXT = (0xe8, 0xed, 0xf2)
+DIM = (0x8a, 0x96, 0xa3)
 
 HOME = Path.home()
 CJK = HOME / 'rk3576-amp/font/pkg/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf'
-LATIN = Path(__file__).resolve().parents[1] / '../apps/graphics/lvgl/lvgl/scripts/built_in_font/Montserrat-Medium.ttf'
+LVGL_FONTS = Path(__file__).resolve().parents[1] / '../apps/graphics/lvgl/lvgl/scripts/built_in_font'
+LATIN = LVGL_FONTS / 'Montserrat-Medium.ttf'
+ICONS = LVGL_FONTS / 'FontAwesome5-Solid+Brands+Regular.woff'
 RESOURCE_TOOL = HOME / 'rk3576-amp/u-boot/tools/resource_tool'
 
+ICON_HOME = '\uf015'
 
-def center(draw, y, text, font, fill):
+
+def text_at(draw, cx, cy, text, font, fill):
+    """以 (cx, cy) 为字形外框中心写字。"""
     x0, y0, x1, y1 = draw.textbbox((0, 0), text, font=font)
-    draw.text(((W - (x1 - x0)) // 2 - x0, y), text, font=font, fill=fill)
+    draw.text((cx - (x0 + x1) / 2, cy - (y0 + y1) / 2), text, font=font,
+              fill=fill)
 
 
 def render():
-    img = Image.new('RGB', (W, H), BG)
-    d = ImageDraw.Draw(img)
-    big = ImageFont.truetype(str(LATIN), 112)
-    mid = ImageFont.truetype(str(LATIN), 40)
-    cjk = ImageFont.truetype(str(CJK), 40)
-    small = ImageFont.truetype(str(LATIN), 28)
+    """画 kickpi_ui 开机动画（splash_show）的第一帧。
 
-    # 两个方块代表 AMP 的两个系统
-    cy = 420
-    d.rounded_rectangle((W // 2 - 150, cy - 60, W // 2 - 20, cy + 60), 18,
-                        outline=ACCENT, width=8)
-    d.rounded_rectangle((W // 2 + 20, cy - 60, W // 2 + 150, cy + 60), 18,
-                        fill=ACCENT)
-    center(d, 540, 'openvela', big, WHITE)
-    d.rectangle((W // 2 - 90, 690, W // 2 + 90, 696), fill=ACCENT)
-    # Droid 没有"·"，中间的点自己画
-    left, right, gap = '双核异构', '端侧智能', 56
-    lw = d.textlength(left, font=cjk)
-    rw = d.textlength(right, font=cjk)
-    x = (W - (lw + gap + rw)) / 2
-    d.text((x, 730), left, font=cjk, fill=WHITE)
-    d.text((x + lw + gap, 730), right, font=cjk, fill=WHITE)
-    cx = x + lw + gap / 2
-    d.ellipse((cx - 5, 755 - 5, cx + 5, 755 + 5), fill=ACCENT)
-    center(d, 800, 'KICKPI K7  ·  RK3576', mid, GREY)
-    center(d, 1150, 'openvela (A53) + Linux (A72)', small, GREY)
-    return img
+    ★ U-Boot 的 logo 一直留在屏上，直到 kickpi_ui 起来画第一帧。两张图
+      对不上，那一刻就是一次跳变；所以这里照 splash_show() 的布局画：
+      三道圆环只有暗色底轨、中间家的图标、标题。界面起来后彩色圆环从
+      这里接着画满，看上去是同一段动画。改了一边要同步另一边。
+
+    界面是横屏（UI_ROTATE 90），面板是竖屏：先按 1280x720 画，再逆时针
+    转 90° —— 与 ui_to_panel() 一致：逻辑 (lx, ly) → 面板 (ly, 719-lx)，
+    逻辑左上角落在面板左下角。UI_ROTATE 改成 270 时这里要改成顺时针。
+    """
+    img = Image.new('RGB', (LW, LH), BG)
+    d = ImageDraw.Draw(img)
+
+    cx, cy = LW // 2, LH // 2 - 70          # 圆环中心：屏幕中心上方 70
+    for i in range(3):
+        r = (240 - i * 52) // 2
+        d.ellipse((cx - r, cy - r, cx + r - 1, cy + r - 1), outline=TRACK,
+                  width=14)
+    text_at(d, cx, cy, ICON_HOME, ImageFont.truetype(str(ICONS), 64), TEXT)
+
+    # 标题。"K7" 用 Montserrat、汉字用 Droid，与 lv_font_k7_ui_28 的来源一致
+    latin = ImageFont.truetype(str(LATIN), 28)
+    cjk = ImageFont.truetype(str(CJK), 28)
+    a, b, gap = 'K7', '桌面助手', 8
+    aw, bw = d.textlength(a, font=latin), d.textlength(b, font=cjk)
+    x = (LW - (aw + gap + bw)) / 2
+    ty = LH // 2 + 100
+    text_at(d, x + aw / 2, ty, a, latin, TEXT)
+    text_at(d, x + aw + gap + bw / 2, ty, b, cjk, TEXT)
+
+    return img.transpose(Image.Transpose.ROTATE_90)
 
 
 def rle8(pal_img):

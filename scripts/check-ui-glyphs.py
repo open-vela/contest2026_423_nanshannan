@@ -16,7 +16,7 @@ have = {int(x, 16) for x in re.findall(r"/\* U\+([0-9A-F]+)", font)}
 
 # 会上屏的字符串所在的文件：界面本身，以及错误提示会作为回答气泡显示的
 # k7_vision.c。k7_wake.c 里是唤醒词匹配表、k7_tts.c 只打日志，不查。
-SHOWN = ["kickpi_ui_main.c", "k7_vision.c"]
+SHOWN = ["kickpi_ui_main.c", "k7_vision.c", "k7_llm.c", "k7_studio.c", "k7_memo.c"]
 
 missing = {}
 for src in (ui / name for name in SHOWN):

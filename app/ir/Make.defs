@@ -1,0 +1,7 @@
+############################################################################
+# Contest 2026 team 423 ir - Make.defs
+############################################################################
+
+ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_423_IR),)
+CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_423_ir
+endif

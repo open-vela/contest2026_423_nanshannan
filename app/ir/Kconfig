@@ -1,0 +1,11 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config LVX_USE_DEMO_CONTEST2026_423_IR
+	bool "Contest 2026 team 423 ir"
+	default n
+	depends on RK3576_IR
+	---help---
+		红外接收 bring-up 命令：ir init / st / raw / rx [秒]。

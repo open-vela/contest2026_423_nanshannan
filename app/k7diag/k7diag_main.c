@@ -30,10 +30,15 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <termios.h>
 #include <fcntl.h>
 
 #include <nuttx/arch.h>
+#include <nuttx/cache.h>
 #include <nuttx/clock.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/fs/ioctl.h>
 #include <nuttx/video/fb.h>
 #include <nuttx/input/touchscreen.h>
 #include <poll.h>
@@ -41,8 +46,10 @@
 #include <pthread.h>
 #include <sched.h>
 #include <arch/board/board.h>
+#include <nuttx/i2c/i2c_master.h>
 
 uint32_t rk3576_gpio_irq_count(int bank, uint32_t *last_status);
+uint32_t kickpi_touch_heals(void);
 void kickpi_touch_stat(uint32_t *samples, uint32_t *lows,
                        uint32_t *lowraw, uint32_t *edges);
 int rk3576_gmac_linkinfo(int port);
@@ -52,6 +59,8 @@ extern uint32_t g_ft5x06_valids;
 extern uint32_t g_ft5x06_delivered;
 extern uint32_t g_ft5x06_lastraw;
 extern uint32_t g_ft5x06_lastxy;
+int rk3576_power_on(int domain);
+bool rk3576_power_is_on(int domain);
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -64,6 +73,7 @@ extern uint32_t g_ft5x06_lastxy;
 #define GPIO0_BASE        0x27320000
 #define GPIO_EXT_PORT     0x0070
 #define GPIO_INT_EN_H     0x0014      /* pin16-31 的使能，pin21 => bit5 */
+#define GPIO_INT_MASK_H   0x001c
 #define GPIO_INT_STATUS   0x0050
 #define GPIO_INT_RAWSTAT  0x0058
 
@@ -340,7 +350,7 @@ static int fb_open(struct fbctx_s *c)
   c->h      = vinfo.yres;
   c->stride = c->pinfo.stride;
   c->fblen  = c->pinfo.fblen;
-  c->nbuf   = (c->pinfo.yres_virtual == vinfo.yres * 2) ? 2 : 1;
+  c->nbuf   = (c->pinfo.yres_virtual >= vinfo.yres * 2) ? 2 : 1;
   c->cur    = 0;
 
   c->mem = mmap(NULL, c->fblen, PROT_READ | PROT_WRITE,
@@ -814,8 +824,256 @@ static int diag_cpus(int cpu)
  * Public Functions
  ****************************************************************************/
 
+/* xTS 1.3.5 Flash 功能：cmocka_driver_block 的 stress 子项按设备容量 95%
+ * 逐扇区"写 + fsync + 读 + 比对"，在 16GB 的 SD 卡上要 2900 万次，跑不完；
+ * 板载 eMMC 上是启动镜像，不能拿来测。这里把 SD 卡末尾一段注册成独立的
+ * 块设备 /dev/sdtest，对它跑原文命令。
+ *
+ * ★ 父设备写死 /dev/mmcsd1（SD 卡），不接受参数，不可能指到 eMMC。
+ *   不写分区表，只注册设备节点，重启即消失；被测区域里原有数据会被覆盖。
+ */
+
+#define SDPART_PARENT  "/dev/mmcsd1"
+#define SDPART_DEV     "/dev/sdtest"
+
+static int diag_sdpart(long nsectors)
+{
+  struct geometry geo;
+  struct stat st;
+  off_t first;
+  int fd;
+  int ret;
+
+  if (stat(SDPART_DEV, &st) == 0)
+    {
+      printf("%s 已存在（重启后才会消失）\n", SDPART_DEV);
+      return 1;
+    }
+
+  fd = open(SDPART_PARENT, O_RDONLY);
+  if (fd < 0)
+    {
+      printf("打不开 %s：SD 卡没插？\n", SDPART_PARENT);
+      return 1;
+    }
+
+  ret = ioctl(fd, BIOC_GEOMETRY, (unsigned long)&geo);
+  close(fd);
+  if (ret < 0 || !geo.geo_available || geo.geo_sectorsize != 512)
+    {
+      printf("读 %s 容量失败（ret %d，扇区 %" PRIu32 "）\n", SDPART_PARENT,
+             ret, (uint32_t)geo.geo_sectorsize);
+      return 1;
+    }
+
+  /* 放在卡末尾，前面 FAT 的引导区和 FAT 表不动；末尾再留 1MB 余量 */
+
+  if (nsectors <= 0 || nsectors + 2048 > (long)geo.geo_nsectors)
+    {
+      printf("扇区数 %ld 不合理（卡共 %" PRIu64 " 扇区）\n", nsectors,
+             (uint64_t)geo.geo_nsectors);
+      return 1;
+    }
+
+  first = geo.geo_nsectors - 2048 - nsectors;
+  ret = register_blockpartition(SDPART_DEV, 0666, SDPART_PARENT, first,
+                                nsectors);
+  printf("%s：%s 的扇区 %" PRIu64 " 起 %ld 个（%ld MB），ret %d\n",
+         SDPART_DEV, SDPART_PARENT, (uint64_t)first, nsectors,
+         nsectors / 2048, ret);
+  return ret < 0 ? 1 : 0;
+}
+
+/* xTS 1.3.11 UART 文件传输：板 -> 主机方向在 1.5Mbaud 下由主机侧 CH340
+ * 丢字（7~16%），115200 下零丢失。编译期改 CONFIG_16550_UART0_BAUD 不生效
+ * （见 notes/xts-rerun-raw/2026-09-20-ymodem），这里运行时经 termios 改控制台
+ * 波特率。要在串口控制台上敲，不能从 telnet 发：串口 nsh 读每一行前保存
+ * 整份 termios、读完写回（apps/system/readline/readline_fd.c），别处改的
+ * 波特率会在串口下一个回车时被改回去。DesignWare UART 还需要
+ * CONFIG_16550_WAIT_LCR，否则忙时写 LCR 被忽略，除数写进 THR/IER，控制台
+ * 一直哑到重启。
+ */
+
+static int diag_baud(long baud)
+{
+  struct termios t;
+  int fd;
+  int ret;
+
+  if (baud != 115200 && baud != 1500000)
+    {
+      printf("只支持 115200 / 1500000\n");
+      return 1;
+    }
+
+  fd = open("/dev/ttyS0", O_RDWR | O_NOCTTY);
+  if (fd < 0)
+    {
+      printf("打不开 /dev/ttyS0\n");
+      return 1;
+    }
+
+  ret = tcgetattr(fd, &t);
+  if (ret == 0)
+    {
+      tcdrain(fd);
+      cfsetspeed(&t, baud);
+      ret = tcsetattr(fd, TCSANOW, &t);
+    }
+
+  if (ret == 0)
+    {
+      ret = tcgetattr(fd, &t);
+    }
+
+  close(fd);
+  printf("ttyS0 波特率 -> %ld：%s（读回 %ld）\n", baud,
+         ret == 0 ? "成功" : "失败", (long)cfgetispeed(&t));
+  return ret == 0 ? 0 : 1;
+}
+
+/****************************************************************************
+ * k7diag npu [on] —— NPU 供电与电源域
+ *
+ * NPU 归 Linux（rknpu 驱动），但 Linux 的 AMP 内核没有电源域和稳压器框架
+ * （见 amp/linux/amp-minimal.config），所以上电由这边做，Linux 只管
+ * insmod。不带参数只读：RK806 的 DCDC2（vdd_npu_s0）和 PMU 里 NPU 四个域。
+ *
+ * ★ 只读 PMU 和 PMIC，绝不碰 NPU 自己的寄存器（0x27700000 起）和 NPU
+ *   的 QoS（0x27f08000 起）：域没电时访问它们会把总线挂死。
+ *
+ * on：确认 DCDC2 有电后，按 NPU → NPUTOP → NPU0 → NPU1 的父子顺序上电，
+ *   任何一步失败就停（rk3576_power_on 每一步都有 10ms 上界）。
+ ****************************************************************************/
+
+#define RK806_I2C_DEV     "/dev/i2c1"
+#define RK806_ADDR        0x23
+#define RK806_POWER_EN0   0x00        /* 低 4 位 = BUCK1~4 已使能 */
+#define RK806_BUCK2_VSEL  0x1b        /* 500mV + n * 6.25mV（n <= 159） */
+#define RK806_CHIP_NAME   0x5a
+
+#define PMU_BASE          0x27380000
+
+static int rk806_read(int fd, uint8_t reg, uint8_t *val)
+{
+  struct i2c_msg_s msg[2];
+  struct i2c_transfer_s xfer;
+
+  msg[0].frequency = 100000;
+  msg[0].addr      = RK806_ADDR;
+  msg[0].flags     = 0;
+  msg[0].buffer    = &reg;
+  msg[0].length    = 1;
+  msg[1].frequency = 100000;
+  msg[1].addr      = RK806_ADDR;
+  msg[1].flags     = I2C_M_READ;
+  msg[1].buffer    = val;
+  msg[1].length    = 1;
+  xfer.msgv = msg;
+  xfer.msgc = 2;
+  return ioctl(fd, I2CIOC_TRANSFER, (unsigned long)&xfer) < 0 ? -1 : 0;
+}
+
+static int diag_npu(bool on)
+{
+  static const char *const names[4] =
+  {
+    "npu", "nputop", "npu0", "npu1"
+  };
+
+  uint8_t chip = 0;
+  uint8_t en = 0;
+  uint8_t vsel = 0;
+  bool vdd_ok;
+  int fd;
+  int ret;
+  int i;
+
+  fd = open(RK806_I2C_DEV, O_RDWR);
+  ret = fd < 0 ? -1 : 0;
+  if (ret == 0)
+    {
+      ret = rk806_read(fd, RK806_CHIP_NAME, &chip);
+    }
+
+  if (ret == 0)
+    {
+      ret = rk806_read(fd, RK806_POWER_EN0, &en);
+    }
+
+  if (ret == 0)
+    {
+      ret = rk806_read(fd, RK806_BUCK2_VSEL, &vsel);
+    }
+
+  if (fd >= 0)
+    {
+      close(fd);
+    }
+
+  vdd_ok = ret == 0 && (en & 0x02) != 0 && vsel >= 8 && vsel <= 72;
+  if (ret < 0)
+    {
+      printf("RK806: 读不到（%s 0x%02x）\n", RK806_I2C_DEV, RK806_ADDR);
+    }
+  else
+    {
+      printf("RK806: CHIP=0x%02x POWER_EN0=0x%02x  DCDC2(vdd_npu) %s "
+             "VSEL=0x%02x = %d mV\n", chip, en,
+             (en & 0x02) ? "开" : "关", vsel,
+             vsel <= 159 ? 500 + vsel * 25 / 4 : -1);
+    }
+
+  printf("PMU: PWR=0x%08" PRIx32 "/0x%08" PRIx32 " STATUS=0x%08" PRIx32
+         " REPAIR=0x%08" PRIx32 "\n     CHAIN=0x%08" PRIx32
+         " MEM=0x%08" PRIx32 " REQ=0x%08" PRIx32 " ACK=0x%08" PRIx32
+         " IDLE=0x%08" PRIx32 "\n",
+         rd32(PMU_BASE + 0x210), rd32(PMU_BASE + 0x214),
+         rd32(PMU_BASE + 0x230), rd32(PMU_BASE + 0x570),
+         rd32(PMU_BASE + 0x248), rd32(PMU_BASE + 0x250),
+         rd32(PMU_BASE + 0x110), rd32(PMU_BASE + 0x120),
+         rd32(PMU_BASE + 0x128));
+
+  for (i = 0; i < 4; i++)
+    {
+      printf("  %-7s %s\n", names[i],
+             rk3576_power_is_on(i) ? "已上电" : "断电");
+    }
+
+  if (!on)
+    {
+      return 0;
+    }
+
+  /* 550~950mV 是 dtsi 给 vdd_npu_s0 的范围：VSEL 8~72 */
+
+  if (!vdd_ok)
+    {
+      printf("vdd_npu 没开或电压不在 550~950mV，不上电\n");
+      return 1;
+    }
+
+  for (i = 0; i < 4; i++)
+    {
+      ret = rk3576_power_on(i);
+      printf("上电 %-7s %s（%d）\n", names[i], ret == 0 ? "成功" : "失败",
+             ret);
+      if (ret != 0)
+        {
+          return 1;
+        }
+    }
+
+  return 0;
+}
+
 int main(int argc, char *argv[])
 {
+  if (argc >= 2 && strcmp(argv[1], "npu") == 0)
+    {
+      return diag_npu(argc >= 3 && strcmp(argv[2], "on") == 0);
+    }
+
   if (argc >= 2 && strcmp(argv[1], "tp") == 0)
     {
       return diag_tp(argc >= 3 ? atoi(argv[2]) : 10);
@@ -837,6 +1095,10 @@ int main(int argc, char *argv[])
              " | 跳变 %" PRIu32 "\n", sm, lo, lr, ed);
       printf("  bank0 ISR 进入 %" PRIu32 " 次，最近 INT_STATUS=0x%08" PRIx32 "\n",
              isrs, last);
+      printf("  触摸脚 INT_EN_H=0x%04" PRIx32 " INT_MASK_H=0x%04" PRIx32
+             " | 被外部屏蔽后放开 %" PRIu32 " 次\n",
+             rd32(GPIO0_BASE + GPIO_INT_EN_H) & 0xffff,
+             rd32(GPIO0_BASE + GPIO_INT_MASK_H) & 0xffff, kickpi_touch_heals());
 
       printf("  ft5x06: worker %" PRIu32 " | 读成功 %" PRIu32
              " | 解码有效 %" PRIu32 " | 交付样本 %" PRIu32 "\n",
@@ -932,6 +1194,16 @@ int main(int argc, char *argv[])
     }
 #endif
 
+  if (argc >= 3 && strcmp(argv[1], "baud") == 0)
+    {
+      return diag_baud(atol(argv[2]));
+    }
+
+  if (argc >= 2 && strcmp(argv[1], "sdpart") == 0)
+    {
+      return diag_sdpart(argc >= 3 ? atol(argv[2]) : 131072);
+    }
+
   if (argc >= 2 && strcmp(argv[1], "rst") == 0)
     {
       return diag_rst();
@@ -957,12 +1229,77 @@ int main(int argc, char *argv[])
       return diag_fb(argc >= 3 ? argv[2] : "ramp");
     }
 
+#ifdef CONFIG_USBHOST_XHCI_PLATFORM
+  if (argc >= 2 && strcmp(argv[1], "usb") == 0)
+    {
+      /* 起 DRD1 的 xHCI。之后插拔由 usbhost 等待线程处理，
+       * U 盘出现为 /dev/sda，键盘为 /dev/kbda。
+       */
+
+      int ret = kickpi_k7_usbhost_initialize();
+
+      printf("USB host: %d\n", ret);
+      return ret < 0 ? 1 : 0;
+    }
+
+  if (argc >= 2 && strcmp(argv[1], "usbst") == 0)
+    {
+      /* 只读：xHCI 运行状态 + 事件环头 4 个 TRB（先 invalidate，看的是
+       * DRAM 里的真值），以及 GIC 里 292 的 pending/active。
+       */
+
+      const uintptr_t x = 0x23400000;
+      const uintptr_t gicd = 0x2a701000;
+      uintptr_t ring;
+      int i;
+
+      if (!kickpi_k7_usbhost_running())
+        {
+          /* PD_PHP 可能还没上电，这时碰控制器会把总线挂死 */
+
+          printf("USB 未启动，先 k7diag usb\n");
+          return 1;
+        }
+
+      up_invalidate_dcache(rd32(x + 0x470), rd32(x + 0x470) + 64);
+      ring = rd32(rd32(x + 0x470));
+      up_invalidate_dcache(ring, ring + 64);
+      printf("USBCMD=%08" PRIx32 " USBSTS=%08" PRIx32
+             " PORTSC1=%08" PRIx32 "\n",
+             rd32(x + 0x20), rd32(x + 0x24), rd32(x + 0x420));
+      printf("IMAN=%08" PRIx32 " ERSTSZ=%" PRIu32 " ERDP=%08" PRIx32
+             " ring=%08lx\n",
+             rd32(x + 0x460), rd32(x + 0x468), rd32(x + 0x478),
+             (unsigned long)ring);
+      printf("GIC292 en=%" PRIu32 " pend=%" PRIu32 " act=%" PRIu32 "\n",
+             (rd32(gicd + 0x124) >> 4) & 1, (rd32(gicd + 0x224) >> 4) & 1,
+             (rd32(gicd + 0x324) >> 4) & 1);
+      for (i = 0; i < 4; i++)
+        {
+          uintptr_t t = ring + 16 * i;
+
+          printf("evt[%d] %08" PRIx32 " %08" PRIx32 " %08" PRIx32
+                 " %08" PRIx32 "\n", i, rd32(t), rd32(t + 4),
+                 rd32(t + 8), rd32(t + 12));
+        }
+
+      return 0;
+    }
+
+#endif
   printf("用法:\n");
   printf("  k7diag stat           读常驻采样的累计结果（不用对时）\n");
   printf("  k7diag tp [秒]        现场采样触摸中断脚\n");
   printf("  k7diag fb ramp|bars|grid   绕开 LVGL 写测试图案\n");
   printf("  k7diag eth                 两个网口的 PHY 链路状态\n");
+#ifdef CONFIG_USBHOST_XHCI_PLATFORM
+  printf("  k7diag usb                 启动 USB host（Type-A 口，经板载 hub）\n");
+  printf("  k7diag usbst               xHCI 状态和事件环（只读）\n");
+#endif
+  printf("  k7diag baud 115200|1500000  运行时改控制台波特率（在串口上敲，xTS 1.3.11）\n");
+  printf("  k7diag sdpart [扇区数]     SD 卡末尾划出 /dev/sdtest（缺省 64MB，xTS 1.3.5）\n");
   printf("  k7diag rst                 读全局复位状态（只读不清）\n");
+  printf("  k7diag npu [on]            NPU 供电和电源域（不带 on 只读）\n");
   printf("  k7diag cpus [核号]         建只绑该核的线程看它跑不跑（缺省逐核）\n");
   printf("  k7diag cpus pin <pid> <十六进制掩码>  改任务亲和性\n");
   printf("  k7diag vsync               量 VP1 的帧开始标志（清除/使能行为）\n");

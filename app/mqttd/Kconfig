@@ -1,0 +1,32 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config LVX_USE_DEMO_CONTEST2026_423_MQTTD
+	tristate "K7 精简 MQTT broker（k7mqttd）"
+	default n
+	---help---
+		板上自带的 MQTT 3.1.1 broker，家居设备和面板都连它，演示时
+		不再依赖电脑上的 mosquitto。只实现家居用得到的部分：
+		CONNECT（可选用户名密码）、SUBSCRIBE / UNSUBSCRIBE（+ 和 # 通配）、
+		PUBLISH 转发与 retain、QoS 1/2 只做应答（统一按 QoS 0 转发）、
+		心跳超时断开与遗嘱。单线程 poll 服务全部连接。
+
+		账号放在 /data/k7mqttd.conf（每行 "用户名 密码"，不进 git）；
+		没有这个文件就允许匿名。本机（127.0.0.1）连接免认证。
+
+if LVX_USE_DEMO_CONTEST2026_423_MQTTD
+
+config LVX_DEMO_CONTEST2026_423_MQTTD_PORT
+	int "监听端口"
+	default 1883
+
+config LVX_DEMO_CONTEST2026_423_MQTTD_AUTOSTART
+	bool "开机自动启动"
+	default n
+	---help---
+		在板级初始化里、界面之前拉起 k7mqttd。关掉时可在 nsh 里
+		手动 `k7mqttd &`。
+
+endif # LVX_USE_DEMO_CONTEST2026_423_MQTTD
