@@ -1862,6 +1862,25 @@ static void rk3576_eth_interrupt_work(void *arg)
           /* Check if there are pending transmissions */
 
           rk3576_eth_txdone(priv);
+
+          /* ★ 发送完成后要补收一次。
+           *
+           *   recvframe 在发送环满（inflight 到顶）或没有空闲缓冲区时
+           *   提前返回，已经收进接收环的帧留在那里，而它们的 RI 已经
+           *   消费掉了。txdone 腾出了位置，但不会再来新的 RI —— 对端在
+           *   等这些帧的 ACK，不再发包。于是接收环里躺着 OWN=0 的帧、
+           *   DMA 停在 RBU，连 ping 都不通（2026-10-31，接收环加到 64
+           *   后大流量 TCP 必现）。
+           */
+
+          up_invalidate_dcache((uintptr_t)priv->rxhead,
+                               (uintptr_t)priv->rxhead +
+                               sizeof(struct eth_desc_s));
+
+          if ((priv->rxhead->des3 & EMAC_RDES3_OWN_MASK) == 0)
+            {
+              rk3576_eth_receive(priv);
+            }
         }
 
       /* Clear the pending normal summary interrupt */
@@ -3571,10 +3590,18 @@ static void rk3576_eth_initdma(struct rk3576_eth_driver_s *priv)
   regval |= EMAC_DMA_CH0_TX_CONTROL_ST;
   putreg32(regval, RK3576_EMAC_DMA_CH0_TX_CONTROL);
 
-  /* Set EMAC_DMA_CH0_RX_CONTROL register */
+  /* Set EMAC_DMA_CH0_RX_CONTROL register
+   *
+   * ★ RBSZ 占 bit 14:1，寄存器值 = 字节数 << 1（Linux stmmac 的
+   *   dwmac4_set_bfsize 同样如此）。宏把参数左移 3 位，所以参数要给
+   *   字节数 >> 2。原先给的是 PKTSIZE >> 2 = 379，即 1516 字节，装不下
+   *   1514 字节的满长帧 + 4 字节 FCS：对端按 MSS 1460 发来的整段全被
+   *   丢掉，表现为 TCP 上超过约 1450 字节的消息永远到不了（MQTT 大消息
+   *   卡死时查出来的）。按实际分配的 DMA 缓冲大小设。
+   */
 
   putreg32(EMAC_DMA_CH0_RX_CONTROL_RXPBL(32) |
-           EMAC_DMA_CH0_RX_CONTROL_RBSZ_13_Y(CONFIG_NET_ETH_PKTSIZE >> 2),
+           EMAC_DMA_CH0_RX_CONTROL_RBSZ_13_Y(ALIGNED_BUFSIZE >> 2),
            RK3576_EMAC_DMA_CH0_RX_CONTROL);
 
   /* DMA RX start receiving */

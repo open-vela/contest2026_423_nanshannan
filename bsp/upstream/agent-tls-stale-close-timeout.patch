@@ -1,0 +1,39 @@
+diff --git a/src/infra/vela_tls.c b/src/infra/vela_tls.c
+index 0b36760..02ba984 100644
+--- a/src/infra/vela_tls.c
++++ b/src/infra/vela_tls.c
+@@ -123,6 +123,14 @@ typedef struct {
+ 
+ static void tls_ctx_free(tls_ctx_t* ctx)
+ {
++    /* close_notify is a blocking send.  Without TCP write buffers a
++     * blocking send waits for the peer's ACK, and a pooled connection the
++     * server dropped while idle never ACKs: the caller hung until TCP gave
++     * up retransmitting (minutes).  Bound it; the alert is best-effort. */
++    if (ctx->net.fd >= 0) {
++        struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
++        setsockopt(ctx->net.fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
++    }
+     mbedtls_ssl_close_notify(&ctx->ssl);
+     mbedtls_net_free(&ctx->net);
+     mbedtls_ssl_free(&ctx->ssl);
+@@ -306,13 +314,17 @@ static int tls_ctx_connect(tls_ctx_t* ctx, const char* host, const char* port)
+ #endif
+         setsockopt(ctx->net.fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+ 
+-#ifdef CONFIG_AI_AGENT_NET_RPMSG
++        /* Bound writes too, not only on RPMSG: a request written into a
++         * connection that died while pooled must fail, not block. */
+         {
++#ifdef CONFIG_AI_AGENT_NET_RPMSG
+             int timeout_sec = network_get_connect_timeout();
++#else
++            int timeout_sec = 15;
++#endif
+             struct timeval ctv = { .tv_sec = timeout_sec, .tv_usec = 0 };
+             setsockopt(ctx->net.fd, SOL_SOCKET, SO_SNDTIMEO, &ctv, sizeof(ctv));
+         }
+-#endif
+     }
+ 
+     /* SSL config: client, TLS, default ciphersuites */

@@ -80,6 +80,10 @@
 int kickpi_ui_main(int argc, FAR char *argv[]);
 #endif
 
+#ifdef CONFIG_LVX_DEMO_CONTEST2026_423_MQTTD_AUTOSTART
+int k7mqttd_main(int argc, FAR char *argv[]);
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -293,7 +297,7 @@ static int devinit_thread(int argc, FAR char *argv[])
     }
 #endif
 
-#ifdef CONFIG_RK3576_VIDEO
+#if defined(CONFIG_RK3576_VIDEO) && !defined(CONFIG_KICKPI_K7_CAMERA_LINUX)
   /* ★ V4L2 设备要在摄像头初始化之后注册。
    *
    *   探测、MCLK、传感器寄存器表都在上一步做完；本步只把
@@ -306,6 +310,22 @@ static int devinit_thread(int argc, FAR char *argv[])
     {
       syslog(LOG_ERR, "ERROR: V4L2 设备注册失败: %d\n", ret);
     }
+#endif
+
+#ifdef CONFIG_LVX_DEMO_CONTEST2026_423_MQTTD_AUTOSTART
+  /* 家居 broker 先于界面起来：界面的家居页连的就是它（127.0.0.1）。
+   * 它只监听 0.0.0.0，不依赖网线和 IP 是否已经就绪。
+   */
+
+  {
+    int pid = task_create("k7mqttd", SCHED_PRIORITY_DEFAULT, 8192,
+                          k7mqttd_main, NULL);
+
+    if (pid < 0)
+      {
+        syslog(LOG_ERR, "ERROR: 启动 k7mqttd 失败: %d\n", pid);
+      }
+  }
 #endif
 
 #ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_423_KICKPI_UI
@@ -368,36 +388,82 @@ static int devinit_thread(int argc, FAR char *argv[])
 #define KICKPI_DATA_NBLOCKS 786432
 #define KICKPI_DATA_DEV     "/dev/data"
 
-static void kickpi_data_part_handler(FAR struct partition_s *part,
-                                     FAR void *arg)
+/* ★ /dev/lxroot：出厂 GPT 的 backup 分区（384MB，前 4KB 全零），给 A72
+ *   上 Linux 的根文件系统镜像用。openvela 经网络写入（lxroot 命令），
+ *   U-Boot 启动时读进内存当 initramfs —— Linux 运行时不碰 eMMC。
+ *
+ *   ★ 只能用 4GB 以内的分区。本端没开 CONFIG_FS_LARGEFILE，off_t 是
+ *     32 位：直接对 /dev/mmcsd0 定位到 4GB 以外会**静默回绕**到低地址
+ *     （2026-10-31 上板实测：dd skip=61079518 读到的是 LBA 2359262）。
+ *     走分区设备时偏移从分区起点算，384MB 不会溢出。
+ *
+ *   这里只注册设备，不读不写；写入在 lxroot 命令里，由人手动触发。
+ */
+
+#define KICKPI_LXROOT_PART    "backup"
+#define KICKPI_LXROOT_FIRST   378880
+#define KICKPI_LXROOT_NBLOCKS 786432
+#define KICKPI_LXROOT_DEV     "/dev/lxroot"
+
+#define KICKPI_4GB_SECTORS    8388608
+
+struct kickpi_part_s
 {
-  FAR bool *found = arg;
+  FAR const char *name;
+  size_t          first;
+  size_t          nblocks;
+  FAR const char *dev;
+  bool            found;
+};
+
+static struct kickpi_part_s g_kickpi_parts[] =
+{
+  { KICKPI_DATA_PART,   KICKPI_DATA_FIRST,   KICKPI_DATA_NBLOCKS,
+    KICKPI_DATA_DEV },
+  { KICKPI_LXROOT_PART, KICKPI_LXROOT_FIRST, KICKPI_LXROOT_NBLOCKS,
+    KICKPI_LXROOT_DEV },
+};
+
+static void kickpi_part_handler(FAR struct partition_s *part, FAR void *arg)
+{
   int ret;
+  int i;
 
-  if (strcmp(part->name, KICKPI_DATA_PART) != 0)
+  UNUSED(arg);
+
+  for (i = 0; i < nitems(g_kickpi_parts); i++)
     {
+      FAR struct kickpi_part_s *p = &g_kickpi_parts[i];
+
+      if (strcmp(part->name, p->name) != 0)
+        {
+          continue;
+        }
+
+      if (part->firstblock != p->first || part->nblocks != p->nblocks ||
+          part->blocksize != 512 ||
+          p->first + p->nblocks > KICKPI_4GB_SECTORS)
+        {
+          syslog(LOG_ERR, "ERROR: eMMC GPT 的 %s 分区是 %zu+%zu（块 %zu），"
+                 "不是预期的 %zu+%zu，不使用\n", p->name,
+                 part->firstblock, part->nblocks, part->blocksize,
+                 p->first, p->nblocks);
+          return;
+        }
+
+      ret = register_blockpartition(p->dev, 0666, "/dev/mmcsd0",
+                                    part->firstblock, part->nblocks);
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "ERROR: 注册 %s 失败: %d\n", p->dev, ret);
+          return;
+        }
+
+      p->found = true;
+      syslog(LOG_INFO, "eMMC: GPT %s -> %s（LBA %zu + %zu）\n",
+             p->name, p->dev, p->first, p->nblocks);
       return;
     }
-
-  if (part->firstblock != KICKPI_DATA_FIRST ||
-      part->nblocks != KICKPI_DATA_NBLOCKS || part->blocksize != 512)
-    {
-      syslog(LOG_ERR, "ERROR: eMMC GPT 的 %s 分区是 %zu+%zu（块 %zu），"
-             "不是预期的 %d+%d，不使用\n", KICKPI_DATA_PART,
-             part->firstblock, part->nblocks, part->blocksize,
-             KICKPI_DATA_FIRST, KICKPI_DATA_NBLOCKS);
-      return;
-    }
-
-  ret = register_blockpartition(KICKPI_DATA_DEV, 0666, "/dev/mmcsd0",
-                                part->firstblock, part->nblocks);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: 注册 %s 失败: %d\n", KICKPI_DATA_DEV, ret);
-      return;
-    }
-
-  *found = true;
 }
 
 /* 返回 true 表示 /data 已挂上 eMMC */
@@ -405,7 +471,6 @@ static void kickpi_data_part_handler(FAR struct partition_s *part,
 static bool kickpi_mount_data_emmc(void)
 {
   struct stat st;
-  bool found = false;
   int ret;
 
   if (stat("/dev/mmcsd0", &st) < 0)
@@ -413,9 +478,10 @@ static bool kickpi_mount_data_emmc(void)
       return false;
     }
 
-  ret = parse_block_partition("/dev/mmcsd0", kickpi_data_part_handler,
-                              &found);
-  if (ret < 0 || !found)
+  /* 一次解析同时注册 /dev/data 和 /dev/lxroot */
+
+  ret = parse_block_partition("/dev/mmcsd0", kickpi_part_handler, NULL);
+  if (ret < 0 || !g_kickpi_parts[0].found)
     {
       syslog(LOG_ERR, "ERROR: eMMC 上没找到可用的 %s 分区（%d）\n",
              KICKPI_DATA_PART, ret);

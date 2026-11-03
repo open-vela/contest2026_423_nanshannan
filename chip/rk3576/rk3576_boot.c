@@ -117,6 +117,22 @@ static const struct arm_mmu_region g_mmu_regions[] =
                         CONFIG_RK3576_RPTUN_SHM_BASE, 0x400000,
                         MT_NORMAL_NC | MT_RW | MT_SECURE),
 #endif
+
+#ifdef CONFIG_RK3576_FRAME_SHM
+
+  /* 与 Linux 共享的帧区（amp/include/k7_frame.h）。
+   *
+   * 和上面的 AMP_SHM 不同，这里映成 cacheable：一帧 3.7MB，界面要整帧
+   * 拷贝、核对要逐像素读，不缓存太慢。代价是每次读之前必须 invalidate
+   * （ampctl frame、kickpi_ui 都这么做）。本端从不写这块，所以不需要
+   * clean。Linux 那边映成 write-combine，写完不需要 cache 维护。
+   */
+
+  MMU_REGION_FLAT_ENTRY("FRAME_SHM",
+                        CONFIG_RK3576_FRAME_SHM_BASE,
+                        CONFIG_RK3576_FRAME_SHM_SIZE,
+                        MT_NORMAL | MT_RW | MT_SECURE),
+#endif
 };
 
 const struct arm_mmu_config g_mmu_config =

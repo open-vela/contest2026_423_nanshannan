@@ -35,6 +35,10 @@ ifeq ($(CONFIG_SMP),y)
 CHIP_CSRCS += rk3576_smp.c
 endif
 
+ifeq ($(CONFIG_USBHOST_XHCI_PLATFORM),y)
+CHIP_CSRCS += rk3576_usbhost.c
+endif
+
 ifeq ($(CONFIG_RK3576_GMAC),y)
 CHIP_CSRCS += rk3576_gmac.c
 endif
@@ -65,6 +69,10 @@ endif
 
 ifeq ($(CONFIG_RK3576_WDT),y)
 CHIP_CSRCS += rk3576_wdt.c
+endif
+
+ifeq ($(CONFIG_RK3576_IR),y)
+CHIP_CSRCS += rk3576_ir.c
 endif
 
 ifeq ($(CONFIG_RK3576_TIMER),y)

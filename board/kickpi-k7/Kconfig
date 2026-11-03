@@ -1,3 +1,17 @@
+config KICKPI_K7_CAMERA_LINUX
+	bool "摄像头整条链归 A72 上的 Linux"
+	default n
+	depends on RK3576_I2C
+	---help---
+		双系统下用 Linux 的 rkisp + rkaiq（硬件 ISP、3A）出图，openvela
+		只给 cam3 模组上电（GPIO0_C7）、送 37.125MHz MCLK，不初始化
+		I2C8、不注册 /dev/video0。画面经帧共享区（amp/include/k7_frame.h）
+		回到 openvela 显示。
+
+		关掉就是原来的做法：openvela 自己用 CIF 取 RAW、软件去马赛克。
+		两种做法不能同时开 —— 两边会抢同一个 I2C8 控制器。
+		Linux 侧见 amp/linux/rk3576-kickpi-k7-amp.dts 文末"摄像头"一节。
+
 
 config KICKPI_K7_IMGPROC
 	bool "去马赛克 + JPEG 编码"

@@ -85,6 +85,18 @@ void rk3576_reset(unsigned int id, bool assert)
   uint32_t regval;
 
   regval = (1u << (bit + 16)) | ((assert ? 1u : 0u) << bit);
+
+  /* PMU1 CRU 的复位号从 524288 起编（dt-bindings 注释
+   * "PMU1SOFTRST_CON00,Offset=0x20A00"），不能按主 CRU 线性换算。
+   */
+
+  if (id >= RK3576_PMU1CRU_SRST_BASE)
+    {
+      con = (id - RK3576_PMU1CRU_SRST_BASE) / 16;
+      putreg32(regval, RK3576_CRU_ADDR + RK3576_PMUCRU_SOFTRST_CON(con));
+      return;
+    }
+
   putreg32(regval, RK3576_CRU_ADDR + RK3576_CRU_SOFTRST_CON(con));
 }
 

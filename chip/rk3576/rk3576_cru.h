@@ -60,6 +60,7 @@
 #define RK3576_PMUCRU_CLKSEL_CON(x)  ((x) * 4 + RK3576_PMUCRU_OFFSET + 0x300)
 #define RK3576_PMUCRU_CLKGATE_CON(x) ((x) * 4 + RK3576_PMUCRU_OFFSET + 0x800)
 #define RK3576_PMUCRU_SOFTRST_CON(x) ((x) * 4 + RK3576_PMUCRU_OFFSET + 0xa00)
+#define RK3576_PMU1CRU_SRST_BASE     524288   /* SRST_P_HDPTX_GRF */
 
 /* CLK_I2Cn 的时钟源选择（mux_200m_100m_50m_24m_p） */
 
@@ -151,6 +152,7 @@ unsigned int rk3576_pmu_clk_getmux(unsigned int con, unsigned int shift,
  *       寄存器 = SOFTRST_CON 基址 + (id / 16) * 4
  *       位     = id % 16
  *     编号取自 include/dt-bindings/reset/rockchip,rk3576-cru.h。
+ *     524288 起是 PMU1 CRU 的复位（基址 +0x20a00），减去基数后同样换算。
  *
  *   ★ 引导器没用过的模块，其复位很可能仍是置位状态。此时寄存器读写
  *     一切正常、版本号也读得到，但状态机不工作 —— 本端口的 GMAC

@@ -35,6 +35,12 @@
 #ifdef CONFIG_RK3576_FB
 
 /****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define FB_NBUF 3                  /* 帧缓冲块数，见 up_fbinitialize() */
+
+/****************************************************************************
  * Private Data
  ****************************************************************************/
 
@@ -115,9 +121,9 @@ static int rk3576_updatearea(struct fb_vtable_s *vtable,
       return -ENODEV;
     }
 
-  /* LVGL 传进来的 area->y 已经含了双缓冲的 yoffset（见
+  /* 调用方传进来的 area->y 已经含了 yoffset（见
    * lv_nuttx_fbdev.c: fb_area.y = dirty_area.y1 + yoffset），
-   * 取值范围 0..2*yres-1，据此判断这一帧画的是哪一块。
+   * 取值范围 0..FB_NBUF*yres-1，据此判断这一帧画的是哪一块。
    */
 
   /* ★ 刷**整块**后缓冲，不能只刷 LVGL 报的脏区。
@@ -145,15 +151,12 @@ static int rk3576_updatearea(struct fb_vtable_s *vtable,
         return -EINVAL;
       }
 
-    if (area->y >= g_fbheight)
+    if (area->y >= g_fbheight * FB_NBUF)
       {
-        start = base + half;        /* 第二块 */
-      }
-    else
-      {
-        start = base;               /* 第一块 */
+        return -EINVAL;
       }
 
+    start = base + half * (area->y / g_fbheight);
     end = start + half;
   }
 
@@ -201,7 +204,7 @@ static int rk3576_pandisplay(struct fb_vtable_s *vtable,
     }
 
   yoffset = pinfo->yoffset;
-  if (yoffset > g_fbheight)
+  if (yoffset % g_fbheight != 0 || yoffset >= g_fbheight * FB_NBUF)
     {
       return -EINVAL;
     }
@@ -259,12 +262,20 @@ int up_fbinitialize(int display)
    *   横条纹就是这么来的。详见 rk3576_vop2.c 里 rk3576_vop2_fb_pan()
    *   的说明。
    *
-   *   两块缓冲首尾相连（consecutive），LVGL 的 lv_nuttx_fbdev.c 会自己
+   *   几块缓冲首尾相连（consecutive），LVGL 的 lv_nuttx_fbdev.c 会自己
    *   识别这种布局：display 0 和 display 1 报同一个 fbmem 时它按
    *   offset = yres * stride 去 mmap 第二块。
+   *
+   * ★ 后来改成三块（2026-11-02，相机页帧率）。
+   *
+   *   两块时，翻页之后要等 VOP 在下一个 VSYNC 真正切过去，才能往换下来
+   *   的那块写，相机页每帧白等约 10ms（只到 26fps）。三块轮着用，要写的
+   *   那块是两次翻页之前换下来的，早就 latch 完了。kickpi_ui 自己管翻页；
+   *   lv_nuttx_fbdev.c 只认 yres_virtual == 2*yres，三块时它会退回单缓冲，
+   *   本项目没有用它建显示。
    */
 
-  fbsize *= 2;
+  fbsize *= FB_NBUF;
 
   g_fbmem = kmm_memalign(256, fbsize);
   if (g_fbmem == NULL)
@@ -290,7 +301,7 @@ int up_fbinitialize(int display)
   g_videoinfo.nplanes = 1;
 
   g_planeinfo.fbmem        = g_fbmem;
-  g_planeinfo.fblen        = fbsize;          /* 两块之和 */
+  g_planeinfo.fblen        = fbsize;          /* 几块之和 */
   g_planeinfo.stride       = stride;
   g_planeinfo.display      = display;
   g_planeinfo.bpp          = 32;
@@ -307,7 +318,7 @@ int up_fbinitialize(int display)
    */
 
   g_planeinfo.xres_virtual = width;
-  g_planeinfo.yres_virtual = height * 2;
+  g_planeinfo.yres_virtual = height * FB_NBUF;
   g_planeinfo.yoffset      = 0;
 
   g_fb_vtable.getvideoinfo = rk3576_getvideoinfo;
@@ -321,8 +332,8 @@ int up_fbinitialize(int display)
   g_fbheight = height;
 
   syslog(LOG_INFO,
-         "FB: %" PRIu32 "x%" PRIu32 " ARGB8888 双缓冲 %zu 字节 @%p\n",
-         width, height, fbsize, g_fbmem);
+         "FB: %" PRIu32 "x%" PRIu32 " ARGB8888 %d 块缓冲 %zu 字节 @%p\n",
+         width, height, FB_NBUF, fbsize, g_fbmem);
   return OK;
 }
 

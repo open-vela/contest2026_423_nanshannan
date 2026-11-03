@@ -183,7 +183,7 @@ SECTIONS
   _ebss = .;
   _szbss = _ebss - _sbss;
 
-  .initstack : {             /* INIT STACK */
+  .initstack (NOLOAD) : {    /* INIT STACK */
        _s_initstack = .;
        *(.initstack)
        . = ALIGN(16);

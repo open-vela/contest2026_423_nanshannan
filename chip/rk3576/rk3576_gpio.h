@@ -160,5 +160,6 @@ int rk3576_gpio_irq_enable(int bank, int pin, bool enable);
 
 uint32_t rk3576_gpio_irq_count(int bank, uint32_t *last_status);
 uint32_t rk3576_gpio_rawstatus(int bank);
+bool rk3576_gpio_irq_masked(int bank, int pin);
 
 #endif /* __ARCH_ARM64_SRC_RK3576_RK3576_GPIO_H */

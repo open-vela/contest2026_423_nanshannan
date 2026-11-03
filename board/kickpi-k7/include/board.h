@@ -277,6 +277,16 @@ int kickpi_k7_wifi_scan(void);
 int kickpi_k7_wifi_connect(FAR const char *ssid, FAR const char *psk);
 int kickpi_k7_wifi_disconnect(void);
 
+/* USB host（DRD1 + 板载 GL3510 hub），手动触发：k7diag usb */
+
+int kickpi_k7_usbhost_initialize(void);
+bool kickpi_k7_usbhost_running(void);
+
+/* 红外接收（PWM0 + NEC），手动触发：ir init，之后读 /dev/lirc0 */
+
+int kickpi_k7_ir_initialize(void);
+int kickpi_k7_ir_dump(bool raw);
+
 /* LSC（镜头阴影）与 CCM（色彩校正矩阵）。
  *
  * ★ 两者的系数都只能实测，默认恒等 —— 这一级存在但不改变画面。

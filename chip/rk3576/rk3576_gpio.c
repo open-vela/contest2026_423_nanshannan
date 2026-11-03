@@ -149,6 +149,20 @@ uint32_t rk3576_gpio_rawstatus(int bank)
   return getreg32(g_gpio_base[bank] + RK3576_GPIO_INT_RAWSTATUS);
 }
 
+/* 引脚的中断此刻是否被屏蔽（INT_MASK 位）。半寄存器读回来低 16 位是值。 */
+
+bool rk3576_gpio_irq_masked(int bank, int pin)
+{
+  if (bank < 0 || bank >= RK3576_GPIO_NBANKS ||
+      pin  < 0 || pin  >= RK3576_GPIO_NPINS)
+    {
+      return false;
+    }
+
+  return (getreg32(g_gpio_base[bank] + RK3576_GPIO_INT_MASK_L +
+                   (pin >= 16 ? 4 : 0)) >> (pin & 15)) & 1;
+}
+
 uint32_t rk3576_gpio_irq_count(int bank, uint32_t *last_status)
 {
   if (bank < 0 || bank >= RK3576_GPIO_NBANKS)

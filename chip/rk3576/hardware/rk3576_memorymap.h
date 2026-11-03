@@ -125,6 +125,7 @@
 
 #define RK3576_RNG_ADDR        0x2a410000   /* 硬件随机数 rockchip,rkrng */
 #define RK3576_WDT_ADDR        0x2ace0000   /* 看门狗 snps,dw-wdt */
+#define RK3576_PWM0_ADDR       0x27330000   /* PWM0 通道 0，板上红外接收 */
 #define RK3576_I2C0_ADDR       0x27300000
 #define RK3576_I2C1_ADDR       0x2ac40000
 #define RK3576_I2C2_ADDR       0x2ac50000

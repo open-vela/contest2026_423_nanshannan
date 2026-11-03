@@ -44,7 +44,7 @@
 #define RK3576_PD_NVM        5    /* eMMC（U-Boot 已开）      */
 #define RK3576_PD_SDGMAC     6
 #define RK3576_PD_USB        7
-#define RK3576_PD_PHP        8
+#define RK3576_PD_PHP        8    /* USB3OTG1（DRD1）         */
 #define RK3576_PD_SUBPHP     9
 #define RK3576_PD_AUDIO     10    /* SAI 音频接口             */
 #define RK3576_PD_VEPU0     11

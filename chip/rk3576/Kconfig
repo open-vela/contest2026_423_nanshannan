@@ -216,6 +216,21 @@ config RK3576_RNG
 
 		初始化时取两批数据比较，完全相同则判定硬件未工作并拒绝注册。
 
+config RK3576_IR
+	bool "红外接收（PWM0 捕获 + NEC 解码，/dev/lirc0）"
+	default n
+	depends on DRIVERS_RC
+	---help---
+		板上红外接收头接 PWM0_CH0（GPIO0_C4，0x27330000，GIC_SPI 100）。
+		PWM 工作在捕获模式，中断里按 NEC 时序解码，以 LIRC 扫描码
+		（RC_PROTO_NEC/NECX/NEC32）上报。
+
+		★ PWM0 是 v4 版 PWM，与 RK3399/RK3568 的老 PWM 寄存器完全
+		  不同。AMP 下要先在 Linux 的 DTB 里关掉 pwm0_2ch_0，并把
+		  SPI 100（GIC 132）加进 amp-irqs。
+
+		不在启动路径初始化，由 `ir init` 命令手动触发。
+
 config RK3576_TIMER
 	bool "RK3576 独立 TIMER（oneshot 下半部）"
 	default n
@@ -469,6 +484,31 @@ config RK3576_RPTUN_SHM_BASE
 		4MB 的窗口：前 64KB 是两个 vring，+2MB 处是 2MB 的 rpmsg 缓冲池。
 		必须和 Linux DTS 里 rockchip-rpmsg 的 reg 与 memory-region 对上，
 		并且要落在两个 OS 都不会拿去当普通内存用的那段保留区里。
+
+config RK3576_FRAME_SHM
+	bool "帧共享区（Linux 写、openvela 读）"
+	default n
+	---help---
+		与 A72 上的 Linux 共享的一大块帧缓冲：Linux 那边由摄像头 / ISP /
+		RGA 产出，这边显示。布局见仓库 amp/include/k7_frame.h，本端把它
+		映成 cacheable（rk3576_boot.c），每次读之前 invalidate。
+
+if RK3576_FRAME_SHM
+
+config RK3576_FRAME_SHM_BASE
+	hex "帧共享区基址"
+	default 0x50000000
+	---help---
+		必须等于 Linux DTS 里 k7_frame_shm 保留区的起点。不能用
+		0x4e400000 起的那 64MB：U-Boot 把 Linux 的 DTB 放在 0x4f000000。
+
+config RK3576_FRAME_SHM_SIZE
+	hex "帧共享区大小"
+	default 0x04000000
+	---help---
+		必须等于 Linux DTS 里 k7_frame_shm 保留区的大小。
+
+endif
 
 config RK3576_RPTUN_LINK_ID
 	int "链路 id"

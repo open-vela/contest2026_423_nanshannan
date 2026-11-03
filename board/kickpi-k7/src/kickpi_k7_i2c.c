@@ -82,7 +82,11 @@ g_kickpi_i2c[] =
   { 5, "（探测用）dtb 记载 imx415_1@0x37" },
   { 7, "（探测用）" },
   { 6, "（探测用）dtb 标 disabled" },
+#ifndef CONFIG_KICKPI_K7_CAMERA_LINUX
+  /* 摄像头归 Linux 时 I2C8 是 Linux 的：在这边初始化就是把它的控制器复位 */
+
   { 8, "（探测用）dtb 记载 imx415_3@0x37" },
+#endif
   { 9, "（探测用）dtb 标 disabled" },
 };
 

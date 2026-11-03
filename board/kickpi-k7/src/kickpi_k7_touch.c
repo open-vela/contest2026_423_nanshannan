@@ -27,6 +27,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <debug.h>
 #include <errno.h>
@@ -124,6 +125,7 @@ static volatile uint32_t g_tp_samples;
 static volatile uint32_t g_tp_lows;      /* 引脚为低的次数           */
 static volatile uint32_t g_tp_lowraw;    /* 低且 RAWSTATUS 也置位    */
 static volatile uint32_t g_tp_edges;     /* 电平跳变次数             */
+static volatile uint32_t g_tp_heals;     /* 被别人屏蔽后放开的次数   */
 
 void kickpi_touch_stat(uint32_t *samples, uint32_t *lows,
                        uint32_t *lowraw, uint32_t *edges)
@@ -134,9 +136,42 @@ void kickpi_touch_stat(uint32_t *samples, uint32_t *lows,
   if (edges   != NULL) *edges   = g_tp_edges;
 }
 
+uint32_t kickpi_touch_heals(void)
+{
+  return g_tp_heals;
+}
+
+/* ★ Linux 会把触摸中断屏蔽掉，这里发现了就放开。
+ *
+ *   GPIO0 的中断路由给了 openvela（amp-irqs 里的 185），但 GPIO0 控制器
+ *   本身 Linux 也认：它的 gpio-rockchip 是编进内核的，probe 时对每个
+ *   bank 都写一遍 int_mask = int_en = 0xffffffff（gpio-rockchip.c
+ *   rockchip_interrupts_register）。触摸脚就此被屏蔽，FT8756 拉低 INT 也
+ *   进不了中断；而 ft5x06 只在**中断之后**的 worker 里才会重新放开 ——
+ *   没有中断就没有 worker，触摸从此永久失灵，系统其它部分一切正常。
+ *
+ *   实测（2026-11-01）：ISR 停在 176 次不再涨，同一段时间引脚被按低了
+ *   上千次、RAW 状态也置位了；INT_EN_H 读回 0xffff（bank0 高半全使能），
+ *   正是 Linux 那段初始化留下的样子。Linux 起得比界面晚时才会撞上，所以
+ *   时好时坏。
+ *
+ *   ft5x06 自己也会屏蔽：从中断到 worker 读完数据，只有一次 I2C 的时间
+ *   （1~2ms）。所以"连续 100ms 都屏蔽着"只可能是别人干的，这时按正常
+ *   路径放开（先清挂起再解屏蔽）；引脚若正压着低，电平触发会立刻补进
+ *   中断。不等引脚变低再放：那样 Linux 起来后的第一下触摸总要白等
+ *   100ms。没人打开 /dev/input0 时 ft5x06 也会屏蔽（shutdown），这里
+ *   照样放开 —— 代价只是有人碰屏时 worker 多读一次、没人取，无害。
+ *
+ *   根治是让 Linux 不碰 GPIO0 的中断寄存器；在那之前靠这里兜底，Linux
+ *   哪一刻、来几次都能恢复。
+ */
+
+#define TP_HEAL_SAMPLES  20      /* 20 x 5ms = 100ms */
+
 static int kickpi_touch_monitor(int argc, char *argv[])
 {
   int prev = 1;
+  int stuck = 0;
 
   UNUSED(argc);
   UNUSED(argv);
@@ -167,6 +202,31 @@ static int kickpi_touch_monitor(int argc, char *argv[])
         }
 
       prev = cur;
+
+#ifndef CONFIG_FT5X06_POLLMODE
+      if (rk3576_gpio_irq_masked(TOUCH_IRQ_BANK, TOUCH_IRQ_PIN))
+        {
+          if (++stuck >= TP_HEAL_SAMPLES)
+            {
+              rk3576_gpio_irq_enable(TOUCH_IRQ_BANK, TOUCH_IRQ_PIN, true);
+              stuck = 0;
+
+              /* 只记前几次：Linux 每次启动屏蔽一次，再多就是别的问题 */
+
+              if (++g_tp_heals <= 4)
+                {
+                  syslog(LOG_WARNING, "触摸: 中断被外部屏蔽（已持续 "
+                         "100ms），已重新放开，第 %" PRIu32 " 次\n",
+                         g_tp_heals);
+                }
+            }
+        }
+      else
+        {
+          stuck = 0;
+        }
+#endif
+
       usleep(5000);
     }
 

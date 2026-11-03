@@ -39,7 +39,7 @@ say "chip/rk3576" "由 ARCH_CHIP_CUSTOM_DIR 相对路径引用"
 # ── 2) 应用：链接进 packages/demos 并登记 Kconfig ────────────────────
 DEMOS="$WS/packages/demos"
 KCFG="$WS/apps/packages/demos/Kconfig"
-for app in cam v4l2cap hdmi spi_selftest mic bt kickpi_ui ampctl k7diag; do
+for app in cam v4l2cap hdmi spi_selftest mic bt kickpi_ui ampctl k7diag ir lxroot mqttd; do
   [ -d "$ROOT/app/$app" ] || continue
   ln -sfn "../../$TEAM/app/$app" "$DEMOS/contest2026_423_$app"
   say "packages/demos/contest2026_423_$app" "-> app/$app"
@@ -72,6 +72,7 @@ apply upstream/apps.patch                    apps
 apply upstream/ai_agent.patch                packages/ai_agent
 apply upstream/agent-monotonic-latency.patch packages/ai_agent
 apply upstream/agent-skills-mkdir-fat.patch  packages/ai_agent
+apply upstream/agent-tls-stale-close-timeout.patch packages/ai_agent
 apply upstream/frameworks-uv.patch           frameworks/system/utils/uv
 apply upstream/posixspawn-enoent-not-error.patch nuttx
 apply upstream/stdio-stream-limit-open-max.patch nuttx
@@ -80,6 +81,7 @@ apply upstream/sdio-cmd53-pio-errors.patch   nuttx
 apply upstream/gicv2-shared-dist.patch       nuttx
 apply upstream/es8388-capture-reset.patch    nuttx
 apply upstream/bcm4343x-speed-kconfig.patch  nuttx
+apply upstream/xhci-platform-hub.patch      nuttx
 # 下面两个叠在 nuttx-drivers.patch 之上（同一文件），必须排在它后面
 apply upstream/ft5x06-v2-touchup-lvgl.patch  nuttx
 apply upstream/hym8563-kconfig-rtc-external.patch nuttx

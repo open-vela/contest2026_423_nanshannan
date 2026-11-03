@@ -209,14 +209,8 @@ static int imx415_read8(struct i2c_master_s *i2c, uint16_t reg, uint8_t *val)
 static const struct cam_port_s *g_cam_found;
 static struct i2c_master_s     *g_cam_i2c;
 
-static int cam_probe_port(const struct cam_port_s *port)
+static void cam_power_on(const struct cam_port_s *port)
 {
-  struct i2c_master_s *i2c;
-  uint8_t lo;
-  uint8_t hi;
-  uint16_t info;
-  int ret;
-
   /* 传感器模拟供电。dtsi 里是个 regulator-fixed，使能脚高有效。
    * 不开的话 I2C 上没有任何应答 —— 与触摸那次"没供电扫不到器件"
    * 是同一类问题。
@@ -250,6 +244,17 @@ static int cam_probe_port(const struct cam_port_s *port)
 
     up_mdelay(30);
   }
+}
+
+static int cam_probe_port(const struct cam_port_s *port)
+{
+  struct i2c_master_s *i2c;
+  uint8_t lo;
+  uint8_t hi;
+  uint16_t info;
+  int ret;
+
+  cam_power_on(port);
 
   i2c = rk3576_i2cbus_initialize(port->bus);
   if (i2c == NULL)
@@ -450,6 +455,23 @@ int kickpi_k7_camera_initialize(void)
 {
   int found = 0;
   int i;
+
+#ifdef CONFIG_KICKPI_K7_CAMERA_LINUX
+  /* ★ 摄像头整条链归 A72 上的 Linux（amp/OWNERSHIP.md 修正 2026-10-31）。
+   *
+   *   这里只做 Linux 做不了的两件事：给 cam3 模组上电（GPIO0_C7）、送
+   *   MCLK（CRU）—— GPIO0 和 CRU 仍归 openvela，Linux 的 dtb 里 MCLK
+   *   是个 fixed-clock。I2C8、CSI、CIF 一概不碰：Linux 的 I2C8 控制器
+   *   正在用，这边初始化一下就是把它复位。
+   *
+   *   模组固定插在 cam3（2026-09 三个口探测的结论），不再逐个试 ——
+   *   试 cam0/cam1 要初始化 I2C4/I2C5，没有意义。
+   */
+
+  cam_power_on(&g_cam_ports[2]);
+  syslog(LOG_INFO, "摄像头: 归 Linux，openvela 只给 cam3 上电和 MCLK\n");
+  return OK;
+#endif
 
   for (i = 0; i < (int)CAM_NPORTS; i++)
     {
