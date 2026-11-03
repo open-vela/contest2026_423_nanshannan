@@ -1,0 +1,38 @@
+U-Boot：bootamp 的内核窗口从 7.25MB 放宽到 8MB
+
+应用：叠在 0012 之上，在 u-boot/ 下 `patch -p1 < 本文件`；编译同 0010。
+配套：scripts/flash-kernel.sh 的 read_max 同步改成 16384。
+     ★ 先烧这一版 U-Boot 再烧大于 7.25MB 的 Image，否则旧 U-Boot 只读前
+       14848 扇区，内核尾巴被截断。
+
+原因：第三步把摄像头链交给 Linux，内核打开 MODULES 和 IOMMU 后 Image 是
+7754240 字节，超过原来的 14848 扇区。49152..65535 这一段原先 64000 以后
+没人用，放到 65536（rkdeveloptool 写得到的上限）为止，不越界。
+
+上板（2026-10-31）：Image 7754240 字节，U-Boot 读入后 Linux 正常起来，
+摄像头模块全部加载、IMX415 出 RAW 帧 30fps。
+
+--- a/cmd/bootamp.c	2026-10-31 05:31:05.757870739 -0400
++++ b/cmd/bootamp.c	2026-10-31 05:31:05.759194874 -0400
+@@ -50,7 +50,11 @@
+  * 的 FIT 少了尾巴"这种很难看出来的故障。上限都留在各自分区内：
+  *   FIT  24576 + 8192 = 32768 = misc 起点（trust 分区整段，不越界）
+  *   dtb  14336 +  544 = 14880 < 16384（uboot 分区）
+- *   内核 49152 +14848 = 64000 < 65536（rkdeveloptool 写得到的上限）
++ *   内核 49152 +16384 = 65536 = rkdeveloptool 写得到的上限（不越界）
++ *
++ * ★ 内核窗口原来是 14848 扇区（7.25MB）。2026-10-31 内核打开 MODULES 和
++ *   IOMMU（摄像头驱动编成模块放进 lxroot）后 Image 涨到 7.4MB，放宽到
++ *   65536 为止的整段 8MB。64000..65535 之前没有任何东西。
+  *
+  * ★ FIT 原来在 security 分区（LBA 8192，上限 6144 扇区 = 3MB，顶到 dtb）。
+  *   挪到 trust 有两个原因：openvela 还会继续变大；security 是 OP-TEE
+@@ -64,7 +68,7 @@
+ #define AMP_DTB_LBA		0x3800		/* 14336 */
+ #define AMP_DTB_CNT		0x220		/*   544 扇区 = 272KB 上限 */
+ #define AMP_KERNEL_LBA		0xC000		/* 49152 */
+-#define AMP_KERNEL_CNT		0x3A00		/* 14848 扇区 = 7.25MB 上限 */
++#define AMP_KERNEL_CNT		0x4000		/* 16384 扇区 = 8MB 上限 */
+ 
+ #define AMP_FIT_ADDR		0x60000000
+ #define AMP_DTB_ADDR		0x4f000000

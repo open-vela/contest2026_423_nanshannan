@@ -45,6 +45,13 @@
  *   openvela 那边保留最近十几秒的环形缓冲，按样本序号取段 —— 语音不回传，
  *   rpmsg 上只走 PCM 一个方向。
  *
+ * ★ 帧共享测试：k7d frame
+ *
+ *   不当守护进程用，而是一次性的命令（经 ampctl exec 从 openvela 调）：
+ *     k7d frame [帧数] [间隔毫秒] [corrupt]
+ *   往 /dev/k7frame 写测试图案并按 amp/include/k7_frame.h 的协议发布，
+ *   openvela 那边 `ampctl frame` 逐像素核对。见 frame_main()。
+ *
  * ★ 多条通道并发
  *
  *   唤醒的音频通道常驻，ampctl exec 随时还会再开一条。每发现一个新的
@@ -60,11 +67,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/sysinfo.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "k7_frame.h"
 
 #define FRAME_MAX     480
 #define EXEC_TMO_S    60
@@ -449,10 +459,115 @@ static void reap(void)
         g_child[i].pid = 0;
 }
 
-int main(void)
+/* ---- k7d frame：往帧共享区写测试图案 ----
+ *
+ * 摄像头接到 Linux 之前，先单独证明"共享区 + 发布协议 + cache 契约"
+ * 是对的：这里写一张公式算得出来的图，openvela 按同一个公式逐像素比。
+ *
+ * corrupt：每帧发布前把像素 (100, 200) 的蓝色字节翻一位。openvela 必须
+ * 报出这一处不一致 —— 用来证明那边的核对真能发现错误。
+ */
+
+#define FRAME_DEV       "/dev/k7frame"
+#define FRAME_SHM_SIZE  (64u << 20)    /* = DTS 里 k7_frame_shm 的大小 */
+#define FRAME_W         720
+#define FRAME_H         1280
+#define FRAME_MAX_N     1000
+#define FRAME_MAX_GAP   10000          /* 毫秒 */
+
+static int frame_main(int argc, char **argv)
+{
+  int count = argc > 2 ? atoi(argv[2]) : 1;
+  int gap = argc > 3 ? atoi(argv[3]) : 0;
+  int corrupt = argc > 4 && strcmp(argv[4], "corrupt") == 0;
+  struct k7f_hdr_s *h;
+  uint8_t *base;
+  int fd;
+  int n;
+
+  if (count < 1 || count > FRAME_MAX_N || gap < 0 || gap > FRAME_MAX_GAP) {
+    printf("用法: k7d frame [帧数 1~%d] [间隔毫秒 0~%d] [corrupt]\n",
+           FRAME_MAX_N, FRAME_MAX_GAP);
+    return 2;
+  }
+
+  fd = open(FRAME_DEV, O_RDWR);
+  if (fd < 0) {
+    printf("打不开 %s: %s\n", FRAME_DEV, strerror(errno));
+    return 1;
+  }
+
+  base = mmap(NULL, FRAME_SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,
+              fd, 0);
+  close(fd);
+  if (base == MAP_FAILED) {
+    printf("mmap %s 失败: %s\n", FRAME_DEV, strerror(errno));
+    return 1;
+  }
+
+  h = (struct k7f_hdr_s *)base;
+  if (h->magic != K7F_MAGIC || h->version != K7F_VERSION) {
+    memset(h, 0, K7F_HDR_SIZE);
+    h->slot_size = ((FRAME_SHM_SIZE - K7F_HDR_SIZE) / K7F_SLOTS) &
+                   ~(K7F_HDR_SIZE - 1);
+    h->version = K7F_VERSION;
+    __asm__ volatile("dsb sy" ::: "memory");
+    h->magic = K7F_MAGIC;
+    printf("初始化帧头: 槽 %d x %u 字节\n", K7F_SLOTS, h->slot_size);
+  }
+
+  for (n = 0; n < count; n++) {
+    uint32_t slot = h->seq == 0 ? 0 : (h->slot + 1) % K7F_SLOTS;
+    uint32_t seed = h->seq + 1;
+    uint32_t *px = (uint32_t *)(base + k7f_slot_offset(h, slot));
+    struct timespec t0, t1;
+    uint32_t x, y;
+
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    for (y = 0; y < FRAME_H; y++)
+      for (x = 0; x < FRAME_W; x++)
+        px[y * FRAME_W + x] = k7f_pattern(x, y, FRAME_W, FRAME_H, seed);
+
+    if (corrupt)
+      ((uint8_t *)px)[(200 * FRAME_W + 100) * 4] ^= 0x01;
+
+    /* 发布：像素先落地，再填描述，最后 seq —— 见 k7_frame.h */
+
+    __asm__ volatile("dsb sy" ::: "memory");
+    h->slot = slot;
+    h->width = FRAME_W;
+    h->height = FRAME_H;
+    h->stride = FRAME_W * 4;
+    h->format = K7F_FMT_XRGB8888;
+    h->bytes = FRAME_W * 4 * FRAME_H;
+    h->source = K7F_SRC_PATTERN;
+    h->seed = seed;
+    __asm__ volatile("dsb sy" ::: "memory");
+    h->seq = seed;
+    __asm__ volatile("dsb sy" ::: "memory");
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+
+    printf("发布 seq=%u 槽=%u %ux%u%s 用时 %ld ms\n", seed, slot,
+           FRAME_W, FRAME_H, corrupt ? " (故意改坏 (100,200))" : "",
+           (t1.tv_sec - t0.tv_sec) * 1000 +
+           (t1.tv_nsec - t0.tv_nsec) / 1000000);
+    fflush(stdout);
+
+    if (gap > 0 && n + 1 < count)
+      usleep((useconds_t)gap * 1000);
+  }
+
+  munmap(base, FRAME_SHM_SIZE);
+  return 0;
+}
+
+int main(int argc, char **argv)
 {
   struct dirent *de;
   DIR *d;
+
+  if (argc > 1 && strcmp(argv[1], "frame") == 0)
+    return frame_main(argc, argv);
 
   signal(SIGPIPE, SIG_IGN);
   klog("started, waiting for /dev/rpmsgN\n");

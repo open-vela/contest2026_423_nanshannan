@@ -1,0 +1,154 @@
+RKNPU 编成模块所需的三处内核改动
+
+应用：在 kernel-6.1/ 下 `patch -p1 < 本文件`；配置见 amp/linux/amp-npu.config。
+
+一、导出 iommu_get_dma_cookie
+
+  rknpu_iommu.c 切换 IOMMU 域（rknpu_iommu_domain_get_and_switch）时调用
+  它给新域建 iova cookie。厂商配置里 rknpu 是编进内核的，所以从来没导出过；
+  编成模块时 modpost 报 undefined。
+  为什么要编成模块：DRM 核心编进 Image 会挤爆 bootamp 的 8MB 窗口；而且
+  NPU 电源域要先由 openvela 打开，驱动必须等手动 insmod，不能在启动时探测。
+
+二、不开 devfreq 时，运行时 PM 的回调别报错（2026-11-02 板上实测）
+
+  rknpu_devfreq.h 在 CONFIG_PM_DEVFREQ 关掉时的空实现
+  rknpu_devfreq_runtime_suspend/resume 返回 -EOPNOTSUPP，rknpu 的
+  runtime_suspend/resume 回调原样交上去，于是 probe 里
+  pm_runtime_get_sync() 失败：
+
+    RKNPU 27700000.npu: RKNPU: failed to get pm runtime for rknpu, ret: -95
+
+  厂商配置一直开着 devfreq 所以没暴露。AMP 下不开 devfreq（提频要动
+  SCMI，另做），"没有调频"不是唤醒失败，改成返回 0。
+
+三、不开 devfreq 时自己设 NPU 时钟（2026-11-02 板上实测）
+
+  没有 devfreq，clk_npu（SCMI CLK_RKNN_DSU0）停在开机的 198MHz。加模块参数
+  npu_hz（0644，module_param_cb）：
+  - rknpu_power_on 里时钟开着之后按它设一次（厂商 rockchip_opp_config_clks
+    也只在 NPU 时钟开着时设 SCMI 时钟；在 probe 里设没有生效）；
+  - 运行中写 sysfs：NPU 开着就立刻设，关着就等下次上电。/usr/bin/k7npu 的
+    温控靠这个降频，不用重装驱动。
+  电压不在这里管（AMP 内核没有稳压器框架），k7npu 先用 k7pmic 升 RK806 DCDC2。
+
+diff -urN a/drivers/iommu/dma-iommu.c b/drivers/iommu/dma-iommu.c
+--- a/drivers/iommu/dma-iommu.c	2026-11-02 03:14:14.953942914 -0500
++++ b/drivers/iommu/dma-iommu.c	2026-11-02 03:14:14.987078760 -0500
+@@ -317,6 +317,7 @@
+ 	mutex_init(&domain->iova_cookie->mutex);
+ 	return 0;
+ }
++EXPORT_SYMBOL_GPL(iommu_get_dma_cookie);
+ 
+ /**
+  * iommu_get_msi_cookie - Acquire just MSI remapping resources
+diff -urN a/drivers/rknpu/include/rknpu_devfreq.h b/drivers/rknpu/include/rknpu_devfreq.h
+--- a/drivers/rknpu/include/rknpu_devfreq.h	2026-11-02 09:23:30.387161878 -0500
++++ b/drivers/rknpu/include/rknpu_devfreq.h	2026-11-02 09:23:30.401170600 -0500
+@@ -34,12 +34,14 @@
+ 
+ static inline int rknpu_devfreq_runtime_suspend(struct device *dev)
+ {
+-	return -EOPNOTSUPP;
++	/* KICKPI-K7 AMP: no devfreq is not a runtime PM failure */
++	return 0;
+ }
+ 
+ static inline int rknpu_devfreq_runtime_resume(struct device *dev)
+ {
+-	return -EOPNOTSUPP;
++	/* KICKPI-K7 AMP: no devfreq is not a runtime PM failure */
++	return 0;
+ }
+ #endif /* CONFIG_PM_DEVFREQ */
+ 
+diff -urN a/drivers/rknpu/rknpu_drv.c b/drivers/rknpu/rknpu_drv.c
+--- a/drivers/rknpu/rknpu_drv.c
++++ b/drivers/rknpu/rknpu_drv.c
+@@ -72,6 +72,52 @@
+ MODULE_PARM_DESC(bypass_soft_reset,
+ 		 "bypass RKNPU soft reset if set it to 1, disabled by default");
+ 
++/*
++ * KICKPI-K7 AMP: no devfreq, so the NPU clock is fixed unless set here.
++ * Writable at runtime so /usr/bin/k7npu can throttle on temperature: a
++ * write takes effect at once if the NPU is powered, else at next power on.
++ */
++static unsigned long npu_hz;
++static struct rknpu_device *k7_rknpu_dev;
++
++static void k7_rknpu_set_hz(struct rknpu_device *rknpu_dev)
++{
++	unsigned long old = clk_get_rate(rknpu_dev->clks[0].clk);
++	int ret;
++
++	if (!npu_hz || old == npu_hz)
++		return;
++
++	ret = clk_set_rate(rknpu_dev->clks[0].clk, npu_hz);
++	LOG_DEV_INFO(rknpu_dev->dev, "clk_npu %lu -> %lu Hz (%d)\n", old,
++		     clk_get_rate(rknpu_dev->clks[0].clk), ret);
++}
++
++static int k7_npu_hz_set(const char *val, const struct kernel_param *kp)
++{
++	struct rknpu_device *rknpu_dev = READ_ONCE(k7_rknpu_dev);
++	int ret = param_set_ulong(val, kp);
++
++	if (ret || !rknpu_dev)
++		return ret;
++
++	/* like the vendor OPP code: only with the NPU clocks on */
++	mutex_lock(&rknpu_dev->power_lock);
++	if (atomic_read(&rknpu_dev->power_refcount) > 0)
++		k7_rknpu_set_hz(rknpu_dev);
++	mutex_unlock(&rknpu_dev->power_lock);
++
++	return 0;
++}
++
++static const struct kernel_param_ops k7_npu_hz_ops = {
++	.set = k7_npu_hz_set,
++	.get = param_get_ulong,
++};
++module_param_cb(npu_hz, &k7_npu_hz_ops, &npu_hz, 0644);
++MODULE_PARM_DESC(npu_hz,
++		 "clk_npu rate (Hz), applied while the NPU is powered; 0 keeps the boot rate");
++
+ static const struct rknpu_irqs_data rknpu_irqs[] = {
+ 	{ "npu_irq", rknpu_core0_irq_handler }
+ };
+@@ -970,6 +1016,14 @@
+ 		return ret;
+ 	}
+ 
++	/*
++	 * KICKPI-K7 AMP: without devfreq nobody sets clk_npu. Like the vendor
++	 * OPP code, set it only with the NPU clocks on (setting it at probe,
++	 * clocks off, was not seen to take effect). vdd_npu has no regulator;
++	 * /usr/bin/k7npu raises RK806 DCDC2 to the OPP voltage first.
++	 */
++	k7_rknpu_set_hz(rknpu_dev);
++
+ #ifndef FPGA_PLATFORM
+ 	rknpu_devfreq_lock(rknpu_dev);
+ #endif
+@@ -1539,6 +1593,8 @@
+ 	rknpu_debugger_init(rknpu_dev);
+ 	rknpu_init_timer(rknpu_dev);
+ 
++	WRITE_ONCE(k7_rknpu_dev, rknpu_dev);
++
+ 	return 0;
+ 
+ err_remove_wq:
+@@ -1565,6 +1621,8 @@
+ 	struct rknpu_device *rknpu_dev = platform_get_drvdata(pdev);
+ 	int i = 0;
+ 
++	WRITE_ONCE(k7_rknpu_dev, NULL);
++
+ 	cancel_delayed_work_sync(&rknpu_dev->power_off_work);
+ 	destroy_workqueue(rknpu_dev->power_off_wq);
+ 

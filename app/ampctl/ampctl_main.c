@@ -57,6 +57,17 @@
 
 #include <arch/chip/amp.h>
 
+#ifdef CONFIG_RK3576_FRAME_SHM
+#  include <nuttx/cache.h>
+#  include <time.h>
+/* jmorecfg.h 自己定义 EXTERN，和 NuttX 头文件里的同名宏冲突；后面不再
+ * 用到 NuttX 的那个。
+ */
+#  undef EXTERN
+#  include <jpeglib.h>
+#  include "k7_frame.h"
+#endif
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -140,8 +151,15 @@ static void ampctl_usage(void)
          "  listen [-t ms]    只收不发，打印对端发来的帧\n"
          "  selftest          自己给自己按门铃，验证接收路径（不需要对端）\n"
          "  exec <命令...>     让 A72 上的 Linux 执行 shell 命令，打印输出\n"
-         "                    例: ampctl exec cat /proc/cpuinfo\n",
-         AMPCTL_DEF_TMO_MS);
+         "                    例: ampctl exec cat /proc/cpuinfo\n"
+#ifdef CONFIG_RK3576_FRAME_SHM
+         "  frame             读帧共享区的最新一帧；测试图案逐像素核对\n"
+         "                    （先 ampctl exec k7d frame 让 Linux 写一帧）\n"
+         "  cam start|stop    让 Linux 持续把摄像头画面写进帧共享区（30fps）\n"
+         "  snap <宽> <高> <文件.jpg>\n"
+         "                    拍一张存成 JPEG（参数同 v4l2cap；不放大）\n"
+#endif
+         , AMPCTL_DEF_TMO_MS);
 }
 
 /****************************************************************************
@@ -695,6 +713,326 @@ out_free:
  * Public Functions
  ****************************************************************************/
 
+#ifdef CONFIG_RK3576_FRAME_SHM
+/****************************************************************************
+ * Name: ampctl_frame
+ *
+ * Description:
+ *   读帧共享区（amp/include/k7_frame.h）的最新一帧。来源是测试图案时，
+ *   按同一个公式逐像素核对，报告不一致的个数和第一处的位置与数值。
+ *
+ *   ★ 读之前 invalidate：本端把共享区映成 cacheable（rk3576_boot.c），
+ *     不 invalidate 就可能读到上一轮留在 cache 里的旧帧，而且不报错。
+ *
+ *   帧头里的每个数都先做范围检查再用：它是对端写的，写坏了不能让本端
+ *   越界去读。
+ *
+ ****************************************************************************/
+
+static int ampctl_frame(void)
+{
+  uintptr_t base = CONFIG_RK3576_FRAME_SHM_BASE;
+  FAR volatile struct k7f_hdr_s *vh = (FAR volatile void *)base;
+  struct k7f_hdr_s h;
+  struct timespec t0;
+  struct timespec t1;
+  FAR const uint32_t *px;
+  uint32_t seq2;
+  uint32_t off;
+  uint32_t bad = 0;
+  uint32_t bx = 0;
+  uint32_t by = 0;
+  uint32_t bexp = 0;
+  uint32_t bgot = 0;
+  uint32_t x;
+  uint32_t y;
+
+  up_invalidate_dcache(base, base + K7F_HDR_SIZE);
+  memcpy(&h, (FAR const void *)vh, sizeof(h));
+
+  if (h.magic != K7F_MAGIC || h.version != K7F_VERSION)
+    {
+      printf("帧共享区未初始化: magic=0x%08" PRIx32 " version=%" PRIu32
+             "（期望 0x%08x / %d）\n",
+             h.magic, h.version, K7F_MAGIC, K7F_VERSION);
+      return -ENODATA;
+    }
+
+  if (h.seq == 0)
+    {
+      printf("还没有帧（seq=0）\n");
+      return -ENODATA;
+    }
+
+  off = k7f_slot_offset(&h, h.slot);
+  if (h.slot >= K7F_SLOTS || h.slot_size == 0 ||
+      (uint64_t)K7F_HDR_SIZE + (uint64_t)h.slot_size * K7F_SLOTS >
+      CONFIG_RK3576_FRAME_SHM_SIZE ||
+      h.width == 0 || h.height == 0 || h.stride < h.width * 4 ||
+      h.bytes != h.stride * h.height || h.bytes > h.slot_size)
+    {
+      printf("帧头不合理: 槽=%" PRIu32 "/%d 槽大小=%" PRIu32 " %" PRIu32
+             "x%" PRIu32 " stride=%" PRIu32 " bytes=%" PRIu32 "\n",
+             h.slot, K7F_SLOTS, h.slot_size, h.width, h.height, h.stride,
+             h.bytes);
+      return -EINVAL;
+    }
+
+  printf("seq=%" PRIu32 " 槽=%" PRIu32 " %" PRIu32 "x%" PRIu32
+         " stride=%" PRIu32 " 格式=%.4s 来源=%" PRIu32 " seed=%" PRIu32 "\n",
+         h.seq, h.slot, h.width, h.height, h.stride,
+         (FAR const char *)&h.format, h.source, h.seed);
+
+  if (h.source != K7F_SRC_PATTERN || h.format != K7F_FMT_XRGB8888)
+    {
+      printf("不是测试图案，不核对\n");
+      return 0;
+    }
+
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+  up_invalidate_dcache(base + off, base + off + h.bytes);
+
+  for (y = 0; y < h.height; y++)
+    {
+      px = (FAR const uint32_t *)(base + off + y * h.stride);
+      for (x = 0; x < h.width; x++)
+        {
+          uint32_t exp = k7f_pattern(x, y, h.width, h.height, h.seed);
+
+          if (px[x] != exp)
+            {
+              if (bad++ == 0)
+                {
+                  bx = x;
+                  by = y;
+                  bexp = exp;
+                  bgot = px[x];
+                }
+            }
+        }
+    }
+
+  clock_gettime(CLOCK_MONOTONIC, &t1);
+
+  /* 核对期间对端又发了几帧？绕回本槽（差 >= 槽数-1）才可能读到半帧 */
+
+  up_invalidate_dcache(base, base + K7F_HDR_SIZE);
+  seq2 = vh->seq;
+  if (seq2 - h.seq >= K7F_SLOTS - 1)
+    {
+      printf("核对期间对端发布到 seq=%" PRIu32 "，本槽可能已被覆盖，"
+             "结果作废\n", seq2);
+      return -EAGAIN;
+    }
+
+  if (bad == 0)
+    {
+      printf("核对一致: %" PRIu32 " 个像素全部相等，用时 %ld ms\n",
+             h.width * h.height,
+             (long)((t1.tv_sec - t0.tv_sec) * 1000 +
+                    (t1.tv_nsec - t0.tv_nsec) / 1000000));
+      return 0;
+    }
+
+  printf("核对不一致: %" PRIu32 " 个像素不同；第一处 (%" PRIu32 ",%" PRIu32
+         ") 期望 0x%08" PRIx32 " 实际 0x%08" PRIx32 "\n",
+         bad, bx, by, bexp, bgot);
+  return 1;
+}
+#endif
+
+#ifdef CONFIG_RK3576_FRAME_SHM
+/****************************************************************************
+ * 摄像头（归 Linux）：cam start / cam stop / snap
+ *
+ * 摄像头整条链在 A72 的 Linux 上（amp/OWNERSHIP.md），openvela 这边没有
+ * /dev/video0。画面经帧共享区过来：Linux 的 k7cam 写，这里读。
+ *
+ *   cam start  后台起 k7cam：持续开流，每帧发布（30fps），最长
+ *              10 分钟；已经在跑就先让旧的停下。先走 ISP（live-isp，
+ *              rkaiq 管曝光白平衡，没在跑就先 k7aiq start）；rkaiq 起不来
+ *              或 ISP 一帧都取不到，退回 RAW 直出的 live。输出在 Linux 的
+ *              /tmp/k7live.log，`ampctl exec cat /tmp/k7live.log` 看。
+ *   cam stop   建停止文件，k7cam 半秒内看到就退。
+ *   snap       live 在跑就直接拿最新一帧；没在跑就让 Linux 拍一帧。
+ *              参数和 v4l2cap 一样，界面和视觉问答换个程序名就能用。
+ *
+ * 曝光 2242 行（一帧满）、增益 120 是 RAW 退路用的：没有 ISP 的 AE，
+ * k7cam 按 99% 分位拉伸亮度，这组值在室内灯光下不过曝也不全黑。
+ ****************************************************************************/
+
+#define CAM_ARGS  "2242 120"
+
+/* 等帧共享区出现比 seq0 新的帧，最多 ms 毫秒；返回新 seq，超时返回 0 */
+
+static uint32_t cam_wait_seq(uint32_t seq0, int ms)
+{
+  uintptr_t base = CONFIG_RK3576_FRAME_SHM_BASE;
+  FAR volatile struct k7f_hdr_s *vh = (FAR volatile void *)base;
+  int waited;
+
+  for (waited = 0; waited <= ms; waited += 20)
+    {
+      up_invalidate_dcache(base, base + K7F_HDR_SIZE);
+      if (vh->magic == K7F_MAGIC && vh->seq != seq0)
+        {
+          return vh->seq;
+        }
+
+      usleep(20 * 1000);
+    }
+
+  return 0;
+}
+
+static uint32_t cam_cur_seq(void)
+{
+  uintptr_t base = CONFIG_RK3576_FRAME_SHM_BASE;
+
+  up_invalidate_dcache(base, base + K7F_HDR_SIZE);
+  return ((FAR volatile struct k7f_hdr_s *)base)->seq;
+}
+
+static int ampctl_cam(const char *what)
+{
+  if (strcmp(what, "start") == 0)
+    {
+      return ampctl_exec(AMPCTL_DEF_TMO_MS,
+        "if pidof k7cam >/dev/null; then touch /tmp/k7live.stop; sleep 1; "
+        "fi; (pidof rkaiq_3A_server >/dev/null || k7aiq start; "
+        "pidof rkaiq_3A_server >/dev/null && k7cam live-isp 600 || "
+        "k7cam live 600 " CAM_ARGS ") </dev/null >/tmp/k7live.log 2>&1 &");
+    }
+
+  if (strcmp(what, "stop") == 0)
+    {
+      return ampctl_exec(AMPCTL_DEF_TMO_MS, "touch /tmp/k7live.stop");
+    }
+
+  ampctl_usage();
+  return -EINVAL;
+}
+
+/* 把最新一帧缩到不超过 w x h（不放大、取整数步长的最近点）存成 JPEG */
+
+static int ampctl_snap(int w, int h, const char *path)
+{
+  uintptr_t base = CONFIG_RK3576_FRAME_SHM_BASE;
+  FAR const struct k7f_hdr_s *vh = (FAR const void *)base;
+  struct jpeg_compress_struct cinfo;
+  struct jpeg_error_mgr jerr;
+  struct k7f_hdr_s hd;
+  FAR unsigned char *row;
+  FAR uint32_t *pix;
+  uint32_t seq0;
+  uint32_t ow;
+  uint32_t oh;
+  uint32_t x;
+  uint32_t y;
+  FILE *fp;
+  int ret;
+
+  /* live 在跑：300ms 内一定有新帧（30fps），直接用 */
+
+  seq0 = cam_cur_seq();
+  if (cam_wait_seq(seq0, 300) == 0)
+    {
+      ret = ampctl_exec(AMPCTL_DEF_TMO_MS,
+                        "k7cam cap 1 show " CAM_ARGS " >/dev/null 2>&1");
+      if (ret != 0 || cam_wait_seq(seq0, 2000) == 0)
+        {
+          printf("snap: Linux 没有拍到新帧（%d）\n", ret);
+          return -EIO;
+        }
+    }
+
+  up_invalidate_dcache(base, base + K7F_HDR_SIZE);
+  memcpy(&hd, vh, sizeof(hd));
+  if (hd.magic != K7F_MAGIC || hd.slot >= K7F_SLOTS ||
+      hd.format != K7F_FMT_XRGB8888 || hd.width == 0 || hd.height == 0 ||
+      hd.width > 4096 || hd.height > 4096 || hd.stride < hd.width * 4 ||
+      hd.bytes != hd.stride * hd.height || hd.bytes > hd.slot_size ||
+      (uint64_t)K7F_HDR_SIZE + (uint64_t)hd.slot_size * K7F_SLOTS >
+      CONFIG_RK3576_FRAME_SHM_SIZE)
+    {
+      printf("snap: 帧头不合理\n");
+      return -EINVAL;
+    }
+
+  /* 先整帧拷出来再编码：编码要几十毫秒，live 期间槽会被覆盖 */
+
+  pix = malloc(hd.bytes);
+  row = malloc(hd.width * 3);
+  if (pix == NULL || row == NULL)
+    {
+      free(pix);
+      free(row);
+      return -ENOMEM;
+    }
+
+  up_invalidate_dcache(base + k7f_slot_offset(&hd, hd.slot),
+                       base + k7f_slot_offset(&hd, hd.slot) + hd.bytes);
+  memcpy(pix, (FAR const void *)(base + k7f_slot_offset(&hd, hd.slot)),
+         hd.bytes);
+  if (cam_cur_seq() - hd.seq >= K7F_SLOTS - 1)
+    {
+      printf("snap: 拷贝期间槽被覆盖，重试一次\n");
+      free(pix);
+      free(row);
+      return -EAGAIN;
+    }
+
+  ow = w > 0 && (uint32_t)w < hd.width ? (uint32_t)w : hd.width;
+  oh = h > 0 && (uint32_t)h < hd.height ? (uint32_t)h : hd.height;
+
+  fp = fopen(path, "wb");
+  if (fp == NULL)
+    {
+      printf("snap: 打不开 %s\n", path);
+      free(pix);
+      free(row);
+      return -errno;
+    }
+
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_compress(&cinfo);
+  jpeg_stdio_dest(&cinfo, fp);
+  cinfo.image_width = ow;
+  cinfo.image_height = oh;
+  cinfo.input_components = 3;
+  cinfo.in_color_space = JCS_RGB;
+  jpeg_set_defaults(&cinfo);
+  jpeg_set_quality(&cinfo, 85, TRUE);
+  jpeg_start_compress(&cinfo, TRUE);
+
+  for (y = 0; y < oh; y++)
+    {
+      FAR const uint32_t *src = (FAR const uint32_t *)
+        ((FAR const uint8_t *)pix + (y * hd.height / oh) * hd.stride);
+
+      for (x = 0; x < ow; x++)
+        {
+          uint32_t v = src[x * hd.width / ow];
+
+          row[3 * x]     = v >> 16;
+          row[3 * x + 1] = v >> 8;
+          row[3 * x + 2] = v;
+        }
+
+      jpeg_write_scanlines(&cinfo, &row, 1);
+    }
+
+  jpeg_finish_compress(&cinfo);
+  jpeg_destroy_compress(&cinfo);
+  fclose(fp);
+  free(pix);
+  free(row);
+  printf("snap: seq=%" PRIu32 " %" PRIu32 "x%" PRIu32 " -> %s\n",
+         hd.seq, ow, oh, path);
+  return 0;
+}
+#endif
+
 int main(int argc, FAR char *argv[])
 {
   int timeout = AMPCTL_DEF_TMO_MS;
@@ -735,6 +1073,24 @@ int main(int argc, FAR char *argv[])
       return ret < 0 ? EXIT_FAILURE : ret;
     }
 
+#ifdef CONFIG_RK3576_FRAME_SHM
+  if (strcmp(argv[1], "cam") == 0 && argc >= 3)
+    {
+      return ampctl_cam(argv[2]) == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+  if (strcmp(argv[1], "snap") == 0 && argc >= 5)
+    {
+      ret = ampctl_snap(atoi(argv[2]), atoi(argv[3]), argv[4]);
+      if (ret == -EAGAIN)
+        {
+          ret = ampctl_snap(atoi(argv[2]), atoi(argv[3]), argv[4]);
+        }
+
+      return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+#endif
+
   for (i = 2; i < argc; i++)
     {
       if (strcmp(argv[i], "-t") == 0 && i + 1 < argc)
@@ -763,6 +1119,12 @@ int main(int argc, FAR char *argv[])
     {
       return ampctl_listen(timeout) < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
     }
+#ifdef CONFIG_RK3576_FRAME_SHM
+  else if (strcmp(argv[1], "frame") == 0)
+    {
+      return ampctl_frame() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+#endif
 
   ampctl_usage();
   return EXIT_FAILURE;

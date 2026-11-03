@@ -1,0 +1,167 @@
+#!/bin/sh
+# NPU 手动起停、调频、温控与自测（/usr/bin/k7npu）。
+#
+#   k7npu status        电源域、vdd_npu、频率、温度、模块、设备节点
+#   k7npu load [MHz]    确认电源域开着之后装 drm.ko + rknpu.ko，NPU 时钟
+#                       设成 MHz（默认 800；0 = 不动，198MHz），并起温控
+#   k7npu mhz <MHz>     不重装驱动直接换档（升频先升压；也是温控的目标档）
+#   k7npu temp          各个温度区（°C）
+#   k7npu guard         温控循环（load 会在后台起一个，一般不用手动跑）
+#   k7npu test [次数]   MobileNet v1 跑一张猫图（没装驱动会先 load）
+#
+# ★ 先在 openvela 上 `k7diag npu on`。这版内核没有电源域框架，NPU 的电
+#   由 openvela 开；域没电时 rknpu probe 读写 NPU 寄存器会把总线挂死，
+#   所以 load 之前一定先读 PMU 确认（k7npu-test pd），不对就拒绝。
+#
+# ★ 这两个模块故意不在 load.order 里（开机不装），清单在 npu.order。
+#
+# ★ 调频：AMP 内核没开 devfreq 和稳压器框架，频率和电压都得自己管。
+#   - 电压：k7pmic 把 vdd_npu（RK806 DCDC2）升到 OPP 表里该档的最高电压
+#     （不读芯片的漏电分档，按最差的 L0 取）。只升不降：降频时电压留着，
+#     高电压跑低频是安全的。重启后 PMIC 回到 750mV。
+#   - 频率：写 rknpu 的 npu_hz 参数，NPU 开着时立刻生效，关着时下次上电生效。
+#   - 顺序不能反：先升压，后升频。
+#
+# ★ 温控（guard）：每秒读 npu-thermal。≥85°C 降到 600MHz，≥95°C 降到
+#   300MHz，≤75°C 回到目标档（/tmp/k7npu.mhz）。这只是软件降频；
+#   115°C 有内核的 critical 关机、120°C 有 TSADC 硬件复位兜底。
+
+M=/lib/modules/$(uname -r)
+D=/usr/share/k7npu
+P=/sys/module/rknpu/parameters/npu_hz
+TARGET=/tmp/k7npu.mhz
+GUARD_PID=/tmp/k7npu-guard.pid
+
+# OPP 表里该档的 L0 电压（mV），不认识的档返回空
+opp_mv()
+{
+	case $1 in
+	950) echo 875 ;;
+	900) echo 850 ;;
+	800) echo 800 ;;
+	700) echo 775 ;;
+	600 | 500 | 400 | 300) echo 750 ;;
+	esac
+}
+
+# 按需升压到 $1 档要的电压
+raise_mv()
+{
+	mv=$(opp_mv "$1")
+	[ -n "$mv" ] || { echo "只支持 950 900 800 700 600 500 400 300"; return 2; }
+	cur=$(k7pmic npu-mv | sed -n 's/.* = \([0-9]*\) uV$/\1/p')
+	[ -n "$cur" ] || { echo "读不到 vdd_npu"; return 1; }
+	if [ "$cur" -lt $((mv * 1000)) ]; then
+		k7pmic npu-mv "$mv" || { echo "升压失败"; return 1; }
+	fi
+}
+
+# npu-thermal 的温度（毫摄氏度），没有就返回空
+npu_temp()
+{
+	for z in /sys/class/thermal/thermal_zone*; do
+		[ "$(cat "$z/type" 2>/dev/null)" = npu-thermal ] && cat "$z/temp" && return
+	done
+}
+
+set_hz()
+{
+	echo "$1"000000 > $P
+}
+
+case "$1" in
+status)
+	k7npu-test pd
+	k7pmic npu-mv
+	if [ -e $P ]; then
+		echo "npu_hz $(cat $P)，目标 $(cat $TARGET 2>/dev/null) MHz"
+	fi
+	"$0" temp
+	lsmod | grep -E '^(rknpu|drm) ' || echo "rknpu 未装"
+	ls /dev/dri 2>/dev/null
+	dmesg | grep -i rknpu | tail -n 5
+	;;
+load)
+	if lsmod | grep -q '^rknpu '; then
+		echo "rknpu 已装（换档用 k7npu mhz）"
+		exit 0
+	fi
+	if ! k7npu-test pd; then
+		echo "NPU 电源域没全开，不装（先在 openvela 上 k7diag npu on）"
+		exit 1
+	fi
+	mhz=${2:-800}
+	if [ "$mhz" != 0 ]; then
+		raise_mv "$mhz" || exit 1
+	fi
+	while read -r m; do
+		# rmmod rknpu 之后 drm 还在，跳过已装的
+		lsmod | grep -q "^$(basename "$m" .ko | tr - _) " && continue
+		insmod "$M/$m" || { echo "insmod $m 失败"; exit 1; }
+	done < "$M/npu.order"
+	dmesg | grep -i rknpu | tail -n 8
+	if [ "$mhz" != 0 ]; then
+		echo "$mhz" > $TARGET
+		set_hz "$mhz"
+		"$0" guard </dev/null >/tmp/k7npu-guard.log 2>&1 &
+	fi
+	;;
+mhz)
+	[ -e $P ] || { echo "rknpu 未装"; exit 1; }
+	raise_mv "$2" || exit 1
+	echo "$2" > $TARGET
+	set_hz "$2"
+	echo "目标 $2 MHz（温控会在过热时临时降）"
+	;;
+temp)
+	found=
+	for z in /sys/class/thermal/thermal_zone*; do
+		[ -e "$z/temp" ] || continue
+		t=$(cat "$z/temp")
+		echo "$(cat "$z/type") $((t / 1000)).$((t % 1000 / 100))"
+		found=1
+	done
+	[ -n "$found" ] || echo "没有温度区（内核没开 ROCKCHIP_THERMAL？）"
+	;;
+guard)
+	if [ -e $GUARD_PID ] && kill -0 "$(cat $GUARD_PID)" 2>/dev/null; then
+		echo "温控已在跑（pid $(cat $GUARD_PID)）"
+		exit 0
+	fi
+	[ -n "$(npu_temp)" ] || { echo "没有 npu-thermal，温控不起"; exit 1; }
+	echo $$ > $GUARD_PID
+	while [ -e $P ]; do
+		t=$(npu_temp)
+		[ -n "$t" ] || { sleep 1; continue; }
+		want=$(cat $TARGET 2>/dev/null)
+		[ -n "$want" ] || want=800
+		# 当前档每次从参数读：k7npu mhz 可能刚改过它
+		cur=$(($(cat $P) / 1000000))
+		if [ "$t" -ge 95000 ]; then
+			lvl=300
+		elif [ "$t" -ge 85000 ]; then
+			lvl=600
+		elif [ "$t" -le 75000 ]; then
+			lvl=$want
+		else
+			lvl=$cur		# 75~85°C 之间保持，防止来回跳
+		fi
+		# 只降不越过目标档
+		[ "$lvl" -gt "$want" ] && lvl=$want
+		if [ "$lvl" != "$cur" ]; then
+			echo "$(cut -d' ' -f1 /proc/uptime)s npu $((t / 1000))°C：$cur -> $lvl MHz"
+			set_hz "$lvl"
+		fi
+		sleep 1
+	done
+	rm -f $GUARD_PID
+	;;
+test)
+	lsmod | grep -q '^rknpu ' || "$0" load || exit 1
+	k7npu-test "$D/mobilenet_v1.rknn" "$D/cat.rgb" "${2:-5}"
+	;;
+*)
+	echo "用法: k7npu status | load [MHz] | mhz <MHz> | temp | guard | test [次数]"
+	exit 2
+	;;
+esac

@@ -1,0 +1,50 @@
+#!/bin/sh
+# 手动起停 rkaiq 3A 服务（/usr/bin/k7aiq）。
+#
+#   k7aiq start | stop | status | log [行数]
+#
+# rkaiq_3A_server 扫 /dev/media*，找到挂着传感器的 rkisp，按传感器 DT 里的
+# 模组名/镜头名到 /etc/iqfiles 找 IQ 文件，然后等 ISP 的起流事件，起流时
+# 接上 AE/AWB 等算法。所以要在 k7cam isp 之前起。
+#
+# ★ 还没放进开机钩子：3A 这一段还没在板上验证过，先手动起，跑稳了再说。
+
+LOG=/tmp/rkaiq.log
+
+case "$1" in
+start)
+	if pidof rkaiq_3A_server >/dev/null; then
+		echo "已经在跑（pid $(pidof rkaiq_3A_server)）"
+		exit 0
+	fi
+	rkaiq_3A_server >"$LOG" 2>&1 </dev/null &
+	# 起来以后读 IQ、准备引擎要一会儿；最多等 5 秒看它是否还活着
+	i=0
+	while [ $i -lt 5 ]; do
+		sleep 1
+		i=$((i + 1))
+		pidof rkaiq_3A_server >/dev/null || break
+		grep -q "wait stream start event\.\.\." "$LOG" && break
+	done
+	if pidof rkaiq_3A_server >/dev/null; then
+		echo "rkaiq_3A_server 在跑（pid $(pidof rkaiq_3A_server)，${i} 秒）"
+	else
+		echo "rkaiq_3A_server 退出了，日志尾巴："
+	fi
+	tail -n 15 "$LOG"
+	;;
+stop)
+	killall rkaiq_3A_server 2>/dev/null && echo "已停" || echo "没在跑"
+	;;
+status)
+	pidof rkaiq_3A_server >/dev/null &&
+		echo "在跑（pid $(pidof rkaiq_3A_server)）" || echo "没在跑"
+	;;
+log)
+	tail -n "${2:-40}" "$LOG"
+	;;
+*)
+	echo "用法: k7aiq start|stop|status|log [行数]"
+	exit 2
+	;;
+esac

@@ -109,6 +109,12 @@ AWK
 HEXDUMP
 STRINGS
 # 系统
+# 模块（摄像头驱动在 lxroot 里，/init 的钩子用 insmod 按顺序装）
+INSMOD
+# insmod 带模块参数（不开时 "insmod x.ko a=1" 静默丢掉参数）
+FEATURE_CMDLINE_MODULE_OPTIONS
+RMMOD
+LSMOD
 MOUNT
 UMOUNT
 DMESG

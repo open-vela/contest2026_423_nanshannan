@@ -139,6 +139,28 @@
 			reg = <0x0 0xf0000000 0x0 0x10000000>;
 			no-map;
 		};
+
+		/*
+		 * 帧共享区：Linux 写、openvela 读。布局见仓库
+		 * amp/include/k7_frame.h；openvela 侧的同一组数在
+		 * chip/rk3576/Kconfig 的 RK3576_FRAME_SHM_BASE / _SIZE，两处必须相等。
+		 *
+		 * 不放在 OWNERSHIP.md 原先规划的 0x4e400000：U-Boot 把本 DTB
+		 * 加载到 0x4f000000，正好落在那 64MB 里。
+		 */
+
+		k7_frame_shm: k7-frame@50000000 {
+			reg = <0x0 0x50000000 0x0 0x04000000>;
+			no-map;
+		};
+	};
+
+	/* /dev/k7frame：把上面那块 mmap 给用户态（drivers/misc/k7_frame.c） */
+
+	k7-frame {
+		compatible = "kickpi,k7-frame";
+		memory-region = <&k7_frame_shm>;
+		status = "okay";
 	};
 
 	/*
@@ -234,14 +256,24 @@
                 GIC_AMP_IRQ_CFG_ROUTE(333, 0x80, AMP_AFF(0, 0))
                 GIC_AMP_IRQ_CFG_ROUTE(336, 0x80, AMP_AFF(0, 0))
 
-                /* CIF（SPI 318）—— 摄像头 */
-                GIC_AMP_IRQ_CFG_ROUTE(350, 0x80, AMP_AFF(0, 0))
+                /* CIF（SPI 318）原来在这里。2026-10-31 摄像头整条链归 Linux
+                 * 之后删掉：留着的话 Linux 的 rkcif 申请中断直接 -EINVAL
+                 * （"request irq failed: -22"），整条取图链就断在 CIF。
+                 * openvela 配 KICKPI_K7_CAMERA_LINUX 时不注册 V4L2，也就
+                 * 不会 irq_attach 它。
+                 */
 
                 /* UART4（SPI 80）—— 蓝牙 HCI，openvela 侧叫 UART1 */
                 GIC_AMP_IRQ_CFG_ROUTE(112, 0x80, AMP_AFF(0, 0))
 
                 /* 看门狗 wdt0（SPI 40）—— 预超时中断，WDIOC_CAPTURE 用 */
-                GIC_AMP_IRQ_CFG_ROUTE(72,  0x80, AMP_AFF(0, 0))>;
+                GIC_AMP_IRQ_CFG_ROUTE(72,  0x80, AMP_AFF(0, 0))
+
+                /* USB3OTG1 / DRD1 xHCI（SPI 260）—— Type-A 口，经板载 hub */
+                GIC_AMP_IRQ_CFG_ROUTE(292, 0x80, AMP_AFF(0, 0))
+
+                /* PWM0 通道 0（SPI 100）—— 板上红外接收头 */
+                GIC_AMP_IRQ_CFG_ROUTE(132, 0x80, AMP_AFF(0, 0))>;
 
 		status = "okay";
 	};
@@ -362,6 +394,14 @@
 	status = "disabled";
 };
 
+/* 红外接收归 openvela（chip/rk3576/rk3576_ir.c）。厂商 dtsi 把
+ * pwm0_2ch_0 配成 rockchip,remotectl-pwm-v4 并 okay，不关的话 Linux
+ * 的 remotectl 驱动会接管同一个捕获通道。
+ */
+&pwm0_2ch_0 {
+	status = "disabled";
+};
+
 /*
  * ★ openvela 用的 I2C 总线，Linux 一条都不许碰。
  *
@@ -375,7 +415,8 @@
  *     i2c1  pmic@23（A72 调压）          → Linux，保留
  *     i2c2  hym8563 RTC、husb311         → openvela
  *     i2c3  es8388 音频                   → openvela
- *     i2c4 / i2c5 / i2c8  imx415         → openvela（摄像头整条链）
+ *     i2c4 / i2c5  imx415（cam0/cam1，空口）→ 关掉
+ *     i2c8  imx415（cam3，模组实际插在这） → Linux（2026-10-31 起，见文末"摄像头"）
  *     i2c7  空                            → 关掉，免得 Linux 占着
  *
  *   摄像头的 AVDD 开关（vcc_mipidcphy0 / vcc_mipidphy1 / vcc_mipidphy3）
@@ -402,7 +443,203 @@
 	status = "disabled";
 };
 
+/*
+ * ★ 摄像头整条链归 Linux（2026-10-31，amp/OWNERSHIP.md "修正（2026-10-31）"）
+ *
+ *   imx415_3@I2C8 -> csi2_dphy3（inno D-PHY1，4 lane）-> mipi3_csi2
+ *   -> rkcif_mipi_lvds3 -> sditf -> rkisp_vir2 -> rkvpss_vir2
+ *   驱动都是模块（amp/linux/amp-camera.config），.ko 在 lxroot 镜像里。
+ *
+ *   openvela 配 CONFIG_KICKPI_K7_CAMERA_LINUX：不碰 I2C8、不碰 CIF/CSI，
+ *   只给模组上电（GPIO0_C7）和送 37.125MHz MCLK —— GPIO0 和 CRU 的
+ *   那几个寄存器仍归 openvela，Linux 这边 dtb 里是个 fixed-clock。
+ *
+ *   下面删掉的几类属性，都是因为 Linux 这侧没有对应的提供者：
+ *     power-domains  内核关了电源域框架（PD_VI 默认上电，没人关它）。
+ *                    留着的话 fw_devlink 会一直等一个永远不来的驱动。
+ *     avdd-supply    REGULATOR 关了，同理。
+ *     phys (dcphy0)  DCPHY0 是 openvela 屏幕的 DSI PHY，Linux 绝不能
+ *                    探测它；cam3 走的是 inno D-PHY，用不到。驱动里
+ *                    缺了它会空指针，见 amp/linux/0003。
+ */
+
 &i2c8 {
+	status = "okay";
+};
+
+&imx415_3 {
+	/delete-property/ power-domains;
+	/delete-property/ avdd-supply;
+};
+
+&csi2_dphy3 {
+	/delete-property/ phys;
+	/delete-property/ phy-names;
+};
+
+&rkcif {
+	/delete-property/ power-domains;
+};
+
+&rkisp {
+	/delete-property/ power-domains;
+};
+
+&rkvpss {
+	/delete-property/ power-domains;
+};
+
+&rkcif_mmu {
+	/delete-property/ power-domains;
+};
+
+&rkisp_mmu {
+	/delete-property/ power-domains;
+};
+
+&rkvpss_mmu {
+	/delete-property/ power-domains;
+};
+
+/* cam0 / cam1 两个空口的整条链：厂商 dtsi 里是开着的。cam0 走 DCPHY0，
+ * 探测它就会动到屏幕。
+ */
+
+&imx415_0 {
+	status = "disabled";
+};
+
+&imx415_1 {
+	status = "disabled";
+};
+
+&csi2_dcphy0 {
+	status = "disabled";
+};
+
+&csi2_dphy0 {
+	status = "disabled";
+};
+
+&mipi0_csi2 {
+	status = "disabled";
+};
+
+&mipi1_csi2 {
+	status = "disabled";
+};
+
+&rkcif_mipi_lvds {
+	status = "disabled";
+};
+
+&rkcif_mipi_lvds_sditf {
+	status = "disabled";
+};
+
+&rkcif_mipi_lvds1 {
+	status = "disabled";
+};
+
+&rkcif_mipi_lvds1_sditf {
+	status = "disabled";
+};
+
+&rkisp_vir0 {
+	status = "disabled";
+};
+
+&rkisp_vir0_sditf {
+	status = "disabled";
+};
+
+&rkisp_vir1 {
+	status = "disabled";
+};
+
+&rkisp_vir1_sditf {
+	status = "disabled";
+};
+
+&rkvpss_vir0 {
+	status = "disabled";
+};
+
+&rkvpss_vir1 {
+	status = "disabled";
+};
+
+/*
+ * ★ 摄像头以外的 IOMMU 全部关掉。
+ *
+ *   内核打开 ROCKCHIP_IOMMU 之后，每个 okay 的 iommu 节点都会被探测、
+ *   复位、改页表基址。vop_mmu 是 openvela 屏幕的那一个 —— 被 Linux 动一下
+ *   就黑屏。以前没事只是因为 IOMMU_SUPPORT 是关的。
+ *   RGA / JPEG / VENC 归 Linux 是下一步（3c），到时候再逐个打开。
+ */
+
+&vop_mmu {
+	status = "disabled";
+};
+
+/*
+ * ★ NPU 归 Linux（2026-11-02 加入，尚未上板验证）。
+ *
+ *   电：这版内核没有电源域和稳压器框架（amp-minimal.config），所以删掉
+ *   power-domains 和 rknpu-supply，由 openvela 的 `k7diag npu on` 确认
+ *   RK806 DCDC2 有电、再按 NPU → NPUTOP → NPU0 → NPU1 打开电源域。
+ *   rknpu 驱动对两者都容忍缺省：regulator 拿到 -ENODEV 当 NULL，
+ *   只有 power-domains 多于一个时才去 attach。
+ *
+ *   ★ 顺序是硬约束：rknpu.ko 一 probe 就读写 NPU 寄存器，域没电会把
+ *     总线挂死。所以 rknpu.ko 和 drm.ko 不进 lxroot 的 load.order
+ *     （build-lxroot.sh 单独写 npu.order），只由 /usr/bin/k7npu 手动装，
+ *     而 k7npu 装之前先读 PMU 确认四个域都开了。
+ *
+ *   rknpu_mmu 跟着打开：开机时摄像头那条链装 rockchip_iommu.ko，它会
+ *   probe 这个节点，但 probe 只拿时钟（prepare，不 enable）和中断，不碰
+ *   寄存器；默认域的 attach 在 pm_runtime_get_if_in_use() 为 0 时直接返回
+ *   （drivers/iommu/rockchip-iommu.c）。真正碰硬件是 rknpu 绑定之后。
+ *
+ *   中断 247/248（GIC 291/292）不进 amp-irqs：归 Linux，用默认路由。
+ */
+
+&rknpu {
+	/delete-property/ power-domains;
+	/delete-property/ power-domain-names;
+	/delete-property/ rknpu-supply;
+	status = "okay";
+};
+
+&rknpu_mmu {
+	status = "okay";
+};
+
+&jpeg_mmu {
+	status = "disabled";
+};
+
+&rga2_core0_mmu {
+	status = "disabled";
+};
+
+&rga2_core1_mmu {
+	status = "disabled";
+};
+
+&iep_mmu {
+	status = "disabled";
+};
+
+&rkvenc0_mmu {
+	status = "disabled";
+};
+
+&rkvenc1_mmu {
+	status = "disabled";
+};
+
+&rkvdec_mmu {
 	status = "disabled";
 };
 

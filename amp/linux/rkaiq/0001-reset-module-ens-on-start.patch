@@ -1,0 +1,29 @@
+--- a/rkaiq/RkAiqManager_c.c
++++ b/rkaiq/RkAiqManager_c.c
+@@ -690,12 +690,24 @@
+ 
+     XCamReturn ret = XCAM_RETURN_NO_ERROR;
+ 
++    if (pAiqManager->_state == AIQ_STATE_STARTED)
++        return ret;
++
++    /* The ISP driver resets every module enable at stream on and only
++     * applies the enables carried by the first params of the new stream.
++     * AiqCamHw_setIspParams() clears module_en_update when module_ens
++     * equals its cached copy, and that copy was filled by prepare or by
++     * the previous stream, so the new stream got en_update = 0: rawae,
++     * rawawb and friends stay off, stats come back with meas_type = 0 and
++     * 3A never starts. Forget the cache so the first params carry every
++     * enable again.
++     */
++    pAiqManager->mCamHw->_isp_module_ens = 0;
++
+     // restart
+     if (pAiqManager->_state == AIQ_STATE_STOPED) {
+         AiqFullParams_t* initParams = AiqCore_getAiqFullParams(pAiqManager->mRkAiqAnalyzer);
+         AiqManager_applyAnalyzerResult(pAiqManager, initParams, true);
+-    } else if (pAiqManager->_state == AIQ_STATE_STARTED) {
+-        return ret;
+     }
+ 
+     ret = AiqCore_start(pAiqManager->mRkAiqAnalyzer);

@@ -1,0 +1,157 @@
+U-Boot：bootamp 把 eMMC backup 分区里的 Linux 根文件系统镜像当 initrd 交给内核
+
+应用：叠在 0011 之上，在 u-boot/ 下 `patch -p1 < 本文件`；编译同 0010
+（GCC 13 要 `KCFLAGS=-Wno-error ./make.sh CROSS_COMPILE=...`）。
+配套：openvela 的 `lxroot write`（app/lxroot）写镜像，格式 amp/include/k7_lxroot.h。
+
+无参数 bootamp 读完内核/dtb/FIT 之后：
+  读 LBA 378880 的头部 → 魔数/版本/长度合法 → 把本体读到 0x80000000 →
+  sha256 与头部一致 → 在内核 dtb 的 /chosen 写 linux,initrd-start/end。
+内核先解内嵌 initramfs，再把这份 cpio 解在上面。
+
+任何一步不对都照常启动、只是不带外部镜像；`setenv amp_lxroot off` 可关掉。
+不用 fdt_initrd()：它会加 /memreserve/，内核解完之后就释放不掉那块内存。
+
+上板（2026-10-31）：
+  有效镜像 32MB     "AMP: lxroot 33555456 字节 @0x80000000，sha256 一致（读+校验 154 ms）"
+                    Linux 里 /etc/k7-lxroot 在，32MB 文件 sha256 与主机一致，
+                    dmesg "Freeing initrd memory: 32768K"；重复一轮结果相同
+  本体被改一个扇区 "AMP: lxroot sha256 不一致，不带外部镜像"，Linux 正常起、无覆盖文件
+  头部无效         "AMP: lxroot 没有有效镜像，不带外部镜像"，Linux 正常起
+
+--- a/cmd/bootamp.c	2026-10-31 04:48:10.336024282 -0400
++++ b/cmd/bootamp.c	2026-10-31 04:48:10.337174403 -0400
+@@ -38,8 +38,10 @@
+ #include <amp.h>
+ #include <command.h>
+ #include <environment.h>
++#include <fdt_support.h>
+ #include <image.h>
+ #include <linux/libfdt.h>
++#include <u-boot/sha256.h>
+ 
+ /* eMMC 上的默认布局，和仓库 amp/layout.sh 一一对应（主机脚本以那边为准）。
+  *
+@@ -69,6 +71,113 @@
+ #define AMP_KERNEL_ADDR		0x40400000
+ 
+ /*
++ * A72 上 Linux 的外部根文件系统镜像（openvela 的 `lxroot write` 写进来）。
++ *
++ *   分区：出厂 GPT 的 backup，LBA 378880 起 786432 扇区（384MB）。
++ *   格式：仓库 amp/include/k7_lxroot.h —— 扇区 0 是头部，本体从扇区 8 起。
++ *   这里抄一份结构，两边改一处就要改另一处。
++ *
++ * 读进 AMP_LXROOT_ADDR，sha256 对上之后写进内核 dtb 的 /chosen
++ * linux,initrd-start/end。内核先解内嵌的 initramfs，再把这份 cpio 解在
++ * 上面（同名文件覆盖）。
++ *
++ * ★ 任何一步不对都**不阻止启动**，只是不带外部镜像 —— 和没有这一段时
++ *   完全一样。头部最后写、只在校验通过后写（见 k7_lxroot.h），所以半截
++ *   的镜像在这里看到的是无效头部。
++ *
++ * 0x80000000 起 384MB：离 FIT（0x60000000）、内核、dtb、openvela
++ * （0x4a400000）、帧共享区（0x50000000）都远，也远在 U-Boot 自己
++ * （0xf0000000 以上）之下。Linux 按 /chosen 里的范围自己 memblock 保留。
++ */
++#define AMP_LXROOT_LBA		0x5C800		/* 378880 */
++#define AMP_LXROOT_CNT		0xC0000		/* 786432 扇区 = 384MB */
++#define AMP_LXROOT_ADDR		0x80000000
++#define K7LX_MAGIC		"K7LXROOT"
++#define K7LX_DATA_SECTOR	8
++
++struct k7lx_hdr_s {
++	char	magic[8];
++	u32	version;
++	u32	data_sector;
++	u32	length;
++	u32	reserved;
++	u8	sha256[32];
++};
++
++static void amp_load_lxroot(void)
++{
++	struct k7lx_hdr_s hdr;
++	u8 sum[SHA256_SUM_LEN];
++	void *fdt = (void *)AMP_DTB_ADDR;
++	ulong max = (ulong)(AMP_LXROOT_CNT - K7LX_DATA_SECTOR) * 512;
++	ulong t0;
++	char cmd[128];
++	int ret;
++
++	if (env_get("amp_lxroot") && !strcmp(env_get("amp_lxroot"), "off")) {
++		printf("AMP: lxroot 已由 amp_lxroot=off 关闭\n");
++		return;
++	}
++
++	snprintf(cmd, sizeof(cmd), "mmc read 0x%x 0x%x 1",
++		 AMP_LXROOT_ADDR, AMP_LXROOT_LBA);
++	if (run_command(cmd, 0)) {
++		printf("AMP: lxroot 头部读不出来，不带外部镜像\n");
++		return;
++	}
++
++	memcpy(&hdr, (void *)AMP_LXROOT_ADDR, sizeof(hdr));
++	if (memcmp(hdr.magic, K7LX_MAGIC, 8) || hdr.version != 1 ||
++	    hdr.data_sector != K7LX_DATA_SECTOR || hdr.length == 0 ||
++	    hdr.length > max) {
++		printf("AMP: lxroot 没有有效镜像，不带外部镜像\n");
++		return;
++	}
++
++	t0 = get_timer(0);
++	snprintf(cmd, sizeof(cmd), "mmc read 0x%x 0x%x 0x%x",
++		 AMP_LXROOT_ADDR, AMP_LXROOT_LBA + K7LX_DATA_SECTOR,
++		 (hdr.length + 511) / 512);
++	if (run_command(cmd, 0)) {
++		printf("AMP: lxroot 本体读失败，不带外部镜像\n");
++		return;
++	}
++
++	sha256_csum_wd((const u8 *)AMP_LXROOT_ADDR, hdr.length, sum,
++		       CHUNKSZ_SHA256);
++	if (memcmp(sum, hdr.sha256, SHA256_SUM_LEN)) {
++		printf("AMP: lxroot sha256 不一致，不带外部镜像\n");
++		return;
++	}
++
++	/* dtb 是原样读进来的，没有空余空间；就地扩 4KB（后面到帧共享区
++	 * 之间都是空的）。
++	 *
++	 * 不用 fdt_initrd()：它还会加一条 /memreserve/，内核解完 initramfs
++	 * 以后就释放不掉这块内存了（几百 MB）。只写 /chosen 的两个属性，
++	 * 内核自己按它们 memblock 保留、用完释放。
++	 */
++	ret = fdt_open_into(fdt, fdt, fdt_totalsize(fdt) + 0x1000);
++	if (!ret) {
++		int chosen = fdt_find_or_add_subnode(fdt, 0, "chosen");
++
++		ret = chosen < 0 ? chosen :
++		      fdt_setprop_u64(fdt, chosen, "linux,initrd-start",
++				      AMP_LXROOT_ADDR);
++		if (!ret)
++			ret = fdt_setprop_u64(fdt, chosen, "linux,initrd-end",
++					      AMP_LXROOT_ADDR + hdr.length);
++	}
++	if (ret) {
++		printf("AMP: lxroot 写 dtb 失败 %d，不带外部镜像\n", ret);
++		return;
++	}
++
++	printf("AMP: lxroot %u 字节 @0x%x，sha256 一致（读+校验 %lu ms）\n",
++	       hdr.length, AMP_LXROOT_ADDR, get_timer(t0));
++}
++
++/*
+  * ★ 读完 FIT 先核对它**实际需要多长**，超出读取窗口就明说。
+  *
+  *   这个窗口曾经是 5120 扇区，镜像涨到 5177 / 5561 扇区后，
+@@ -182,6 +291,8 @@
+ 	env_set("devtype", "mmc");
+ 	env_set("devnum", "0");
+ 
++	amp_load_lxroot();
++
+ 	/* 已经设过就不动 —— 手工覆盖优先于默认值。 */
+ 
+ 	if (!env_get("amp_linux_cmd")) {

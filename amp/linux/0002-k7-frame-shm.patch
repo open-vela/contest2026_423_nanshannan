@@ -1,0 +1,140 @@
+misc: k7_frame —— 把与 openvela 共享的帧保留区 mmap 给用户态
+
+应用：在 kernel-6.1/ 下 `patch -p1 < 本文件`，再在 .config 里打开
+CONFIG_K7_FRAME_SHM（amp/linux/amp-rootfs.config 已经写了）。
+
+摄像头搬到 Linux 的第一步：先不带摄像头，单独证明帧共享区能用。
+DTS 里 k7_frame_shm 是 no-map 保留区（0x50000000 + 64MB），本驱动按
+memory-region 把它以 write-combine 映射给用户态 /dev/k7frame。用户态
+（k7d frame）写测试图案，openvela（ampctl frame）逐像素核对。
+
+为什么要一个驱动，而不是 /dev/mem：no-map 区不是 System RAM，/dev/mem
+会把它映成 Device-nGnRnE —— memcpy/memset 里的非对齐访问和 DC ZVA 在
+Device 内存上直接 SIGBUS。
+
+帧布局：仓库 amp/include/k7_frame.h。
+
+diff -urN a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+--- a/drivers/misc/Kconfig	2026-10-31 03:08:51.649196293 -0400
++++ b/drivers/misc/Kconfig	2026-10-31 03:08:51.651644121 -0400
+@@ -514,6 +514,14 @@
+ 
+ 	  If you do not intend to run this kernel as a guest, say N.
+ 
++config K7_FRAME_SHM
++	bool "KICKPI-K7 AMP frame shared memory (/dev/k7frame)"
++	depends on OF_RESERVED_MEM
++	help
++	  Maps the no-map reserved region shared with openvela on the A53
++	  cluster to user space as /dev/k7frame (write-combine). Frame
++	  layout is defined in the board repository, amp/include/k7_frame.h.
++
+ source "drivers/misc/c2port/Kconfig"
+ source "drivers/misc/eeprom/Kconfig"
+ source "drivers/misc/cb710/Kconfig"
+diff -urN a/drivers/misc/Makefile b/drivers/misc/Makefile
+--- a/drivers/misc/Makefile	2026-10-31 03:08:51.650476583 -0400
++++ b/drivers/misc/Makefile	2026-10-31 03:08:51.651699492 -0400
+@@ -66,3 +66,4 @@
+ obj-$(CONFIG_OPEN_DICE)		+= open-dice.o
+ obj-$(CONFIG_GP_PCI1XXXX)	+= mchp_pci1xxxx/
+ obj-$(CONFIG_VCPU_STALL_DETECTOR)	+= vcpu_stall_detector.o
++obj-$(CONFIG_K7_FRAME_SHM)	+= k7_frame.o
+diff -urN a/drivers/misc/k7_frame.c b/drivers/misc/k7_frame.c
+--- a/drivers/misc/k7_frame.c	1969-12-31 19:00:00.000000000 -0500
++++ b/drivers/misc/k7_frame.c	2026-10-31 03:08:51.651735333 -0400
+@@ -0,0 +1,94 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * k7_frame: 把与 openvela 共享的帧保留区 mmap 给用户态（/dev/k7frame）。
++ *
++ * KICKPI-K7 AMP：A72 上的 Linux 生产帧，A53 上的 openvela 显示。保留区在
++ * DTS 里是 no-map 的（不进内核线性映射，也不会被分配出去），本驱动只做
++ * 一件事：按 memory-region 给出的范围 remap_pfn_range 给用户态。
++ *
++ * 映射属性用 write-combine（Normal-NC）：用户态写完不需要 cache 维护，
++ * 发布前一条 dsb 就能让 openvela 看见。帧布局见仓库 amp/include/k7_frame.h。
++ */
++
++#include <linux/fs.h>
++#include <linux/miscdevice.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_reserved_mem.h>
++#include <linux/platform_device.h>
++
++static phys_addr_t k7_frame_base;
++static size_t k7_frame_size;
++
++static int k7_frame_mmap(struct file *file, struct vm_area_struct *vma)
++{
++	size_t len = vma->vm_end - vma->vm_start;
++	unsigned long off = vma->vm_pgoff << PAGE_SHIFT;
++
++	if (off >= k7_frame_size || len > k7_frame_size - off)
++		return -EINVAL;
++
++	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
++	return remap_pfn_range(vma, vma->vm_start,
++			       (k7_frame_base + off) >> PAGE_SHIFT, len,
++			       vma->vm_page_prot);
++}
++
++static const struct file_operations k7_frame_fops = {
++	.owner = THIS_MODULE,
++	.mmap = k7_frame_mmap,
++};
++
++static struct miscdevice k7_frame_misc = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "k7frame",
++	.fops = &k7_frame_fops,
++};
++
++static int k7_frame_probe(struct platform_device *pdev)
++{
++	struct device_node *np;
++	struct reserved_mem *rmem;
++
++	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
++	if (!np)
++		return -ENODEV;
++
++	rmem = of_reserved_mem_lookup(np);
++	of_node_put(np);
++	if (!rmem)
++		return -ENODEV;
++
++	k7_frame_base = rmem->base;
++	k7_frame_size = rmem->size;
++	dev_info(&pdev->dev, "frame shm %pa + 0x%zx\n", &k7_frame_base,
++		 k7_frame_size);
++
++	return misc_register(&k7_frame_misc);
++}
++
++static int k7_frame_remove(struct platform_device *pdev)
++{
++	misc_deregister(&k7_frame_misc);
++	return 0;
++}
++
++static const struct of_device_id k7_frame_of_match[] = {
++	{ .compatible = "kickpi,k7-frame" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, k7_frame_of_match);
++
++static struct platform_driver k7_frame_driver = {
++	.probe = k7_frame_probe,
++	.remove = k7_frame_remove,
++	.driver = {
++		.name = "k7-frame",
++		.of_match_table = k7_frame_of_match,
++	},
++};
++module_platform_driver(k7_frame_driver);
++
++MODULE_DESCRIPTION("KICKPI-K7 AMP frame shared memory");
++MODULE_LICENSE("GPL");

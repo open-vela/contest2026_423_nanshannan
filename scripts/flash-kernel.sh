@@ -19,8 +19,10 @@ source "$ROOT/amp/layout.sh"
 RKDEV="${RKDEV:-$HOME/rkdeveloptool/rkdeveloptool}"
 img=${1:?用法: flash-kernel.sh <Image>}
 
-# bootamp 固定读 14848 扇区（amp/uboot/0006 的 AMP_KERNEL_CNT）
-read_max=14848
+# bootamp 固定读 16384 扇区（amp/uboot/0013 的 AMP_KERNEL_CNT；原来 14848）。
+# ★ 旧 U-Boot 只读 14848 扇区：Image 超过 7.25MB 时必须先烧新 U-Boot，
+#   否则内核尾巴读不进内存，跳进去在随机的地方死。
+read_max=16384
 
 size=$(stat -c %s "$img")
 sectors=$(( (size + 511) / 512 ))

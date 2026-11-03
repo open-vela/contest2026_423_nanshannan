@@ -234,7 +234,13 @@ nsh> ampctl exec "grep 'CPU part' /proc/cpuinfo"     # 4 × 0xd08 = Cortex-A72
 | `linux/rootfs/k7d.c` / `init` | 守护进程和 /init |
 | `linux/rootfs/build-rootfs.sh` | 一键构建，产物 `~/rk3576-amp/out/Image-amp-rootfs` |
 | `../scripts/flash-kernel.sh` | 写 LBA 49152（整区备份、回读、失败回滚） |
+| `linux/amp-camera.config` / `linux/0003-camera-as-modules.patch` | 摄像头链（IMX415/D-PHY/CIF/ISP/VPSS/IOMMU）编成模块 |
+| `linux/amp-npu.config` / `linux/0004-rknpu-as-module.patch` | NPU：DRM 核心 + rknpu 编成模块，**开机不装**（见 `../notes/npu-2026-11-02/`） |
+| `linux/lxroot/build-lxroot.sh` | lxroot 镜像（U-Boot 当 initrd 带进来）：模块 + 10-camera.sh 钩子 + k7cam/k7aiq + rkaiq 与 glibc 运行库 + NPU 自测（k7npu、librknnrt、MobileNet v1） |
+| `linux/npu/k7npu` / `k7npu-test.c` | NPU 手动装驱动（先读 PMU 确认电源域）和一次静态图推理 |
+| `linux/rkaiq/build-rkaiq.sh` | 用 glibc 工具链从 SDK 源码编 librkaiq.so 和 rkaiq_3A_server（ISP v39） |
 
-**体积是唯一硬约束**：bootamp 固定读 14848 扇区（7.25MB）。当前 7.36MB 的
-Image 余 243KB。为什么不用 eMMC 上的根分区、不用 SD 卡：Linux 这边没有也
+**体积是唯一硬约束**：bootamp 固定读 16384 扇区（8MB，uboot/0013；原来
+14848 扇区 7.25MB）。打开 MODULES+IOMMU 后 Image 7754240 字节，余 634KB；
+摄像头等大块驱动编成模块放进 lxroot，不进 Image。为什么不用 eMMC 上的根分区、不用 SD 卡：Linux 这边没有也
 不该有 MMC 驱动（eMMC 归 openvela），见 `linux/amp-rootfs.config` 开头。

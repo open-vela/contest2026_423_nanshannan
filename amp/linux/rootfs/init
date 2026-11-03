@@ -21,6 +21,23 @@ hostname k7-linux
 exec >/dev/kmsg 2>&1
 echo "k7 init: userspace up on $(nproc) cpus"
 
+# lxroot 钩子：U-Boot 带进来的外部镜像（amp/include/k7_lxroot.h）解在
+# 本 initramfs 上面，它可以在 /etc/k7-lxroot.d/ 放脚本（装摄像头模块、
+# 起 rkaiq 之类）。没有外部镜像时这个目录不存在，什么都不做。
+#
+# ★ 放后台、每个脚本限时 60 秒：钩子里是新硬件的 bring-up，挂住了也不能
+#   挡住 k7d —— k7d 是 openvela 唯一能找到这一侧的通道。
+if [ -d /etc/k7-lxroot.d ]; then
+	(
+		for f in /etc/k7-lxroot.d/*.sh; do
+			[ -f "$f" ] || continue
+			echo "k7 init: lxroot hook $f"
+			timeout 60 sh "$f"
+			echo "k7 init: lxroot hook $f exited ($?)"
+		done
+	) &
+fi
+
 while :; do
 	/sbin/k7d
 	echo "k7 init: k7d exited ($?), restarting"

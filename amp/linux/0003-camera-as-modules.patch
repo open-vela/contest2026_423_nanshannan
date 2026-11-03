@@ -1,0 +1,69 @@
+摄像头驱动编成模块所需的两处内核改动
+
+应用：在 kernel-6.1/ 下 `patch -p1 < 本文件`；配置见 amp/linux/amp-camera.config。
+
+一、导出 cma_alloc / cma_release / dma_contiguous_default_area
+
+  videobuf2-cma-sg（rkcif、rkisp、rkvpss 都 select 它）引用这三个符号。
+  厂商配置里它是编进内核的（NO_GKI），所以从来没导出过；编成模块时
+  modpost 报 undefined。上游 Android GKI 内核同样导出这几个。
+  为什么要编成模块：Image 只能放在 eMMC 32MB 以内的窗口里，把 V4L2 +
+  ISP 编进去会超窗口；.ko 放进 U-Boot 读进来的 lxroot 镜像。
+
+二、csi2-dphy：没有 DCPHY 时跳过，而不是空指针
+
+  RK3576 的 csi2-dphy 节点都带 phys = <&mipidcphy0>，probe 无条件取它并
+  phy_get_drvdata()。本板 DCPHY0 是 openvela 屏幕的 DSI PHY，Linux 绝不能
+  探测它，所以 amp dts 删掉了 phys —— devm_phy_optional_get() 于是返回
+  NULL，原代码直接解引用。cam3 走 inno D-PHY1（csi host 3），用不到 DCPHY。
+
+diff -urN a/drivers/phy/rockchip/phy-rockchip-csi2-dphy.c b/drivers/phy/rockchip/phy-rockchip-csi2-dphy.c
+--- a/drivers/phy/rockchip/phy-rockchip-csi2-dphy.c	2026-10-31 05:03:24.221981934 -0400
++++ b/drivers/phy/rockchip/phy-rockchip-csi2-dphy.c	2026-10-31 05:06:10.076453429 -0400
+@@ -1111,6 +1111,16 @@
+ 			dev_err(dphy->dev, "failed to get mipi dcphy: %d\n", ret);
+ 			return ret;
+ 		}
++		/*
++		 * KICKPI-K7 AMP: the DCPHY drives openvela's DSI panel, so the
++		 * Linux dtb drops "phys" here and only the inno D-PHY paths
++		 * (csi host 1..4) are usable.  The optional getter then returns
++		 * NULL, which phy_get_drvdata() would dereference.
++		 */
++		if (!dcphy) {
++			dphy->samsung_phy_group[i] = NULL;
++			continue;
++		}
+ 		dcphy_hw = phy_get_drvdata(dcphy);
+ 		dphy->samsung_phy_group[i] = dcphy_hw;
+ 	}
+diff -urN a/kernel/dma/contiguous.c b/kernel/dma/contiguous.c
+--- a/kernel/dma/contiguous.c	2026-10-31 05:00:55.083337861 -0400
++++ b/kernel/dma/contiguous.c	2026-10-31 05:06:10.075191069 -0400
+@@ -58,6 +58,7 @@
+ #endif
+ 
+ struct cma *dma_contiguous_default_area;
++EXPORT_SYMBOL_GPL(dma_contiguous_default_area);
+ 
+ /*
+  * Default global CMA area size can be defined in kernel's .config.
+diff -urN a/mm/cma.c b/mm/cma.c
+--- a/mm/cma.c	2026-10-31 05:00:55.081674072 -0400
++++ b/mm/cma.c	2026-10-31 05:06:10.073753495 -0400
+@@ -542,6 +542,7 @@
+ 
+ 	return page;
+ }
++EXPORT_SYMBOL_GPL(cma_alloc);
+ 
+ bool cma_pages_valid(struct cma *cma, const struct page *pages,
+ 		     unsigned long count)
+@@ -592,6 +593,7 @@
+ 
+ 	return true;
+ }
++EXPORT_SYMBOL_GPL(cma_release);
+ 
+ #ifdef CONFIG_NO_GKI
+ unsigned long cma_used_pages(void)

@@ -45,6 +45,39 @@
 那份"和"这份"的数据段，差异点 0x159A00 折算回 LBA 32772，正好压在 misc
 上。**每一步都换一个已知正确的对照物**，而不是反复怀疑同一个环节。
 
+## ★ 第三个限制：openvela 自己访问 eMMC 只能到 4GB
+
+openvela 没开 `CONFIG_FS_LARGEFILE`，`off_t` 是 32 位。对整盘
+`/dev/mmcsd0` 定位到 4GB 以外会**静默回绕**：2026-10-31 实测
+`dd if=/dev/mmcsd0 skip=61079518`（备份 GPT 所在处）读到的是
+LBA 2359262（super 分区里）的内容，和直接 `skip=2359262` 读出的逐字节相同。
+写也一样会回绕，而且不报错。
+
+所以 openvela 只通过注册好的**分区设备**写 eMMC（偏移从分区起点算），
+分区整个落在 LBA 8388608 以内（`kickpi_k7_appinit.c` 注册时检查）：
+
+| 设备 | GPT 分区 | LBA | 用途 |
+|---|---|---|---|
+| `/dev/data` | cache | 1165312 + 786432（384MB） | `/data`（FAT） |
+| `/dev/lxroot` | backup | 378880 + 786432（384MB） | A72 上 Linux 的根文件系统镜像，见 `app/lxroot` |
+
+backup 分区 2026-10-31 全盘扫过是全零；首尾写标记后重启两次标记完好，
+U-Boot 启动时不改写它。super、userdata 跨过或整个在 4GB 以上，不用。
+
+### Linux 根文件系统镜像怎么到 A72 上
+
+```
+主机  python3 scripts/lxroot-push.py <镜像.cpio>
+        └─ 板上 openvela `lxroot write`：边下边写 /dev/lxroot，回读 sha256 一致才写头部
+U-Boot  bootamp（uboot/0012）：头部有效 → 读到 0x80000000 → sha256 一致
+        → 内核 dtb /chosen 写 linux,initrd-start/end
+Linux   先解内嵌 initramfs，再把这份 cpio 解在上面（同名覆盖）
+```
+
+镜像要是 **cpio（newc）**，不压缩或 xz（内核只开了 RD_XZ）。头部无效、
+sha256 不一致都照常启动、只是不带外部镜像；U-Boot 里 `setenv amp_lxroot off`
+可以临时关掉。32MB 镜像 U-Boot 读+校验 154ms，网络写入约 4MB/s。
+
 ## 布局：四段全部落在 32MB 以内
 
 正因为上面这条，AMP 的四个部件都放在够得着的 LBA 上，而且**不使用**
@@ -55,7 +88,7 @@ boot 分区的 Android 镜像格式（那样太占地方）：
 | 14336 | 272KB | `rk3576-kickpi-k7-amp.dtb`（只含 4 个 A72 核） | security |
 | 16384 | 3MB | `uboot-amp.img`（带 AMP + bootamp + 面板） | uboot |
 | **24576** | **4MB** | `amp.itb`（AMP FIT，里面是 openvela） | trust |
-| 49152 | 8MB（到 65536） | `Image-amp-rootfs`（Linux Image + 内嵌 initramfs，7.36MB；bootamp 只读 7.25MB 窗口 = 14848 扇区） | vbmeta + boot 头部 |
+| 49152 | 8MB（到 65536） | `Image-amp-rootfs`（Linux Image + 内嵌 initramfs，7.4MB；bootamp 读 8MB 窗口 = 16384 扇区，uboot/0013，先烧新 U-Boot 再烧大 Image） | vbmeta + boot 头部 |
 
 主机侧的唯一来源是 `amp/layout.sh`，U-Boot 侧是 `cmd/bootamp.c` 的
 `AMP_*` 宏（`uboot/0009`），两处必须同步改。所有写盘脚本都先过

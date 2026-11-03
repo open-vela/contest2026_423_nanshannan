@@ -13,6 +13,47 @@ Linux 出现在这套系统里只有一个理由：**NPU 与 ISP 的厂商软件
 Linux 版**（`librknnrt`、`rkaiq`），移植代价远大于让它跑在另一个簇上。
 除此之外 Linux 不该拥有任何东西。
 
+## ★ 修正（2026-10-31）：摄像头整条链（连同 sensor 的 I2C）改划给 Linux
+
+目标是用上硬件 ISP（rkisp + rkaiq 3A）、RGA 和 MPP。下面 9 月 12 日那版
+反对的是"sensor 在 openvela、ISP 在 Linux"这种**拆开**的切法（3A 每帧要
+跨核写 I2C）；这次是整条链一起划走，那个问题不存在，仍符合"按功能链划分"。
+openvela 现有的 CIF 采集链保留作后备。
+
+第一步已上板验证（不带摄像头）：帧共享区放在 **0x50000000 + 64MB**
+（不是下面原规划的 0x4e400000 —— U-Boot 把 Linux 的 DTB 加载到
+0x4f000000，正好落在那 64MB 里），方向是 **Linux 写、openvela 读**。
+布局与发布协议见 `amp/include/k7_frame.h`；Linux 侧驱动
+`amp/linux/0002-k7-frame-shm.patch`（/dev/k7frame，write-combine）；
+openvela 侧映成 cacheable、读前 invalidate。`k7d frame` 写测试图案，
+`ampctl frame` 逐像素核对：正常帧 921600 像素全等，故意翻一位的帧报出
+(100,200) 这一处，槽绕回后仍一致。
+
+还没证明的：省掉 invalidate 时核对会失败（一帧 3.7MB，远大于 L2，旧行
+多半已被挤出，绕回测试抓不到漏 invalidate）。
+
+第二步已完成：Linux 的根文件系统镜像由 openvela 经网络写到 eMMC backup
+分区（`lxroot write`），U-Boot 读进内存、校验 sha256 后当 initrd 交给内核
+（uboot/0012；Linux 运行时不碰 eMMC）。
+
+第三步 3a 已上板（RAW 采集）：摄像头驱动编成模块放进 lxroot
+（`linux/amp-camera.config`、`linux/0003-camera-as-modules.patch`），
+链路 imx415(i2c8@0x37) → csi2_dphy3 → mipi3_csi2 → rkcif_mipi_lvds3 →
+sditf → rkisp_vir2 全部绑定；`k7cam cap` 取 RAW10 3840x2160 稳定 30fps、
+序号连续，信号随增益单调上升、两路 G 高于 R/B（Bayer 结构正确）。
+openvela 这边（`CONFIG_KICKPI_K7_CAMERA_LINUX`）只给 cam3 上电和出 MCLK，
+不再注册 I2C8、不初始化 V4L2。DTS 要点：
+
+- CIF 的中断（GIC 350）从 amp-irqs 里去掉，否则 rkcif 申请中断 -22；
+- sensor/dphy/cif/isp 删掉 power-domains、avdd-supply、phys —— AMP 内核
+  不开 PM_DOMAINS/REGULATOR，没有这些提供者；
+- 只开摄像头用的 IOMMU，vop_mmu 等其余全部 disabled（VOP 归 openvela）；
+- DCPHY0 是 openvela 的 DSI PHY，Linux 绝不能探测（csi2-dphy 驱动里
+  dcphy 为空时跳过）。
+
+后面：3b 用 glibc 工具链编 rkaiq，出 ISP NV12 + 3A；3c RGA 转 XRGB 写进帧
+共享区给 openvela 显示，MPP 再往后。
+
 ## ★ 修正（2026-09-12）：Linux 退成纯计算域，摄像头链整条留给 openvela
 
 上一版写的是"摄像头那条链划给 Linux"。**改了**：openvela 独占整条摄像头
@@ -123,7 +164,7 @@ PL330/SAI 上踩过一次 —— 当时缺的是**目的地在 DMA 前也要 cle
 0x47800000 +  4MB   rpmsg vring + 缓冲池        Normal-NC
 0x48400000 + 16MB   OP-TEE                     （谁都不碰）
 0x4a400000 + 64MB   openvela
-0x4e400000 + 64MB   帧 carveout ← 新增          cacheable + 显式维护
+0x50000000 + 64MB   帧 carveout（2026-10-31 实装；原规划 0x4e400000 与 Linux DTB 冲突）
 ```
 
 全落在 bank1（`0x49400000..0x100000000`）里。
@@ -162,11 +203,12 @@ PL330/SAI 上踩过一次 —— 当时缺的是**目的地在 DMA 前也要 cle
 | GMAC0 / GMAC1 | openvela | |
 | USB | openvela | |
 | SPI / PWM / SARADC / 看门狗 / RTC | openvela | |
-| CSI D-PHY + CSI host + CIF + i2c4/5/8 + sensor GPIO/MCLK | openvela | 整条摄像头链，见上面的修正 |
+| CSI D-PHY3 + CSI host + CIF + ISP + VPSS + i2c8 + 各自 IOMMU | **Linux** | 2026-10-31 起，见最上面的修正；cam3 的上电 GPIO 和 MCLK 仍由 openvela 在启动时打开 |
 | 软件 ISP（AWB / LSC / JPEG） | openvela | `kickpi_k7_imgproc.c`，1235 行，已有 |
 | **NPU + 其 IOMMU + 电源域 + CMA** | **Linux** | 连带划，不能只划 NPU 本体 |
+| i2c1 + RK806 PMIC（@0x23） | **Linux**（事实上） | 2026-11-02 查清：AMP dts 没关 &i2c1，rk3x-i2c 绑着它，空闲时关 i2c1 时钟，所以 openvela 的 /dev/i2c1 扫不到设备。vdd_npu（DCDC2）由 Linux 的 `k7pmic` 调，见 notes/npu-freq-2026-11-02。openvela 不要碰这条总线 |
 | **硬件 ISP（仅回读入口）+ 其 IOMMU** | **Linux** | stage 2 才启用；固定曝光，不做 3A |
-| 帧 carveout 0x4e400000 + 64MB | 共用 | openvela 写、Linux 读；cacheable + 显式维护 |
+| 帧 carveout 0x50000000 + 64MB | 共用 | 2026-10-31 起 Linux 写、openvela 读；Linux 映 write-combine，openvela 映 cacheable 并在读前 invalidate |
 | GPU | 谁都不要 | 两边都不初始化 |
 | mailbox group0 / group3 | 共用 | openvela 发 B2A、收 A2B（IRQ 174）；见 [../docs/amp.md](../docs/amp.md) |
 | 0x47800000 + 4MB | 共用 | vring + rpmsg 缓冲池，映成 Normal-NonCacheable |
