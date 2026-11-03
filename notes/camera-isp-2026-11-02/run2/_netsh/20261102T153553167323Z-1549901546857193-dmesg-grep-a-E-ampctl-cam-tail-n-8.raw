@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kdmesg | grep -a -E "ampctl cam|ç•Œé¢: ç›¸æœº" | tail -n 8
+ÿüsh [114:100]
+nsh: grep: command not found
+nsh: tail: command not found
+nsh> 

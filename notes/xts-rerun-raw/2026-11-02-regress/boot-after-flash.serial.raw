@@ -1,0 +1,522 @@
+ch0 ttot6
+ch1 ttot6
+ch0 ttot7
+LPDDR5, 2736MHz
+channel[0] BW=16 Col=10 Bk=16 CS0 Row=16 CS=1 DB
+ch1 ttot7
+channel[1] BW=16 Col=10 Bk=16 CS0 Row=16 CS=1 Die BW=16 Size=204facturer ID:0xff
+CH0 RX Vref:25.7%, RX DQS Vref:31.6%, TX Vref:20.0%,0.0%
+DQ roc:
+p0 n0, p0 n2, p4 n0, p0 n1, p1 n0, p0 n1, p6 n0, p5 n2, p4 n0, 
+p0 n0, p2 n0, p2 n1, p7 n0, p5 n0, p1 n0, p1 n0, p2 n5, p7 n0, 
+
+DQ rds:l0 l0 l0 l0 l0 l0 l0 l0 , l0 l0 l0 l0 h1 l0 l0 l0 
+DQS roc: p3, n1, p0, n0
+
+CH1 RX Vref:25.3%, RX DQS Vref:31.2%, TX Vref:21.0%,0.0%
+DQ roc:
+p3 n0, p4 n0, p1 n0, p2 n0, p7 n0, p6 n0, p6 n0, p6 n n0, p4 n0, p5 n0, p7 n0, p3 n0, p6 n0, p7 n0, p1 n0, p4 n0, 
+
+DQ rds:h1 h1 l0 l0 h1 h1 l0 l0 , l0 l0 l0 h1 h1 l0 h1 h1 
+DQS roc: p1, n0, p2, n0
+
+stride=0x3, ddr_config=0x2
+hash bank_mask0-3 0x0 0x2100 0x44200 0x88400, rank_mask0 0x0
+change to F1: 534MHz
+ch0 ttot6
+ch1 ttot6
+change to F2: 1320MHz
+ch0 ttot8
+ch1 ttot8
+change to F3: 1968MHz
+ch0 ttot6
+ch1 ttot6
+change to F0: 2736MHz
+ch0 ttot7
+ch1 ttot7
+out
+U-Boot SPL board init
+U-Boot SPL 2017.09-g60e6e79d7a0-250604 #lxh (Jun 09 2025 - 11:08:59), fwver: v1.08
+sfc cmd=00H(6BH-x4)
+unknown raw ID 0 0 0
+unrecognized JEDEC id bytes: 00, 00, 00
+Trying to boot from MMC2
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_info_efi: *** ERROR: Invalid GPT ***
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_get_info_efi: *** ERROR:GUID Partition Table Header signature is wrong: 0xX != 0xX
+part: Invalid GPT ***
+GUID Partition Table Header signature is wront_get_info_efi: *** ERROR: Invalid Backup GPT ***
+No misc partition
+GUID Partition Table Header signature is wrong: 0xX != 0xX_info_efi: *** ERROR: Invalid GPT ***
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_get_info_efi: *** ERROR:GUID Partition Table Header signature is wrong: 0xX != 0xX
+part: Invalid GPT ***
+GUID Partition Table Header signature is wron_get_info_efi: *** ERROR: Invalid Backup GPT ***
+spl: partition error
+Trying fit image at 0x40ctor
+Not fit magic
+Trying fit image at 0x5000 sector
+Not fit magic
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_get_info_efi: *** ERROR:GUID Partition Table Header signature is wrong: 0xX != 0xX
+partkup GPT ***
+GUID Partition Table Header signature is wrong: 0xX_info_efi: *** ERROR: Invalid GPT ***
+GUID Partition Table Header signature is wrong: 0xX != 0xX
+part_get_info_efi: *** ERROR:ckup GPT ***
+Trying to boot from MMC1
+SPL: A/B-slot: _a, successful: 0, tries-remain: 7
+Trying fit imge at 0x4000 sector
+## Verified-boot: 0
+## Checking atf-1 0x40060000 ... sha256(868eaf583a...) + OK
+## Checking uboot 0x40200000 ... sha256(15c6ae393c...) + OK
+## Checking fdt 0x40341550 ... sha256(368bbb2e69...) + OK
+## Checking atf-2 0x400f0000 ... sha256(8afb712810...) + OK
+## Checking atf-3 0x3fe70000 ... sha256(8b5729c8c7...) + OK
+## Checking optee 0x48400000 ... sha256(4f2fb58a31...) + OK
+Jumping to U-Boot(0x40200000) via ARM Trusted Firmware(0x40060000)
+Total: 178.157/376.503 ms
+
+INFO:    Preloader serial: 0
+NOTICE:  BL31: v2.3():v2.3-931-g4d7e811c6:derrick.huang, fwver: 
+NOTICE:  BL31: Built : 19:19:38, May 26 2025
+INFO:    SOC (0x35760101)
+INFO:    spec: 0x1
+INFO:    test version: 0x0
+INFO: boot, reset status: 0x1
+INFO:    ARM GICv2 driver initialized
+INFO:    bypass memory repair
+INFO:    dfs DDR fsp_params[0].fr 2736MHz
+INFO:    dfs DDR fsp_params[1].freq_mhz= 534MHz
+INFO:    dfs DDR fsp_params[2].freq_mhz= 1320MHz
+INFO:    dfs DDR fsp_params[3].freq_mhz= 1968MHz
+INFO:    Using opteed sec cpu_context!
+INFO:    boot cpu mask: 1itializing runtime services
+INFO:    BL31: Initializing BL32
+I/TC: 
+I/TC: OP-TEE version: 3.13.0-1004-g667b54418 #hisping.lin (gcc version 10.2.1 20201103 (GNU Toolchain for the A-profile tecture 10.2-2020.11 (arm-10.16))) #2 Mon May 12 01:52:55 UTC 2025 aarch64, fwver: v1.06 
+I/TC: OP-TEE memory size: TEEOS 0x200 initializing
+I/TC: Primary CPU switching to normal world bootINFO:    BL31: Preparing for EL3FO:    Entry point address = 0x40200000
+INFO:    SPSR = 0x3c9
+
+
+U-Boot 2017.09 (Oct 31 2026 - 05:10:59 -0400)
+
+Model: KICKPI-K7 (RK3576) for U-Boot
+MPIDR: 0x0
+PreSerial: 0, raw, 0x2ad40000
+DRAM:  4 GiB
+Sysmem: init
+Relocation Offset: bda1c000
+Relocation fdt: fb9da230 - fb9fece0CR: M/C/I
+optee api revision: 2.0
+mmc@2a310000: 1, mmc@2a330000: 0
+Bootdev(atags): <NULL> <NULL>
+Use emmc as default boot media
+Mpe: EFI
+Using default environment
+
+MMC:   Model: KICKPI-K7 (RK3576) for U-Boot
+boot mode: normal
+RESC: 'dtbo', blk@0x0000a000
+Device is: UNLOCKED
+Rockchip UBOOT DRM driver version: v1.0.1
+Assign plane mask automatically
+VOP have 1 active VPvp0 have layer nr:0[], primary pe layer nr:1[3 ], primary plane: 3
+vp2 have layer nr:0[], primary plane: 0
+disp info 2, type:16, id:0
+base2_disp_info couldn'found, screen_info type[0] or id[0] mismatched
+Using display timing dts
+dsi@27d80000:  detailed mode clock 84000 kHz, flags[a]
+    H: 0720 0752 0767 0799
+    V: 1280 1301 1316 1328
+bus_fo
+VOP update mode to: 720x1280p79, type: MIPI0 for VP1
+VP1 set crtc_clock to 83334KHz
+Unsupportse bt601f instead
+VOP VP1 enable Esmart1[720x1280->720x1280@0x0] fmt[0] addr[0xfdf00000]
+final
+CLK: (sync kernel. arm: enter 1008000 KHz, init 1008000 KHz, kernel 0N/A)
+  bpll 816000 KHz
+   aupll 786431 KHz
+  cpll 1000000 KHz
+  gpll 1188000 KHz
+  ppll 1300000 KHz
+  aclk_bus_root 3
+  hclk_bus_root 198000 KHz
+  aclk_top 786431 KHz
+  aclk_top_mid 396000 KHz
+  pclk_top 100000Net:   Net Initialization SkippeNo ethernet found.
+Hit key to stop autoboot('CTRL+C'):  1  0 
+switch to partitions #0, OK
+mmc0(part 0) is current device
+
+MMC read: dev # 0, block 384 ... 16384 blocks read: OK
+
+MMC read: dev # 0, block # 14336, count544 blocks read: OK
+
+MMC read: dev # 0, block # 24576, count 88192 blocks read: OK
+AMP: FIT 需要 3384032 字节（6610 扇区），读取窗口 8192 扇区
+MMC read: dev # 0, block # 3781 blocks read: OK
+
+MMC read: dock # 378888, count 19248 ... 19248 blocks read: OK
+AMP: lxroot 9854976 字节 @0x80000000，sha256 一致（读+校 loaded kernel@0x40400000 dtb@0x4f000000 fit@0x60000000 from eMMC
+AMP: booting from FIT at 0000## Loading loadables from FIT Image at 60000000 ...
+   Trying 'subimage
+     Description:  openvela (NuttX) on A53 cluster
+     Type:         Firmware
+     Start:   0x60000e00
+     Data Size:    3380448 Bytes = 3.2 MiB
+     Architecture: AArch64
+    algo:    sha256
+     Hash value:   c719cd4d8aeee539bb1d9409a50d580f66b2f9052620987db66fda39247. sha256+ OK
+   Loading loadables from 0x60000e00 to 0x4a400000
+AMP: linux via amp_linux_cmd: booti 0x40400000 - 0x4f000000
+Fdt Ramdisk skip relocation
+## Flattened Device Tree blob at 0x4f000000
+   Booting using the fdt    Using Device Tree in place at 000000004f000000, end 000000004f046720
+vp0, plane_mask:0x0, primary-id:0, curser-id:-1
+vp1, plane_mask:0x8, primary-id:3, curser-id:-1
+vp2, plane_mask:0x0, primary-id:0, curser-id:-1
+## reserved-memory:
+  drm-logo@0: addr=fdf00000 size=708000
+  ramoops@40110000: addr=40110000 size=e0000
+  rpmsg@47800000: addr=47800000 size=100000
+  rpmsg-dma@47a00000: addr=47a00000 size=200000
+  openvela@4a400000: addr=4a400000 size=4000000
+  uboot@f0000000: addr=f0000000 size=10000000
+  k7-frame@50000000: addr=50000000 size=4000000
+Adding bank: 0xize: 0x08200000)
+Adding bank: 0x49400000 - 0x100000000 (size: 0xb6c00000)
+Adding bank: 0x10000
+AMP: linux fdt at 0x4f000000
+AMP: Brought up cpu[100] with state 0x12, entry 0x40400000 ...OK
+ializing
+: linux hI/TC: Secondary CPU 4 switching to normal world boot
+anded off, back on cpu[entry 0x4a400000 boot_on 1
+AMP: mailbox3 armed (INTEN=0x00000101), not waiting for peer
+AMP: fBrought up primary cpu[0, self] with state 0x12, entry 0x4a400000 ...OK
+- Ready to Boot Primary CPU
+- Boot from EL2
+- Boot from EL1
+- Boot to C runtime for OS Initialize
+[boot] mmu_init 前
+[boot] mmu_init 后（MMU 已开，代码仍在映射内）
+[bo psci_init 后
+[boot] board_initialize 后[boot] earlyserialinit 后（此后走 syslog，波特率见 UART0_BAUD）
+[boot] achip_boot 结束，进 nx_start
+I/TC: Secondary CPU 1 initializing
+[CPU0] 复�I/TC: Secondary 1 switching to normal world boot
+��状态: GLBI/TC: Secondary Cing
+_-RS I/TC: Secondary CPU 2 switching to normal world boot
+TR_eSaTd=y0 I/TC: Secondary CPU ary CPU 3 switching to normal world boot
+e0a0Bd0o0oyt0 t 0 oSe� �Bc�oo�ond�t � �CPS��Ue�-c �
+�  o0Bfto
+ rSo[oeCmPt c UEf0oLr]n2od m C+ +E
+CLP: 2U��
+
+-�� �Bo�o�t� �f�r�o�m� E�L�2�
+�� ame 已注册 @0x4a72e638
+[CPU0] GPIO: 控制器版本 0x010219c8（与实测一致）
+[CPU0] )
+[CPU0] GPIO: /dev/gpio1 = fan-pwr (gpio2-11)
+[CPU0] GPIO: /dev/gpio2 = testpin-out (gpio4-4)gpio4-6, 输入=1)
+[CPU0] I2C0: 空闲电平 SCL=1 SDA=1（应均为 1）
+[CPU0] I2C0: 版本  mux=0
+[CPU0] I2C0: 复用 SCL=gpio0-17�-� 9B SoDoA=t-g f pBrioooom0- t1 EL8fr1�o��
+m 9E
+L-10 就绪（dtb 记载：触摸 GT9xx@0x5d（5 寸屏 FPC Pin23/24，时钟在 PMU 域））
+[CP00kHz mux=0（复用沿用 U-Boot）
+[CPU0] I2C: /dev/i2c1 就绪（dtb 记载：PMIC RK806@0x2电平 SCL=1 SDA=1（应均为 1）
+[CPU0] I2C2: 版本 6 源 200MHz SCL≈100kHz mux=0
+[CPU0]o0-16→9
+[CPU0] I2C: /dev/i2c2 就绪（dtb 记载：RTC HYM8563@0x51、PD HUSB311-@ B0ox4oet�o u0Bn]r ot ioIOt2SmC  etI 3onf:io  �rCti  �aO�rl�uS�n i�tIzine�i�m
+t�e� ifa��oli rz SCeOSL
+ =
+[CPU0] I2C3: 版本 6 源 200MHz SCL≈100kHz mux=0
+[CPU0] I2C3: 复用 SCL=gpio4-13→11 SDA=��绪（dtb 记载：音频 codec ES8388@0x10）
+[CPU0] I2C4: 空闲电平 SCL=0 SDA=0（应均�本 6 源 200MHz SCL≈100kHz mux=0
+[CPU0] I2C4: 复用 SCL=gpio3-16→11 SDA=gpio3-15→11
+[��：（探测用）dtb 记载 imx415_0@0x37）
+[CPU0] I2C5: 空闲电平 SCL=0 SDA=0（应均�本 6 源 200MHz SCL≈100kHz mux=0
+[CPU0] I2C5: 复用 SCL=gpio3-20→11 SDA=gpio3-17→11
+[C��：（探测用）dtb 记载 imx415_1@0x37）
+[CPU0] I2C7: 空闲电平 SCL=1 SDA=1（应均䜬 6 源 200MHz SCL≈100kHz mux=0
+[CPU0] I2C7: 复用 SCL=gpio3-0→11 SDA=gpio3-1→11
+[CPU0��（探测用））
+[CPU0] I2C6: 空闲电平 SCL=1 SDA=0（应均为 1）
+[CPU0] I2C6: 版�Hz mux=0
+[CPU0] I2C6: 复用 SCL=gpio0-2→11 SDA=gpio0-5→11
+[CPU0] I2C: /dev/i2c6 就绪（sabled）
+[CPU0] I2C9: 空闲电平 SCL=1 SDA=1（应均为 1）
+[CPU0] I2C9: 版本 6 源 200CPU0] I2C9: 复用 SCL=gpio1-5→10 SDA=gpio1-6→10
+[CPU0] I2C: /dev/i2c9 就绪（dtb 记载�
+[CPU0] ERROR: MPU6050 @I2C7:0x68 无应答或 ID 不符（ret=-6 WHO_AM_I=0x00，应为 0x68）�化失败 (-6)
+[CPU0] RTC: CLKOUT 32.768kHz 已使能（供 Wi[CPU0] HYM8563: 应答正常 CTL[CPU0] RTC: /dev/rtc0 就绪（HYM8563@I2C2:0x51）
+[CPU0] SPI4: 版本 0x00110002 FIFO 64 源 200MHz SCLK 20000000Hz 上拉(cldev/spi4（40 针扩展口）
+[CPU0] SDHCI: 卡时钟 400000Hz (div=250 实际约 400000Hz) HS=erted.
+[CPU0] SDHCI: 卡时钟 400000Hz (div=250 实际约 400000Hz) HS=0
+I/TC: Secondary CPU 5 initializing
+I/TC: Secondary CPU 5 switching to normal world boot
+I/TC: Secondary CPU 6 initializing
+I/TC: Secondary CPU 6 switching to normal world boot
+I/TC: Secondary CPU 7 initializing
+I/TC: Secondary CPU 7 switching to norma[CPU0] SDHCI: 卡时钟 52000000Hz (div=2 实际约 50000000Hz) [CPU0] SDHCI: 卡时钟 52000000Hz (div=2 实际约 50000000Hz) [CPU0] eMMC: /dev/mmcsd0 就绪
+[CPU0] eMMC: /dev/mmcsd0c 就绪（只读字符视图）
+[CPU0] eMMC: GPT backup -> /dev/lxroot（LBA 378880 + 786432）
+[CPU 1165312 + 786432）
+[CPU0] eMMC: /dev/data（GPT cache）已挝�状态 PWREN(gpio0-22)=1（未复位、未断电）
+[CPU0] ==== U-Boot 留下的 VOP2 状态�MIPI0_INFACE  0x80100037
+[CPU0]   SYS_AUTO_GATING        0x9fffff7f
+[CPU0]   SYS_PORT_CTRL_IMD      0x0000003f
+[CPU0]   VP0_DSP_CTRL           0x8000000f
+[CPU0]   VP0_MIPI_CTRL          0x80000000
+[CPU0]   VP0_COLOR_BAR_CTRL     0x00000000
+[CPU0]   VP0_HTOTAL_HS_END      0x032000c8
+[CPU0]   VP0_HACT_ST_END        0x01900258
+[CPU0]   VP0_VTOTAL_VS_END      0x00fa000a
+[CPU0]   VP0_VACT_ST_END        0x000a00fa
+[CPU0]   VP1_DSP_CTRL           0x00060000
+[CPU0]   VP1_MIPI_CTRL          0x00000000
+[CPU0]   VP1_COLOR_BAR_CTRL     0x00000000
+[CPU0]   VP1_HTOTAL_HS_END      0x031f000f
+[CPU0]   VP1_HACT_ST_END        0x002f02ff
+[CPU0]   VP1_VTOTAL_VS_END      0x0530000f
+[CPU0]   VP1_VACT_ST_END        0x001b051b
+[CPU0]   VP2_DSP_CTRL           0x8000000f
+[CPU0]   ESMART0_REGION0_CTRL   0x00000000
+[CPU0]   ESMART0_REGION0_MST    0x00000000
+[CPU0]   ESMART0_REGION0_VIR    0x00000000
+[CPU0]   ESMART0_REGION0_ACT    0x00000000
+[CPU0]   ESMART0_REGION0_DSP    0x00000000
+[CPU0]   OVL_CTRL_VP0           0x00000000
+[CPU0]   OVL_LAYER_SEL_VP0      0x0000ffff
+[CPU0]   OVL_CTRL_VP1           0x00000000
+[CPU0]   OVL_LAYER_SEL_VP1      0x0000fff2
+[CPU0]   CLUSTER0_WIN0_CTRL0    0x00000000
+[CPU0]   CLUSTER0_WIN0_YRGB_MST 0x00000000
+[CPU0]   CLUSTER0_WIN0_VIR      0x00000000
+[CPU0]   CLUSTER0_WIN0_ACT_INFO 0x00000000
+[CPU0]   CLUSTER0_WIN0_DSP_INFO 0x00000000
+[CPU0]   CLUSTER0_WIN0_DSP_ST   0x00000000
+[CPU0]   CLUSTER1_WIN0_CTRL0    0x00000000
+[CPU0]   CLUSTER1_WIN0_YRGB_MST 0x00000000
+[CPU0]   ESMART1_REGION0_CTRL   0x00400001
+[CPU0]   ESMART1_REGION0_MST    0xfdf00000
+[CPU0] ==== U-Boot 留下的 DSI 状态（未改动）====
+[CPU0]   PWR_UP             0x313030[CPU0]   SOFT_RESET         0x00000007
+[CPU0]   MODE_CTRL          0x00000000
+[CPU0]   MODE_STATUS        0x00000003
+[CPU0]   CORE_STATUS        0x00000303
+[CPU0]   MANUAL_MODE_CFG    0x00000001
+[CPU0]   PHY_MODE_CFG       0x00000130
+[CPU0]   PHY_CLK_CFG        0x00000600
+[CPU0]   PHY_LP2HS          0x0007654f
+[CPU0]   PHY_HS2LP          0x00068e23
+[CPU0]   PHY_IPI_RATIO      0x0001aaab
+[CPU0]   PHY_SYS_RATIO      0x000025fd
+[CPU0]   DSI_GENERAL_CFG    0x00000002
+[CPU0]   DSI_VCID_CFG       0x00000000
+[CPU0]   DSI_VID_TX_CFG     0x00000002
+[CPU0]   IPI_COLOR_MAN      0x00000050
+[CPU0]   IPI_VID_HSA        0x00064000
+[CPU0]   IPI_VID_HBP        0x000d5555
+[CPU0]   IPI_VID_HACT       0x012c0000
+[CPU0]   IPI_VID_HLINE      0x014ceaab
+[CPU0]   IPI_VID_VSA        0x0000000f
+[CPU0]   IPI_VID_VBP        0x0000000c
+[CPU0]   IPI_VID_VACT       0x00000500
+[CPU0]   IPI_VID_VFP        0x00000015
+[CPU0]   IPI_PIX_PKT_CFG    0x000002d0
+[CPU0] VOP2: ESMART0 归VP0 CTRL=0x00000000 MST=0x00000000 VIR=0
+[CPU0] VOP2: ESMART1 归VP1 CT
+[CPU0] VOP2: 已备份 U-Boot 窗口 MST=0xfdf00000 VIR=720 ACT=0x04ff02cf
+[CPU0] VOP2: VP1 �
+[CPU0] VOP2: ESMART1 AXI_CTRL=0x00010000 MMU 生效中
+[CPU0] VOP2: 原格式 0（0=ARGB8888  取数紧急度已开 HURRY0=02000000 HURRY1=02000000 COLOR_BAR_CTRL=00000000
+[CPU0] VOP2: 帧缓冲 720x1280 跨距 2880 字节 @0x4a872a00
+[CPU0] VOP2: 回读 ACT=0x04ff02P=0x04ff02cf VIR=720 MST=0x4a872a00 CTRL=0x00400001
+[CPU0] VOP2: 回读 SCL_CTRL=0x00000000 SCL_FACTOR=0x10001000 DSP_ST=0x00000000
+[CPU0] FB: 720x1280 ARGB8888 双缓冲 7372800 字节 @0x4[CPU0] 显示: /dev/fb0 就绪
+CPU0] mailbox: group3 @2ae53000, 收 IRQ 174，已有对端门铃在等（引导器留下的）
+[CPU0] AMP: rptun 就绪 对端ux vring0=47800000 vring1=47808000 池=47a00000+2048K 门铃 发=group0 收=group3
+[CPU0] PL3300 DS=00000200
+[CPU0] PL330: 首次完成中断 irq=64 INTSTATUS0000001 FSC=00000000
+[CPU0] PL330 自检: go后 CS=00200003 CPC=4a85105a DBGST=00000000 DS=00000200
+[CPU0] PL330 自检: MEM_TO_MEM 1024B OK
+[CPU0] PL330: dm6 安全态=非安全 PERIPH_ID=0x00241330
+[CPU0] PMU: audio 已上电
+[CPU0] SAI: mclk_to_io CPU0] SAI1 时钟: SEL46=00000001 源=0 分频=2 二级选=0
+[CPU0] SAI1 时钟: SEL28=00001d2b13=00000000 (audio_frac_0)
+[CPU0] SAI1 引脚回读: mclk(b4-2)=1 sclk(-3)=1 lrck(-5)=1 sdo0(-7[CPU0] SAI1: VERSION=0x23073576 XFER=0x00000000 复用 sclk=gpio4-3→1 lrck→1 sdo0→1 sdi0�[CPU0] SAI: CLR 自清超时 CLR=0x00000007 (TXC RXC FSC)，退�[CPU0] SAI: CRU 复位后 CLR=0x00000000 XFER=0x00000000 CLKGATE9=0x00000000
+[CPU0] SAI 环回: 00000000 2222ccc eeee1110 33325554 77769998 bbbadddc
+[CPU0] SAI 环回: 非零 7/8 TX_CNT=000000f8 RX_CNT=00��片外
+[CPU0] 音频: 喇叭功放 GPIO2_B1 随放音开关
+[CPU0] 音频: /dev/audio/pcm0 放音 + pc0 + SAI1）
+[CPU0] RNG: 自检通过，两批取数不同（0xfb82… vs 0xb311…）
+[CPU0] �[CPU0] TIMER: 闹钟自检 INTST 1 次 等了 10x100us CTRL回读=0x00000000 CH0计数 0->0
+[CPU0] TIMER: /dev/oneshot 用 CH0(闹钟,IRQ 77)+CH1(计数) @2400z，100us 内计数 2422 拍
+[CPU0] 定时器: /dev/oneshot 就绪
+[CPU2] GMAC0: 25M 使能前 d[iCvP=U309]  sWeDlT=:1  T�O�R��� �g�3�-�4� �壊埸踃 �C=C0VR
+ [6C5P5U325]  -G>M A6C505:3 52 5�M� ��ⷀ��� �tclk 未动（使能后才计数）� 
+C[PCLPLU/0�D�T�:� �軯 �d�i�v�= 3190 0s0e0lm=s1� �匼敡裄䚽半 �1�2� ��=�0��
+�� 111[8C4PmUs0�]� �G�M�A�C�0�:� �2�5�M  2�^�(�1�6�+�i )g4�  �t�c�l�k�﷼ �2�0�0� �濬��� �魫=�0 
+�[�C�P�U�2�]= 0W D�T�:� �耯�� �★无跳变，时钟没到引脚��
+ [6C0P0U020]m�A�C�1�:� �2�5�M  1�5� ��讃���噉��  8d9i4v7=83m9s �s�e�l�=�1� �彼���踄��  2g^2(-1360+ i�)� ��踃�� =t0cl
+k[�C�P�U�2�]� �G�M�:� �2�5M
+ [�C�P�U�0�]�  �C�P�L�L�/�4�0� ��:� �/�d�e�v /dwiavt=c3h9d osge0l =�1� ��缻���
+�功�t�e�l=n0et
+d [12:1[00C]PU
+0GtMtASCh1e:l l2 5(MN SH)��
+�n�s�h�>  g2[-K30 采样 200 次 高=0 跳变=0 —— ★无跳变，时钟没到引脚
+[CPU1] 触摸: FT 系列应答 芯片ID=0x8756（原厂日志为0x8756）
+[CPU1] 触摸: /dev/input0 就绪（FT8756 @I2C0:0x38��模式）
+[CPU1] PMU: sdgmac 已上电
+[CPU1] DWMMC: VERID=0x5342270a HCON=0x04c434c1 数据总线宽�WMMC: FIFO 深度≈128（dtb 记载 256） CDETECT=0x00000000 —— 检测到卡在位
+[CPU1] DWMMC: CMD0 后 RINTSTS=0x00000004
+[CPU1] DWMMC: CMD8 RINTSTS=0x00000004 RESP0=0x000001aa —— �DWMMC: sdio_dev 就绪 FIFO 窗口=0x200 深度=128
+[CPU1] mmcsd_widebus: No card inserted.
+[CPU1] DWMMC: requested=400000Hz parent=24000000Hz div=60 card=400000Hz
+[CPU1] mmcsd_cardidentify: WARNING: CMD1 RECVR3: -38.  NOTE: This is expected for SD cards.
+[CPU1] DWMMC: requested=25000000Hz parent=1188000000Hz div=48 card=24750000Hz
+[CPU1] DWMMC: requested=25000000Hz parent=1188000000Hz div=48 card=24750000Hz
+[CPU1] SD 卡: /dev/mmcsd1 就绪
+[CPU1] 摄像头: cam3 MCLK gpio4-1 功能3，gpll/32 = 37125000[CPU1] 摄像头: 归 Linux，openvela 只给 cam3 上电和 MCL[CPU1] 界面: kickpi_ui 已启动（pid 15）
+显示: 720x1280��缓冲 360 行
+LVGL 就绪 1280x720，触摸 可用
+[CPU2] k7mqttd: 监听 1883，允许匿名
+[CPU3] k7mqttd: k7-panel 已连接（127.0.0.1，keepalive 30s，带遗嘱）
+[CPU2] 家居: 已连上 broker 127.0883
+[CPU3] [agent] AI Agent - Vela AI Agent starting (build: 2026-10agent] [boot +0ms] P0: timezone set
+LVGL heap: used=138304 tota4 peak=138304
+[CPU3] [agent] [boot +1ms] P0: storage ready
+[CP+2ms] heap: arena=62468096 free=52830048 used=9638048
+[CPU3] [cfgstore] Config store ready at /ata/ai_agent/config/config.json
+[CPU3] [agent] [boot +3ms] P1: config_store_init (rc=0)
+[CPU3] [bus] Message bus initialized (16)
+[CPU3] [agent] [boot +4ms] P1: message_bus_init (rc=0)
+[CPU3] [memory] Initializing memory store at /data/ai_agent
+[CPU3] [memory] Memory store initialized successfully
+[CPU3] [agent] [boot +8ms] P1: memory_stosion] Session manager initialized at /data/ai_agent/sessions
+[CPU3] [agent] [boot +9ms] P1: sesoading proxy config...
+[CPU3] [proxy] No proxy (direct connection)
+[CPU3] [agent] [boot +11ms]rc=0)
+[CPU3] [feishu] RNG ready
+[CPU3] [feishu] No Feishu credentials. Use CLI: set_feishu_appp_id> <app_secret>
+[CPU3] [agent] [boot +14ms] P3: feishu_bot_init (rc=0)
+[CPU3] [llm] LLM proxy initialized (model: mimo-v2.5, host: tokeo.com)
+[CPU3] [agent] [boot +20ms] P3: llm_proxy_init (rc=0)
+[CPU3] [llm_router] Loaded backenmimimo.com (model: mimo-v2.5, tier: 1)
+[CPU3] [llm_router] Router initialized: 1 backends, profCPU3] [agent] [boot +24ms] P3: llm_router_init (rc=0)
+[CPU3] [tools] Registered tool provider: node
+[CPU3] [node_mgr] Node mannitialized (max 8 nodes)
+[CPU3] [agent] [boot +25ms] P3: node_manager_init (rc=0)
+[CPU3] [mcp_reg] MCP tool registry initializ
+[CPU3] [mcp_bridge] MCP bridge initialized
+[CPU3] [tools] Registered tool provider: mcp_client
+[CPU3] [mcp_client] MCP clientialized
+[CPU3] [web_search] No search ke: set_tavily_key / set_search_key
+[CPU3] [tools] Registered tool: web_search
+[CPU3] [tools] Res] Registered tool: get_weather
+[CPU3] [tools] Registered tool: get_current_time
+[CPU3] [tools] Registered tool: read_file
+[C[tools] Registered tool: write_file
+[CPU3] [tools] Registered tool: edit_file
+[CPU3] [tools] Rls] Registered tool: cron_add
+[CPU3] [tools] Registered tool: cron_list
+[CPU3] [tools] RegisteRegistered tool: fetch_url
+[CPU3] [tools] Registered tool: analyze_image
+[CPU3] [tools] Registols] Registered tool: run_shell
+[CPU3] [tools] Registered tool: get_battery
+[CPU3] [tools] Reg[tools] Registered tool: get_screen_state
+[CPU3] [tools] Registered tool: get_heartrate
+[CPU3]CPU3] [tools] Registered tool: vibrate
+[CPU3] [tools] Registered tool: feishu_doc_create
+[CPU3_write
+[CPU3] [tools] Registered tool: feishu_doc_read
+[CPU3] [tools] Registered tool: feishu_doc_list
+[CPU3] [tools] Registeool: feishu_chat_members
+[CPU3] [tools] Registered tool: feishu_send_mention
+[CPU3] [tools] Reools] Registered tool: music_play
+[CPU3] [tools] Registered tool: music_pause
+[CPU3] [tools] R[tools] Registered tool: music_stop
+[CPU3] [tools] Registered tool: music_seek
+[CPU3] [tools] PU3] [tools] Registered tool: music_status
+[CPU3] [tools] Registered tool: launch_quickapp
+[CPkapp
+[CPU3] [tools] Tools JSON built (37 builtin + 2 providers)
+[CPU3] [tools] Tool registry initialized
+[CPU3] [agent] [boot +44ms] P3: tool_registry_init (rc=0)
+[CPU3] [guard] Tool guardinitialized (max_input=32768, rate_window=60s, rate_max=10)
+[CPU3] [agent] [boot +46ms] P3: tool_guard_init (rc=0)
+[CPU3] [skinitializing skills system
+[CPU3] [skills] Skill exists: /data/ai_agent/skills/weather.md
+[CPU3] [skills] Skill exists: /data/adaily-briefing.md
+[CPU3] [skills] Skill exists: /data/ai_agent/skills/skill-creator.md
+[CPU3] [skills] Skill exists: /data/ai_agent/skills/system-health.md
+[CPU3] [skills] Skill exists: /da/reminder.md
+[CPU3] [skills] Skill exists: /data/ai_agent/skill[CPU3] [skills] Skill exists: /data/ai_agent/skills/translate.md[CPU3] [skills] Skill exists: /data/ai_agent/skills/news-digest.md
+[CPU3] [skills] Skill exists: /data/ai_agent/skills/feishu-test.md
+[CPU3] [skills] Skill exists: /data/ai_agent/skills/task-manager.md
+[CPU3] [skills] Skills system ready (10 built-in)
+[CPU3] [agent] [boot +56ms] P3: skill_loader_init (rc=0)
+[CPU3]gent] Agent loop initialized
+[CPU3] [agent] [boot +56ms] P3: agent_loop_init (rc=0)
+[CPU3] [cron] No cron file, starting fresh
+[CPU3] [agent] [boot +57ms] P3c=0)
+[CPU3] [heartbeat] Heartbeat service initialized (file: /data/ai_agent/HEARTBEAT.md, interms] P3: heartbeat_init (rc=0)
+[CPU3] [node_cli] Node client initialized
+[CPU3] [agent] [boot +PU3] [agent] [boot +60ms] P3: voice_channel_init (rc=0)
+[CPU3] H commands registered
+[CPU3] [agent] [boot +60ms] P4: nsh_commands_init (rc=0)
+[[CCPPUU31]]  [[agentagent]]  [Obuotobto u+n6d1 mdsi]s pPa5t:c ho usttbaorutnedon] Cron started (0 jobs, interval 10s)
+[CPU1] [heartbeat] Heartbeat started (every 30 min)
+[Ceartbeat started
+[[CCPPUU12]]  [[agentagent]]  [Nbeotowto r+k6 3wmast]c hPe5r:  snteatrwtoerdk_
+watch thread started (async)
+[C[PCUP2U]3 ][ agent[]cli ][ bNoSoHt  C+L6I4 m[sC]P UP16]:  [nnetmgrs]h _Ncoo msmaavnedds _WsitFair tc r(erdce=n0t)ia
+l[sC.P UU1s]e  [CagentL]I :[ bsoeott_ w+i6f5im s<]s sAiId >A g<epnats sr>
+dsyt.a rTtyepde.  'Thyeplep '' hienl pN'S Hf ofro rc ocmommamnadnsd.s.
+
+[CPU1] [cli] CLI thread exiting
+vela> [CPU0] PMU: sdgmac 已上电
+[CPU0] GMAC0: 125M 分频 CLKSEL_C� 7）
+[CPU0] GMAC0: 复用 14 脚 bank3 功能3（抽查 rxclk3）
+[CPU0] GMAC0: GRF[0x20]=0x00000000
+[CPU0] GMAC0: RGMII 延时 tx=0x21 rx=关（回读 0x0[CPU1] [llm_router] Backend 0 configured: token-plan-cn.xiaomimimo.com
+[CPU1] [llm] LLM config updated atomically: token-plan-cn.xiaomi/completions (model: mimo-v2.5)
+LLM backend: token-plan-cn.xiaomimimo.com:443/v1/chat/completions (model: mimo-v2.5) [router slot 0]
+API key saved.
+[CPU1] [llm] Vision LLM config updated: model=mimo-v2.5 host=token-plan-cn.xiaomimimo.com
+V[CPU� token-plan-cn.xiaomimimo.com（mimo-v2.5）已配置
+ision LLM: token-plan-cn.xiaomimimo.com ved.
+[CPU0] GMAC0: MAE0621A 厂商初始化完成（时钟模式=晶�[CPU0] GMAC0: DMA 块写测试 TXDESC_RL 原值=0x00000000 写 0003f → 可写
+[CPU0] GMAC0: MAC 块写测试 ADDR0_HIGH 写 0x1234 读回=0x00001234
+[CPU0] 前 DMA_MODE=0x00000000 MAC_VERSION=0x00003051
+[CPU0] GMAC0: 写 SWR 后立刻回读 DMA_MODE=0x00000001
+[CPU0] GMAC0: MAC_VERSION=0x51 HW_FEATURE0=0x1a1173f7�答
+[CPU0] GMAC0: 链路=未建立 自协商=未完成 对端能力 LP=0x0000（探测结束�不等）
+[CPU0] PMU: sdgmac 已上电
+[CPU0] GMAC1: 125M 分频 CLKSEL_CON(31)[4:0]=7（回�ank2 功能2（抽查 rxclk g2-18→2）
+[CPU0] GMAC1: GRF[0x24]=0x00000000
+[CPU0] GMAC1: RGMI0000a0）
+[CPU0] GMAC1: MAE0621A 厂商初始化完成（时钟模式=晶�RL 原值=0x00000000 写 0x3f 读回=0x0000003f → 可写
+[CPU] GMAC1: MAC 块写测试 ADDR0_HIGH 写 0x1234 读回=0x00001234
+[CPU0] GMAC1: 复位前 DMA_MODE=0x00000000 MAC_VERSION=0x00003051
+[CPU0] GMAC1: 写 SWR 后[CPU0] GMAC1: MAC_VERSION=0x51 H173f7 PHY@0 ID=7b74:4411  ← PHY 已应答
+[CPU0] GMAC1: 链路=未建立 自协商=未完成 对端能力 LP=0x0000（探测结束即时读取，未完成不册（GMAC1）
+[CPU0] ETH: DMA_MODE INTM 清零后=00000000
+[CPU0] GMAC1: 速率 1000M，GRF[0x24]=0x00000000
+[CPU0] ETH: e IE=0000c041
+[CPU1] [netmgr] Found iface eth0 addr 192.168.1.50gr] Network connected: 192.168.1.50
+[CPU1] [netmgr] Found iface eth0 addr 192.168.1.50
+[CPU1] work connected: 192.168.1.50
+[CPU0] [feishu[[C]PCU 2P]F U[eagent1]i ]Asg ehn[tu wsl o]opp  osWtlaerltbeidS,n ofgrce ek theeaatpk5s2 4e7s6r0t8v0ae
+rrt [eCsPdUt1]a 
+[ragent[]t CBeuPfdfUe r0so:] nc t x[=p8feishu1o9]2r  htiNs to=28 189a27 pt8opo9l_=8i1
+9d2p[_CsPeUc1r]e t[.agent ]U sTeo:o ls eotu_tfpeuits hpuo_oalp:p  2< ixd >1 6<3s8e4c rbeytt>es
+
+[CPU1] [agent] Tools JSON loaded:5 bytes
+[CPU0] [node_cli] No gateway_host configured, node client disabled
+[CPU0] [agent] All network services started!
+[CPU0] 触摸: 中断被外部屏蔽（已持续 100ms），已�[CPU0] 界面: NTP 已对时

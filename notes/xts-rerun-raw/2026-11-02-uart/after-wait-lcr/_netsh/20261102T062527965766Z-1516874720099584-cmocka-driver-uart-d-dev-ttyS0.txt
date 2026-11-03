@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kcmocka_driver_uart -d /dev/ttyS0
+nsh> 

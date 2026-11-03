@@ -1,0 +1,25 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec lsmod
+[Linux 6.1.75 aarch64 on k7-linux, up 52s, 57 procs]
+
+phy_rockchip_mipi_rx 20480 0 - Live 0x0000000000000000
+phy_rockchip_csi2_dphy 16384 0 - Live 0x0000000000000000
+phy_rockchip_csi2_dphy_hw 20480 0 - Live 0x0000000000000000
+v4l2_dv_timings 28672 0 - Live 0x0000000000000000
+video_rkvpss 73728 0 - Live 0x0000000000000000
+video_rkisp 204800 0 - Live 0x0000000000000000
+video_rkcif 221184 1 - Live 0x0000000000000000
+imx415 24576 1 - Live 0x0000000000000000
+v4l2_fwnode 16384 6 phy_rockchip_mipi_rx,phy_rockchip_csi2_dphy,video_rkvpss,video_rkisp,video_rkcif,imx415, Live 0x0000000000000000
+v4l2_async 16384 7 phy_rockchip_mipi_rx,phy_rockchip_csi2_dphy,video_rkvpss,video_rkisp,video_rkcif,imx415,v4l2_fwnode, Live 0x0000000000000000
+videobuf2_vmalloc 12288 2 video_rkisp,video_rkcif, Live 0x0000000000000000
+videobuf2_v4l2 16384 3 video_rkvpss,video_rkisp,video_rkcif, Live 0x0000000000000000
+videobuf2_cma_sg 12288 3 video_rkvpss,video_rkisp,video_rkcif, Live 0x0000000000000000
+videobuf2_memops 12288 2 videobuf2_vmalloc,videobuf2_cma_sg, Live 0x0000000000000000
+videobuf2_common 40960 7 video_rkvpss,video_rkisp,video_rkcif,videobuf2_vmalloc,videobuf2_v4l2,videobuf2_cma_sg,videobuf2_memops, Live 0x0000000000000000
+videodev 155648 9 phy_rockchip_mipi_rx,phy_rockchip_csi2_dphy,video_rkvpss,video_rkisp,video_rkcif,imx415,v4l2_async,videobuf2_v4l2,videobuf2_common, Live 0x0000000000000000
+mc 32768 11 phy_rockchip_mipi_rx,phy_rockchip_csi2_dphy,phy_rockchip_csi2_dphy_hw,video_rkvpss,video_rkisp,video_rkcif,imx415,v4l2_async,videobuf2_v4l2,videobuf2_common,videodev, Live 0x0000000000000000
+rockchip_iommu 32768 7 video_rkvpss,video_rkisp,video_rkcif,[permanent], Live 0x0000000000000000
+i2c_algo_bit 12288 0 - Live 0x0000000000000000
+nsh> 

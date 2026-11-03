@@ -1,0 +1,21 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec "k7aiq start"
+��[Linux 6.1.75 aarch64 on k7-linux, up 1665s, 48 procs]
+rkaiq_3A_server 退出了，日志尾巴：
+XCORE:K:Module GIC: opMode:1,en:0,bypass:0,man_ptr:0x7f98b8d108
+XCORE:K:Module YME: opMode:1,en:1,bypass:0,man_ptr:0x7f98b90a80
+XCORE:K:Module CAC: opMode:1,en:0,bypass:0,man_ptr:0x7f98bb14c0
+XCORE:K:Module LDCH: opMode:1,en:0,bypass:0,man_ptr:(nil)
+XCORE:K:Module HISTEQ: opMode:1,en:1,bypass:0,man_ptr:0x7f98b90f84
+XCORE:K:Module csm: opMode:2,en:1,bypass:0,man_ptr:0x7f98bb634c
+XCORE:K:Module MERGE: opMode:1,en:1,bypass:0,man_ptr:0x7f98b8e5f8
+XCORE:K:Module LSC: opMode:1,en:1,bypass:0,man_ptr:0x7f98b921f8
+XCORE:K:Module rgbir: opMode:1,en:0,bypass:0,man_ptr:0x7f98b9149c
+XCORE:K:Module cgc: opMode:1,en:1,bypass:0,man_ptr:0x7f98bb6380
+XCORE:K:Module cp: opMode:2,en:1,bypass:0,man_ptr:0x7f98b91e82
+XCORE:K:Module ie: opMode:2,en:0,bypass:0,man_ptr:0x7f98b91e8f
+XCORE:K:Module gain: opMode:2,en:1,bypass:0,man_ptr:0x7f98bb6428
+XCORE:K:Module 3DLUT: opMode:1,en:0,bypass:0,man_ptr:0x7f98b877e4
+XCORE:K:Module CCM: opMode:1,en:1,bypass:0,man_ptr:0x7f98b86de8
+nsh> 

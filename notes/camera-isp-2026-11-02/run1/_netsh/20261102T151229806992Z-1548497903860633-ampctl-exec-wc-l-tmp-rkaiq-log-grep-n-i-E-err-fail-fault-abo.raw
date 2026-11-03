@@ -1,0 +1,36 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "wc -l /tmp/rkaiq.log; grep -n -i -E \"err|fail|fault|abort|exit|signal|not found|no such|E:\" /tmp/rkaiq.log | head -n 30"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 1680s, 48 procs]
+70 /tmp/rkaiq.log
+1:ERR: test version 20250818 v1
+2:media get entity by name: rkisp-isp-subdev is null
+3:media get entity by name: rkisp-input-params is null
+4:media get entity by name: rkisp-statistics is null
+5:media get entity by name: rkisp_mainpath is null
+7:ERR: Bad media topology for: /dev/media0
+8:DBG: get rkisp-isp-subdev devname: /dev/v4l-subdev4
+9:DBG: get rkisp-input-params devname: /dev/video18
+10:DBG: get rkisp-statistics devname: /dev/video17
+11:DBG: get rkisp_mainpath devname: /dev/video11
+13:XCORE:K:rk_aiq_init_lib, ISP HW ver: 39
+16:version release date: 2024-06-18
+26:media get entity by name: rkisp-isp-subdev is null
+27:media get entity by name: rkisp-input-params is null
+28:media get entity by name: rkisp-statistics is null
+29:media get entity by name: rkisp_mainpath is null
+31:ERR: Bad media topology for: /dev/media2
+32:ERR: Bad media topology for: /dev/media3
+33:ERR: Bad media topology for: /dev/media4
+34:ERR: Bad media topology for: /dev/media5
+35:ERR: Bad media topology for: /dev/media6
+36:ERR: Bad media topology for: /dev/media7
+37:ERR: Bad media topology for: /dev/media8
+38:ERR: Bad media topology for: /dev/media9
+39:ERR: Bad media topology for: /dev/media10
+40:ERR: Bad media topology for: /dev/media11
+41:ERR: Bad media topology for: /dev/media12
+42:ERR: Bad media topology for: /dev/media13
+43:ERR: Bad media topology for: /dev/media14
+44:ERR: Bad media topology for: /dev/media15
+nsh> 

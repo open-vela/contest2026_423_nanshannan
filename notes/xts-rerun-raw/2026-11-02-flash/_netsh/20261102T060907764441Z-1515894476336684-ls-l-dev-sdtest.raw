@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kls -l /dev/sdtest
+ÿü brw-rw-rw-   1    67108864 /dev/sdtest
+nsh> 

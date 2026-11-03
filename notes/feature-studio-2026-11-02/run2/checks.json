@@ -1,0 +1,101 @@
+[
+  {
+    "name": "开始前：空调、新风开，台灯关",
+    "ok": true,
+    "detail": {
+      "living_light": "ON",
+      "desk_lamp": "OFF",
+      "ac": "ON",
+      "fresh_air": "ON",
+      "kettle": "OFF",
+      "tv": "OFF"
+    }
+  },
+  {
+    "name": "开始：下发 台灯 ON、空调 OFF、新风 OFF",
+    "ok": true,
+    "detail": [
+      "home/desk_lamp/set ON",
+      "home/ac/set OFF",
+      "home/fresh_air/set OFF",
+      "home/studio/onair ON",
+      "home/desk_lamp/state ON",
+      "home/ac/state OFF",
+      "home/fresh_air/state OFF"
+    ]
+  },
+  {
+    "name": "开始：电视、饮水机本来就关，不发指令",
+    "ok": true,
+    "detail": [
+      "home/desk_lamp/set ON",
+      "home/ac/set OFF",
+      "home/fresh_air/set OFF",
+      "home/studio/onair ON",
+      "home/desk_lamp/state ON",
+      "home/ac/state OFF",
+      "home/fresh_air/state OFF"
+    ]
+  },
+  {
+    "name": "开始：门口状态 ON（retain）",
+    "ok": true,
+    "detail": {
+      "living_light": "ON",
+      "desk_lamp": "ON",
+      "ac": "OFF",
+      "fresh_air": "OFF",
+      "kettle": "OFF",
+      "tv": "OFF",
+      "onair": "ON"
+    }
+  },
+  {
+    "name": "门铃：录制中代答",
+    "ok": true,
+    "detail": [
+      "home/doorbell/event ring",
+      "home/doorbell/reply 主人正在录制，请把东西放在门口，谢谢。"
+    ]
+  },
+  {
+    "name": "结束：台灯恢复 OFF、空调恢复 ON",
+    "ok": true,
+    "detail": [
+      "home/desk_lamp/set OFF",
+      "home/ac/set ON",
+      "home/studio/onair OFF",
+      "home/desk_lamp/state OFF",
+      "home/ac/state ON"
+    ]
+  },
+  {
+    "name": "结束：录制中被手动打开的新风不去动",
+    "ok": true,
+    "detail": [
+      "home/desk_lamp/set OFF",
+      "home/ac/set ON",
+      "home/studio/onair OFF",
+      "home/desk_lamp/state OFF",
+      "home/ac/state ON"
+    ]
+  },
+  {
+    "name": "结束：门口状态 OFF",
+    "ok": true,
+    "detail": {
+      "living_light": "ON",
+      "desk_lamp": "OFF",
+      "ac": "ON",
+      "fresh_air": "ON",
+      "kettle": "OFF",
+      "tv": "OFF",
+      "onair": "OFF"
+    }
+  },
+  {
+    "name": "打点清单写进 /data/studio/marks.txt",
+    "ok": true,
+    "detail": "un2/_netsh/20261102T072736777970Z-1520603685976192-cat-data-studio-marks-txt.raw\", \"text\": \"/home/dministrator/openvela-amlogic/src/contest2026_423_nanshannan/notes/feature-studio-2026-11-02/run2/_netsh/20261102T072736777970Z-1520603685976192-cat-data-studio-marks-txt.txt\", \"prompt_returned\": true}\n"
+  }
+]

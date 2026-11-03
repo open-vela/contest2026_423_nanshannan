@@ -1,0 +1,22 @@
+[Kramtest -w -s 52185136
+
+RAMTest: malloc failed, We were unableto continue with the follow-up work
+
+
+Usage: ramtest [-w|h|b] -a [hex-address] -s <decimal-size>
+
+
+Where:
+
+  -a [hex-address] starting address of the test,
+
+  -s <decimal-size> number of memory locations (in bytes).
+
+  -w Sets the width of a memory location to 32-bits.
+
+  -h Sets the width of a memory location to 16-bits (default).
+
+  -b Sets the width of a memory location to 8-bits.
+
+nsh> 
+{"command": "ramtest -w -s 52185136", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599401.4541705, "host_at_done": 1793599401.570369, "elapsed_monotonic_s": 0.11619858304038644, "host_clock_moved_back": false, "raw": "_netsh/20261102T060321447762Z-1515548145262773-ramtest-w-s-52185136.raw", "text": "_netsh/20261102T060321447762Z-1515548145262773-ramtest-w-s-52185136.txt", "prompt_returned": true}

@@ -1,0 +1,15 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "grep -n -E \"\\*\\*\\*|Backtrace|pc:|lr:|\\[0x|Memory map\" /tmp/r.log | head -n 30"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 2385s, 48 procs]
+15:************************** VERSION INFOS **************************
+25:************************ VERSION INFOS END ************************
+72:*** signal 
+76:Backtrace:
+77:/lib64/libc.so.6(+0x849cc)[0x7fadcf69cc]
+78:/lib64/libc.so.6(+0x5a840)[0x7fadccc840]
+79:/lib64/libc.so.6(+0x6af10)[0x7fadcdcf10]
+80:/lib64/libc.so.6(vsnprintf+0x2c)[0x7fadcdcf7c]
+81:/usr/lib64/librkaiq.so(+0x1dbd8)[0x7fae0f7bd8]
+83:Memory map:
+nsh> 

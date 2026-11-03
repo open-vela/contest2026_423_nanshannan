@@ -1,0 +1,348 @@
+[Kpipe
+
+
+pipe_main: Performing FIFO test
+
+open_write_only: Opening FIFO for write access
+
+open_write_only: Waiting for open_write_only thread
+
+pipe_main: open_write_only returned 0
+
+transfer_test: fdin=4 fdout=3
+
+transfer_test: Starting transfer_reader thread
+
+transfer_test: Starting transfer_writer thread
+
+transfer_reader: started
+
+transfer_test: Waiting for transfer_writer thread
+
+transfer_writer: started
+
+transfer_writer: 18200 bytes written
+
+transfer_reader: 18200 bytes read
+
+transfer_test: transfer_writer returned 0
+
+transfer_test: Waiting for transfer_reader thread
+
+transfer_test: transfer_reader returned 0
+
+transfer_test: returning 0
+
+transfer_test: fdin=4 fdout=3
+
+transfer_test: Boost priority of transfer_readerthread to 101
+
+transfer_test: Starting transfer_reader thread
+
+transfer_test: Starting transfer_writer thread
+
+transfer_reader: started
+
+transfer_test: Waiting for transfer_writer thread
+
+transfer_writer: started
+
+transfer_writer: 18200 bytes written
+
+transfer_reader: 18200 bytes read
+
+transfer_test: transfer_writer returned 0
+
+transfer_test: Waiting for transfer_reader thread
+
+transfer_test: transfer_reader returned 0
+
+transfer_test: returning 0
+
+transfer_test: fdin=4 fdout=3
+
+transfer_test: Starting transfer_reader thread
+
+transfer_test: Boost priority of transfer_writerthread to 101
+
+transfer_reader: started
+
+transfer_test: Starting transfer_writer thread
+
+transfer_test: Waiting for transfer_writer thread
+
+transfer_writer: started
+
+transfer_writer: 18200 bytes written
+
+transfer_reader: 18200 bytes read
+
+transfer_test: transfer_writer returned 0
+
+transfer_test: Waiting for transfer_reader thread
+
+transfer_test: transfer_reader returned 0
+
+transfer_test: returning 0
+
+transfer_test: fdin=4 fdout=3
+
+transfer_test: Boost priority of transfer_readerthread to 101
+
+transfer_test: Starting transfer_reader thread
+
+transfer_test: Boost priority of transfer_writerthread to 101
+
+transfer_reader: started
+
+transfer_test: Starting transfer_writer thread
+
+transfer_test: Waiting for transfer_writer thread
+
+transfer_writer: started
+
+transfer_writer: 18200 bytes written
+
+transfer_reader: 18200 bytes read
+
+transfer_test: transfer_writer returned 0
+
+transfer_test: Waiting for transfer_reader thread
+
+transfer_test: transfer_reader returned 0
+
+transfer_test: returning 0
+
+
+pipe_main: Performing pipe interlock test
+
+interlock_test: Starting null_writer thread
+
+interlock_test: Opening FIFO for read access
+
+null_writer: started -- sleeping
+
+null_writer: Opening FIFO for write access
+
+null_writer: Opened /var/testfifo-2 for writing -- sleeping
+
+interlock_test: Reading from /var/testfifo-2
+
+null_writer: Closing /var/testfifo-2
+
+interlock_test: read returned
+
+interlock_test: Closing /var/testfifo-2
+
+interlock_test: Waiting for null_writer thread
+
+null_writer: Returning success
+
+interlock_test: writer returned 0
+
+interlock_test: Starting null_reader thread
+
+interlock_test: Opening FIFO for write access
+
+null_reader: started -- sleeping
+
+null_reader: Opening FIFO for read access
+
+null_reader: Opened /var/testfifo-2 for reading -- sleeping
+
+interlock_test: Writing to /var/testfifo-2
+
+interlock_test: Wrote 16 bytes of data
+
+interlock_test: write returned
+
+interlock_test: Closing /var/testfifo-2
+
+interlock_test: Waiting for null_reader thread
+
+null_reader: Closing /var/testfifo-2
+
+null_reader: Returning success
+
+interlock_test: reader returned 0
+
+interlock_test: Returning 0
+
+pipe_main: FIFO interlock test PASSED
+
+pipe_main: FIFO test PASSED
+
+
+pipe_main: Performing pipe test
+
+transfer_test: fdin=4 fdout=3
+
+transfer_test: Starting transfer_reader thread
+
+transfer_test: Starting transfer_writer thread
+
+transfer_reader: started
+
+transfer_test: Waiting for transfer_writer thread
+
+transfer_writer: started
+
+transfer_writer: 18200 bytes written
+
+transfer_reader: 18200 bytes read
+
+transfer_test: transfer_writer returned 0
+
+transfer_test: Waiting for transfer_reader thread
+
+transfer_test: transfer_reader returned 0
+
+transfer_test: returning 0
+
+transfer_test: fdin=4 fdout=3
+
+transfer_test: Boost priority of transfer_readerthread to 101
+
+transfer_test: Starting transfer_reader thread
+
+transfer_test: Starting transfer_writer thread
+
+transfer_reader: started
+
+transfer_test: Waiting for transfer_writer thread
+
+transfer_writer: started
+
+transfer_writer: 18200 bytes written
+
+transfer_reader: 18200 bytes read
+
+transfer_test: transfer_writer returned 0
+
+transfer_test: Waiting for transfer_reader thread
+
+transfer_test: transfer_reader returned 0
+
+transfer_test: returning 0
+
+transfer_test: fdin=4 fdout=3
+
+transfer_test: Starting transfer_reader thread
+
+transfer_test: Boost priority of transfer_writerthread to 101
+
+transfer_reader: started
+
+transfer_test: Starting transfer_writer thread
+
+transfer_test: Waiting for transfer_writer thread
+
+transfer_writer: started
+
+transfer_writer: 18200 bytes written
+
+transfer_reader: 18200 bytes read
+
+transfer_test: transfer_writer returned 0
+
+transfer_test: Waiting for transfer_reader thread
+
+transfer_test: transfer_reader returned 0
+
+transfer_test: returning 0
+
+transfer_test: fdin=4 fdout=3
+
+transfer_test: Boost priority of transfer_readerthread to 101
+
+transfer_test: Starting transfer_reader thread
+
+transfer_test: Boost priority of transfer_writerthread to 101
+
+transfer_reader: started
+
+transfer_test: Starting transfer_writer thread
+
+transfer_test: Waiting for transfer_writer thread
+
+transfer_writer: started
+
+transfer_writer: 18200 bytes written
+
+transfer_reader: 18200 bytes read
+
+transfer_test: transfer_writer returned 0
+
+transfer_test: Waiting for transfer_reader thread
+
+transfer_test: transfer_reader returned 0
+
+transfer_test: returning 0
+
+
+pipe_main: Performing redirection test
+
+redirection_test: Starting redirect_writer task with fd=3
+
+redirection_test: Starting redirect_reader task with fd=4
+
+redirect_writer: started with fdout=3
+
+redirection_test: Waiting for null_reader thread
+
+redirect_reader: started with fdin=4
+
+
+Four score and seven years ago our fathers broughtforth on this continent a new nation,
+
+conceived in Liberty, and dedicated to the propositionthat all men are created equal.
+
+
+Now we are engaged in a great civil war, testingwhether that nation, or any nation, so
+
+conceived and so dedicated, can long endure. We are meton a great battle-field of that war.
+
+We have come to dedicate a portion of that field, asredirect_writer: 1456 bytes written
+
+redirect_writer: Returning success
+
+gave their lives that that nation might live. It isaltogether fitting and proper that we
+
+should do this.
+
+
+But, in a larger sense, we can not dedicate - we cannot consecrate - we can not hallow - this ground.
+
+The brave men, living and dead, who struggled here, haveconsecrated it, far above our poor power
+
+to add or detract. The world will little note, nor longremember what we say here, but it can
+
+never forget what they did here. It is for us theliving, rather, to be dedicated here to the
+
+unfinished work which they who fought here have thus farso nobly advanced. It is rather for us to
+
+be here dedicated to the great task remaining before us- that from these honored dead we take
+
+increased devotion to that cause for which they gave thelast full measure of devotion - that we
+
+here highly resolve that these dead shall not have diedin vain - that this nation, under God,
+
+shall have a new birth of freedom - and that governmentof the people, by the people, for the
+
+people, shall not perish from the earth.
+
+
+redirect_reader: 1456 bytes read
+
+redirect_reader: Returning success
+
+redirection_test: Waiting...
+
+redirection_test: returning 0
+
+pipe_main: PIPE redirection test PASSED
+
+pipe_main: PIPE test PASSED
+
+nsh> 
+{"command": "pipe", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599384.0535657, "host_at_done": 1793599368.037414, "elapsed_monotonic_s": 30.484909808030352, "host_clock_moved_back": true, "raw": "_netsh/20261102T060304046379Z-1515484244270737-pipe.raw", "text": "_netsh/20261102T060304046379Z-1515484244270737-pipe.txt", "prompt_returned": true}

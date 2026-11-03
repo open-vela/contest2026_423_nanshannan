@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec df
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 142s, 58 procs]
+Filesystem           1024-blocks    Used Available Use% Mounted on
+nsh> 

@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kcmocka_ecdsa
+ÿüp256 generate key sync success
+p256 sign sync success
+p256 verify sync success
+Test SECP256R1 case success
+
+nsh> 

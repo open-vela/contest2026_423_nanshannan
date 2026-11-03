@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "ps | grep -E 'k7cam|rkaiq' | grep -v grep; grep -E 'BAY3D|YNR' /proc/rkisp-vir2 | cut -c1-100; tail -n 2 /tmp/k7live.log"
+[Linux 6.1.75 aarch64 on k7-linux, up 215s, 58 procs]
+看到 /tmp/k7live.stop，停止（630 帧）
+共 630 帧，平均 30.0 fps（首帧在起流后 81 ms）
+nsh> 

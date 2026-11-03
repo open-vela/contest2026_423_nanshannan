@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kmkrd -m 10 -s 1000 1024
+nsh> 

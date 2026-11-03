@@ -1,0 +1,42 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec cat /proc/interrupts
+[Linux 6.1.75 aarch64 on k7-linux, up 121s, 58 procs]
+           CPU0       CPU1       CPU2       CPU3       
+ 12:      12219        259        175       2554 GIC-0  27 Level     arch_timer
+ 22:         37          0          0          0 GIC-0 121 Level     2ac40000.i2c
+ 23:          1          0          0          0 GIC-0 128 Level     2acb0000.i2c
+ 24:         14          0          0          0 GIC-0 157 Level     2ae50000.mailbox
+ 25:          0          0          0          0 GIC-0 160 Level     2ae53000.mailbox
+ 26:         10          0          0          0 GIC-0 279 Level     27702000.iommu, 27700000.npu
+ 27:          0          0          0          0 GIC-0 280 Level     27702000.iommu, 27700000.npu
+ 28:          0          0          0          0 GIC-0 356 Level     27c07f00.iommu
+ 29:          0          0          0          0 GIC-0 351 Level     27c10800.iommu
+ 30:          0          0          0          0 GIC-0 359 Level     27c33f00.iommu
+ 31:          0          0          0          0 GIC-0 350 Level     rkcifhw
+ 32:          0          0          0          0 GIC-0 344 Level     rockchip-mipi-csi2-hw
+ 33:          0          0          0          0 GIC-0 345 Level     rockchip-mipi-csi2-hw
+ 34:          0          0          0          0 GIC-0 346 Level     rockchip-mipi-csi2-hw
+ 35:          0          0          0          0 GIC-0 347 Level     rockchip-mipi-csi2-hw
+ 36:          0          0          0          0 GIC-0 348 Level     rockchip-mipi-csi2-hw
+ 37:          0          0          0          0 GIC-0 349 Level     rockchip-mipi-csi2-hw
+ 38:          0          0          0          0 GIC-0 415 Level     rockchip-mipi-csi2-hw
+ 39:          0          0          0          0 GIC-0 416 Level     rockchip-mipi-csi2-hw
+ 40:          0          0          0          0 GIC-0 417 Level     rockchip-mipi-csi2-hw
+ 41:          0          0          0          0 GIC-0 418 Level     rockchip-mipi-csi2-hw
+ 42:          0          0          0          0 GIC-0 355 Level     rkisp_hw
+ 43:          0          0          0          0 GIC-0 354 Level     rkisp_hw
+ 44:          0          0          0          0 GIC-0 353 Level     rkisp_hw
+ 45:          0          0          0          0 GIC-0 358 Level     rkvpss_hw
+ 46:          0          0          0          0 GIC-0 357 Level     rkvpss_hw
+ 47:          0          0          0          0  rockchip_gpio_irq   6 Level     rk806
+ 50:          0          0          0          0     rk806   7 Level     rk806_vb_low
+IPI0:        49         81        109         57       Rescheduling interrupts
+IPI1:       138        502        235       2509       Function call interrupts
+IPI2:         0          0          0          0       CPU stop interrupts
+IPI3:         0          0          0          0       CPU stop (for crash dump) interrupts
+IPI4:         0          0          0          0       Timer broadcast interrupts
+IPI5:         0          0          0          0       IRQ work interrupts
+IPI6:         0          0          0          0       CPU wake-up interrupts
+Err:          0
+nsh> 

@@ -1,0 +1,16 @@
+[Kramtest -w -s 52245696
+
+RAMTest: Marching ones: 4b21eb50 52245696
+
+RAMTest: Marching zeroes: 4b21eb50 52245696
+
+RAMTest: Pattern test: 4b21eb50 52245696 55555555 aaaaaaaa
+
+RAMTest: Pattern test: 4b21eb50 52245696 66666666 99999999
+
+RAMTest: Pattern test: 4b21eb50 52245696 33333333 cccccccc
+
+RAMTest: Address-in-address test: 4b21eb50 52245696
+
+nsh> 
+{"command": "ramtest -w -s 52245696", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599638.8875768, "host_at_done": 1793599645.0317302, "elapsed_monotonic_s": 6.143535129958764, "host_clock_moved_back": false, "raw": "ramtest-retry/_netsh/20261102T060718880040Z-1515785587735574-ramtest-w-s-52245696.raw", "text": "ramtest-retry/_netsh/20261102T060718880040Z-1515785587735574-ramtest-w-s-52245696.txt", "prompt_returned": true}

@@ -1,0 +1,16 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "kill 481; rm -f /tmp/k7npu-guard.pid /tmp/k7g; (k7npu guard > /tmp/k7npu-guard.log 2>&1 &); sleep 2; cat /tmp/k7npu-guard.log; k7npu mhz 950; k7npu test 3 | grep NPU; dmesg | grep clk_npu | tail -n 3; k7pmic npu-mv"
+[Linux 6.1.75 aarch64 on k7-linux, up 85s, 63 procs]
+84.78s npu 41°C：600 -> 800 MHz
+RK806 806a，DCDC2 开，VSEL 0x30 = 800000 uV
+写 0x3c，回读 0x3c = 875000 uV
+目标 950 MHz（温控会在过热时临时降）
+第 0 次：rknn_run 2 ms（NPU 2110 us）
+第 1 次：rknn_run 2 ms（NPU 2016 us）
+第 2 次：rknn_run 2 ms（NPU 2025 us）
+<6>[   68.550333] RKNPU 27700000.npu: RKNPU: clk_npu 800000000 -> 600000000 Hz (0)
+<12>[   87.067049] k7d: exec: kill 481; rm -f /tmp/k7npu-guard.pid /tmp/k7g; (k7npu guard > /tmp/k7npu-guard.log 2>&1 &); sleep 2; cat /tmp/k7npu-guard.log; k7npu mhz 950; k7npu test 3 | grep NPU; dmesg | grep clk_npu | tail -n 3; k7pmic npu-mv
+<6>[   89.091873] RKNPU 27700000.npu: RKNPU: clk_npu 600000000 -> 950000000 Hz (0)
+RK806 806a，DCDC2 开，VSEL 0x3c = 875000 uV
+nsh> 

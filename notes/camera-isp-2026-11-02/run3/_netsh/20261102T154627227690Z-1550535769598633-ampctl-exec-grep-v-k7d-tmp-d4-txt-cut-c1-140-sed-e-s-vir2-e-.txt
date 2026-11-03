@@ -1,0 +1,25 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "grep -v k7d /tmp/d4.txt | cut -c1-140 | sed -e 's/^.*vir2: //' -e 's/[0-9]//g' | sort | uniq -c | sort -rn | head -n 20"
+[Linux 6.1.75 aarch64 on k7-linux, up 699s, 57 procs]
+     60 isp isr:x, x
+     30 mi isr:x
+     23 rkisp_stats_update_buf BASE:xffff SHD AEBIG:xffffc AE:xffffcc AF:xffffcf AWB:xffffe
+     20 __isp_isr_other_en id: seq: module_en_update:x module_ens:x
+     20 __isp_isr_other_config id: seq: module_cfg_update:xc
+     20 __isp_isr_meas_en id: seq: module_en_update:x module_ens:x
+     20 __isp_isr_meas_config id: seq: module_cfg_update:xc
+      8 update_mi stream: cur:fcb next:bba Y:xffa CB:xffae | Y_SHD:xffc pa
+      8 update_mi stream: cur:ddbd next:fcb Y:xffc CB:xffce | Y_SHD:xffe pa
+      8 stream: seq: buf done:xffe
+      8 stream: seq: buf done:xff
+      8 stream: queue buf:xffe
+      8 stream: queue buf:xff
+      8 rkisp_stats_send_meas_v seq: params_id: ris:x buf:eb meas_type:x
+      8 rkisp_stats_send_meas_v seq: params_id: ris:x buf:dea meas_type:x
+      7 update_mi stream: cur:cdcbb next:ddbd Y:xffe CB:xffee | Y_SHD:xff pa
+      7 update_mi stream: cur:bba next:cdcbb Y:xff CB:xffe | Y_SHD:xffa pa
+      7 stream: seq: buf done:xffc
+      7 stream: seq: buf done:xffa
+      7 stream: queue buf:xffc
+nsh> 

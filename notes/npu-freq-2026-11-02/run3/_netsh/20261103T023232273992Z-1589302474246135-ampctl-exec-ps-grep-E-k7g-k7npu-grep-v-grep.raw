@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "ps | grep -E \"k7g|k7npu\" | grep -v grep"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 76s, 63 procs]
+  481 0         1316 S    {k7g} /bin/sh /tmp/k7g guard
+nsh> 

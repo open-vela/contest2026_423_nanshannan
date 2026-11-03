@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "cat /lib/modules/6.1.75/npu.order; grep -n npu_hz /usr/bin/k7npu"
+[Linux 6.1.75 aarch64 on k7-linux, up 64s, 59 procs]
+kernel/drivers/gpu/drm/drm_panel_orientation_quirks.ko
+kernel/drivers/gpu/drm/drm.ko
+kernel/drivers/rknpu/rknpu.ko
+17:#   （不读芯片的漏电分档，按最差的 L0 取），再带 npu_hz= 装 rknpu.ko，
+60:		case $m in */rknpu.ko) [ "$mhz" != 0 ] && p="npu_hz=${mhz}000000" ;; esac
+nsh> 

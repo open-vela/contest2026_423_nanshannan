@@ -1,0 +1,12 @@
+[Kampctl exec free
+
+[Linux 6.1.75 aarch64 on k7-linux, up 1986s, 51 procs]
+
+              total        used        free      shared  buff/cache   available
+
+Mem:        3880604       22516     3845652           0       12436     3826728
+
+Swap:             0           0           0
+
+nsh> 
+{"command": "ampctl exec free", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599376.8146355, "host_at_done": 1793599376.9418392, "elapsed_monotonic_s": 0.12720360117964447, "host_clock_moved_back": false, "raw": "_netsh/20261102T060256807837Z-1515523505657860-ampctl-exec-free.raw", "text": "_netsh/20261102T060256807837Z-1515523505657860-ampctl-exec-free.txt", "prompt_returned": true}

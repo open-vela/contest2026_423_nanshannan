@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kecho 476 422 > /tmp/k7-tap
+nsh> 

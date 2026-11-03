@@ -1,0 +1,10 @@
+[CPU0] [==========] hash_tests: Running 4 test(s).
+[CPU0] [ RUN      ] test_hash_md5
+[CPU0] [       OK ] test_hash_md5
+[CPU0] [ RUN      ] test_hash1
+[CPU0] [       OK ] test_hash_sha1
+[CPU0] [ RUN      ] test_has[CPU0] [       OK ] test_hash_sha256
+[CPU0] [ RUN      ] test_hash_sha512
+[CPU0] [       OK ] test_hash_sha512
+[CPU0] [==========] hash_ts) run.
+[CPU0] [  PASSED  ] 4 test(s).

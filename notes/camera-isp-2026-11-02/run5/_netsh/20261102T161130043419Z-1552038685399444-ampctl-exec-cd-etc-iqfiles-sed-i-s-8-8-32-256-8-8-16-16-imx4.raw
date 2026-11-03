@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "cd /etc/iqfiles; sed -i 's/8,8,32,256/8,8,16,16/' imx415*.json; grep -n 'gain_dot.: .1,2' imx415*.json | cut -c1-80; touch /tmp/k7live.stop; sleep 1; k7aiq stop"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 986s, 58 procs]
+234:									"sw_aeT_gain_dot": [1,2,8,8,16,16],
+14209:									"sw_aeT_gain_dot": [1,2,8,8,16,16],
+28219:									"sw_aeT_gain_dot": [1,2,8,8,16,16],
+å·²åœ
+nsh> 

@@ -1,0 +1,19 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec k7npu test 5
+��[Linux 6.1.75 aarch64 on k7-linux, up 110s, 58 procs]
+rknn_init: 0，用时 13 ms
+api 2.0.0b0 (35a6907d79@2024-03-24T10:31:14) / driver 0.9.8
+输入 1 个、输出 1 个；输入 0：1x224x224x3，150528 字节
+第 0 次：rknn_run 8 ms（NPU 8691 us）
+第 1 次：rknn_run 8 ms（NPU 8592 us）
+第 2 次：rknn_run 8 ms（NPU 8596 us）
+第 3 次：rknn_run 8 ms（NPU 8592 us）
+第 4 次：rknn_run 8 ms（NPU 8581 us）
+输出 1001 类，top-5：
+   283  0.4153
+   282  0.1758
+   286  0.1588
+   278  0.0603
+   279  0.0434
+nsh> 

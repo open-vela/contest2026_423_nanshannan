@@ -1,0 +1,41 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec "k7npu test 3 | grep NPU; rmmod rknpu; k7npu load 800 | tail -n 1; k7npu test 3 | grep NPU; rmmod rknpu; k7npu load; k7npu test 3 | tail -n 9; dmesg | grep clk_npu; k7pmic npu-mv"
+��[Linux 6.1.75 aarch64 on k7-linux, up 29s, 56 procs]
+<12>[   30.618045] k7d: exec: k7npu test 3 | grep NPU; rmmod rknpu; k7npu load 800 | tail -n 1; k7npu test 3 | grep NPU; rmmod rknpu; k7npu load; k7npu test 3 | tail -n 9; dmesg | grep clk_npu; k7pmic npu-mv
+<6>[   30.649558] RKNPU 27700000.npu: Adding to iommu group 0
+<6>[   30.649678] RKNPU 27700000.npu: RKNPU: rknpu iommu is enabled, using iommu mode
+<3>[   30.649725] RKNPU 27700000.npu: can't request region for resource [mem 0x27700000-0x27707fff]
+<3>[   30.649742] RKNPU 27700000.npu: can't request region for resource [mem 0x27708000-0x2770ffff]
+<6>[   30.650160] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+第 0 次：rknn_run 2 ms（NPU 2157 us）
+第 1 次：rknn_run 2 ms（NPU 2026 us）
+第 2 次：rknn_run 2 ms（NPU 2024 us）
+<6>[   30.823548] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+第 0 次：rknn_run 2 ms（NPU 2171 us）
+第 1 次：rknn_run 2 ms（NPU 2074 us）
+第 2 次：rknn_run 2 ms（NPU 2071 us）
+PMU STATUS=0x02000000 REPAIR=0xfdffffff：npu 开 nputop 开 npu0 开 npu1 开
+<6>[   30.823372] [drm] Initialized rknpu 0.9.8 20240828 for 27700000.npu on minor 0
+<6>[   30.823548] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+<6>[   30.838250] RKNPU 27700000.npu: RKNPU: clk_npu 950000000 -> 800000000 Hz (0)
+<6>[   30.999076] RKNPU 27700000.npu: RKNPU: rknpu iommu is enabled, using iommu mode
+<3>[   30.999125] RKNPU 27700000.npu: can't request region for resource [mem 0x27700000-0x27707fff]
+<3>[   30.999138] RKNPU 27700000.npu: can't request region for resource [mem 0x27708000-0x2770ffff]
+<6>[   30.999365] [drm] Initialized rknpu 0.9.8 20240828 for 27700000.npu on minor 0
+<6>[   30.999547] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+第 0 次：rknn_run 2 ms（NPU 2128 us）
+第 1 次：rknn_run 2 ms（NPU 2022 us）
+第 2 次：rknn_run 2 ms（NPU 2022 us）
+输出 1001 类，top-5：
+   283  0.4153
+   282  0.1758
+   286  0.1588
+   278  0.0603
+   279  0.0434
+<12>[   30.618045] k7d: exec: k7npu test 3 | grep NPU; rmmod rknpu; k7npu load 800 | tail -n 1; k7npu test 3 | grep NPU; rmmod rknpu; k7npu load; k7npu test 3 | tail -n 9; dmesg | grep clk_npu; k7pmic npu-mv
+<6>[   30.662475] RKNPU 27700000.npu: RKNPU: clk_npu 198000000 -> 950000000 Hz (0)
+<6>[   30.838250] RKNPU 27700000.npu: RKNPU: clk_npu 950000000 -> 800000000 Hz (0)
+<6>[   31.014129] RKNPU 27700000.npu: RKNPU: clk_npu 800000000 -> 950000000 Hz (0)
+RK806 806a，DCDC2 开，VSEL 0x3c = 875000 uV
+nsh> 

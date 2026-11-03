@@ -1,0 +1,12 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "ps | grep -E \"k7cam|rkaiq\" | grep -v grep; cat /tmp/k7live.log | head -n 20; grep -c . /tmp/rkaiq.log"
+[Linux 6.1.75 aarch64 on k7-linux, up 50s, 62 procs]
+  218 0         182m S    rkaiq_3A_server
+ISP /dev/video11: 1280x720 fourcc=NV12 planes=1 bytesperline=1280 sizeimage=1382400
+帧 1: seq=0 字节=1382400 间隔=0 ms  均值 Y=30 U=124 V=122
+帧 301: seq=300 字节=1382400 间隔=33 ms  均值 Y=37 U=123 V=122
+看到 /tmp/k7live.stop，停止（570 帧）
+共 570 帧，平均 30.0 fps（首帧在起流后 80 ms）
+1941
+nsh> 

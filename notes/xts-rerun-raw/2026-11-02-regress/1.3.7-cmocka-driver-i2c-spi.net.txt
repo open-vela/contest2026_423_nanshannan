@@ -1,0 +1,4 @@
+[Kcmocka_driver_i2c_spi
+
+nsh> 
+{"command": "cmocka_driver_i2c_spi", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599413.40307, "host_at_done": 1793599413.4991663, "elapsed_monotonic_s": 0.09609635802917182, "host_clock_moved_back": false, "raw": "_netsh/20261102T060333395054Z-1515560094292949-cmocka-driver-i2c-spi.raw", "text": "_netsh/20261102T060333395054Z-1515560094292949-cmocka-driver-i2c-spi.txt", "prompt_returned": true}

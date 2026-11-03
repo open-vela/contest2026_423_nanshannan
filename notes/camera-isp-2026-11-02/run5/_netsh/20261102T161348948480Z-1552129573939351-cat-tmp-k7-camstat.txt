@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kcat /tmp/k7-camstat
+nsh: cat: open failed: 2
+nsh> 

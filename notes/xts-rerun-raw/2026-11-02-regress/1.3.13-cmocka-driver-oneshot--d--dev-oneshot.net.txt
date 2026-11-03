@@ -1,0 +1,4 @@
+[Kcmocka_driver_oneshot -d /dev/oneshot
+
+nsh> 
+{"command": "cmocka_driver_oneshot -d /dev/oneshot", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599416.5461795, "host_at_done": 1793599441.6714838, "elapsed_monotonic_s": 25.12564907199703, "host_clock_moved_back": false, "raw": "_netsh/20261102T060336539780Z-1515563239014835-cmocka-driver-oneshot-d-dev-oneshot.raw", "text": "_netsh/20261102T060336539780Z-1515563239014835-cmocka-driver-oneshot-d-dev-oneshot.txt", "prompt_returned": true}

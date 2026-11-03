@@ -1,0 +1,6 @@
+[CPU0] [==========] tests: Running 1 test(s).
+[CPU0] [ RUN      ] drivertest_i2c_spi
+[CPU0] Coe->fd > 0
+[   LINE   ] --- drivertest_i2c_spi.c:85: error: Failure!Test setup failed
+[CPU0] [  [==========] tests: 1 test(s) run.
+[CPU0] [  PASSED  ] 0 test(s).

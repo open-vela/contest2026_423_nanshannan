@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kk7diag sdpart
+/dev/sdtest：/dev/mmcsd1 的扇区 30589952 起 131072 个（64 MB），ret 0
+nsh> 

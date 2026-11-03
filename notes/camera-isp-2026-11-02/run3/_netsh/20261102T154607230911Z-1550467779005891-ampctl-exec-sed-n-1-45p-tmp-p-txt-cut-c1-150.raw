@@ -1,0 +1,50 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "sed -n 1,45p /tmp/p.txt | cut -c1-150"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 631s, 57 procs]
+rkisp-vir2 ISP:0xa0 Version:v02.06.00
+clk_isp_core 594000000
+aclk_isp   594000000
+hclk_isp   198000000
+clk_isp_core_marvin 594000000
+clk_isp_core_vicap 594000000
+Interrupt  Cnt:229 ErrCnt:0
+Input      rkcif-mipi-lvds3 Format:SGBRG10_1X10 Size:3840x2160@30fps Offset(0,0) Inp:0x100
+Isp online frame:113 state:working time:32ms v-blank:1293us
+Output     rkisp_mainpath Format:NV12 Size:1280x720 Dcrop(0,0|3840x2160) (frame:113 rate:33ms delay:32ms frameloss:0 bufcnt:4)
+GIC        OFF(0x2)
+CAC        OFF(0x2802a2)
+SDG        OFF(0x6117)
+AWBGAIN    OFF(0x6117) (gain0:0x01000100 0x01000100 gain1:0x10d010d 0x27101e7)
+DPCC0      OFF(0x40000004)
+DPCC1      OFF(0x40000004)
+BLS        ON(0x31)
+LSC        OFF(0x4)
+DEBAYER    ON(0xf0000111)
+CCM        OFF(0x8000010)
+GAMMA_OUT  OFF(0x4)
+CPROC      OFF(0xe)
+IE         OFF(0x0) (effect: OFF)
+HDRDRC     OFF(0x0)
+HDRMGE     OFF(0x0)
+DHAZ       OFF(0x14110110) contrast:1 hist:1 enhance:1 blk(row:8 col:8)
+BAY3D      OFF(0x0 0x23800 0x3f3f0002) bypass:0 iirsparse:0 size:0
+YUVME      OFF(0x0) bypass:0 size:0
+YNR        OFF(0x4001000) bypass(lospnr:0 hispnr:0)
+CNR        OFF(0x4003f030)
+SHARP      OFF(0xf000070) bypass:0
+3DLUT      OFF(0x0)
+LDCH       OFF(0x0)
+LDCV       OFF(0x0)
+RGBIR      OFF(0x0)
+CSM        FULL(0x6117), y_offs:0x0 c_offs:0x80
+	   coeff Y:0x26 0x4b 0xf CB:0x1ea 0x1d6 0x40 CR:0x40 0x1ca 0x1f6
+GAIN       OFF(0x0)
+RAWAF      OFF(0x310036)
+RAWAWB     OFF(0x747688e)
+RAWAE0     OFF(0xf4)
+RAWAE3     OFF(0xf4)
+RAWHIST0   OFF(0xa0000500)
+RAWHIST3   OFF(0xa0000500)
+BigMode    ON(0x30000010)
+nsh> 

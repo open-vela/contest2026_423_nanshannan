@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Krm /tmp/k7-camstat
+nsh> 

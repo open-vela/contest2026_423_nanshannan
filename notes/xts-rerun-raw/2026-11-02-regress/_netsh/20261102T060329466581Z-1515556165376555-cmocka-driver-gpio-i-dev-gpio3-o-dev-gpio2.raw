@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kcmocka_driver_gpio -i /dev/gpio3 -o /dev/gpio2
+ÿü[write and read output]  writevalue is 1, outvalue is 1
+[input and output test]  outvalue is 48, invalue is 48
+nsh> 

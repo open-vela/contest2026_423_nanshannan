@@ -1,0 +1,11 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "(/tmp/k7g guard > /tmp/g.log 2>&1 &); sleep 3; k7npu temp | grep npu; k7npu test 2 | grep NPU; cat /tmp/g.log; dmesg | grep clk_npu | tail -n 2"
+[Linux 6.1.75 aarch64 on k7-linux, up 64s, 61 procs]
+npu-thermal 41.6
+第 0 次：rknn_run 2 ms（NPU 2482 us）
+第 1 次：rknn_run 2 ms（NPU 2442 us）
+63.24s npu 41°C：800 -> 600 MHz
+<12>[   65.527044] k7d: exec: (/tmp/k7g guard > /tmp/g.log 2>&1 &); sleep 3; k7npu temp | grep npu; k7npu test 2 | grep NPU; cat /tmp/g.log; dmesg | grep clk_npu | tail -n 2
+<6>[   68.550333] RKNPU 27700000.npu: RKNPU: clk_npu 800000000 -> 600000000 Hz (0)
+nsh> 

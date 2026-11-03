@@ -1,0 +1,4 @@
+[Kmkrd -m 10 -s 1000 1024
+
+nsh> 
+{"command": "mkrd -m 10 -s 1000 1024", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599406.224685, "host_at_done": 1793599406.322755, "elapsed_monotonic_s": 0.09807017003186047, "host_clock_moved_back": false, "raw": "_netsh/20261102T060326218131Z-1515552919373267-mkrd-m-10-s-1000-1024.raw", "text": "_netsh/20261102T060326218131Z-1515552919373267-mkrd-m-10-s-1000-1024.txt", "prompt_returned": true}

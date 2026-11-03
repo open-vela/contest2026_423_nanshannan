@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kecho 修复后空闲三分钟后第二条 > /tmp/k7-memo
+nsh> 

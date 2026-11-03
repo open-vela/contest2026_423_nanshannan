@@ -1,0 +1,9 @@
+模拟设备已就绪（broker 192.168.1.50）：living_light desk_lamp ac fresh_air kettle tv
+02:24:23 home/ac/set ON
+02:24:23 home/fresh_air/set ON
+02:24:25 home/desk_lamp/set ON
+02:24:25 home/ac/set OFF
+02:24:25 home/fresh_air/set OFF
+02:24:29 home/fresh_air/set ON
+02:24:33 home/desk_lamp/set OFF
+02:24:33 home/ac/set ON

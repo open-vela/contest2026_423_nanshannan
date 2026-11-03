@@ -1,0 +1,5 @@
+[CPU0] [==========] aescbc_tests: Running 1 test(s).
+[CPU0] [ RUN      ] test_aescbc
+[CPU0] [       OK ] test_aescbc
+[CPU0] [sts: 1 test(s) run.
+[CPU0] [  PASSED  ] 1 test(s).

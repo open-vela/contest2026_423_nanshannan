@@ -1,0 +1,144 @@
+[CPU0] [==========] nuttx_syscall_test_suites: Running 82 test(sscall_chdir01
+[CPU0] [       OK ] test_nuttx_syscall_chdir01
+[] [ RUN      ] test_nuttx_syscall_chdir02
+[CPU0] [       OK ] test_nuttx_syscall_chdir02
+[CPU0] test_nuttx_syscall_getitimer01
+[CPU0] [       OK ] test_nuttx_syscall_getitimer01
+[CPU0] [ Rckgettime01
+[CPU0] [       OK ] test_nuttx_syscall_clockgettime01
+[CPU0] [ RUN      ] test_nut[CPU0] [       OK ] test_nuttx_syscall_clocknanosleep01
+[CPU0] t_nuttx_syscall_clocksettime01
+[CPU0] [       OK ] test_nuttx_syscall_clocksettime01
+[CPU0] [ [CPU0] [       OK ] test_nuttx_syscall_close01
+[CPU0] [ RUN      ] test_nuttx_syscall_close02
+syscall_close02
+[CPU0] [ RUN      ] test_nuttx_syscall_close03
+[CPU0] [       OK ] test_nuttx_syscall_close03
+[CPU0] [ RUN      ] test_nuttx_syscall_creat01CPU0] [       OK ] test_nuttx_syscall_creat01
+[CPU0] [ RUN      ] test_nuttx_syscall_creat02
+[CPU0] [       OK ] test_nuttx_syscall_creat02
+[CPU0] [ RUN      ] test_nuttx_syscall_fcntl02
+[CPU0] [       OK ] test_nuttx_syscall_fcntl02
+[CPU0] [ RUN      ] test_nuttx_syscall_fcntl03
+[CPU0] [       OK ] test_nuttx_syscall_fcntl03
+[CPU0] [ RUN      ] test_nuttx_syscall_fcntl04
+[CPU0] [       OK ] test_nuttx_sy test_nuttx_syscall_fcntl06
+[CPU0] [       OK ] test_nuttx_syscall_fcntl06
+[CPU0] [ RUN      ][CPU0] [       OK ] test_nuttx_s1
+[CPU0] [ RUN      ] test_nuttx_syscall_fsync01
+[CPU0] [       OK ] test_nuttx_syscall_fsync01
+[CPU0] [ RUN      ] test_nuttx_syscall_fsync02
+[CPU0] [     [CPU0] [ RUN      ] test_nuttx_syscall_fsync03
+[CPU0] [       OK ] test_nuttx_syscall_fsync03
+uttx_syscall_getpeername01
+[CPU0] [       OK ] test_nuttx_syscall_getpeername01
+[CPU0] [ RUN  ckopt01
+[CPU0] [       OK ] test_nuttx_syscall_getsockopt01
+[CPU0] [ RUN      ] test_nuttx_sysCPU0] [       OK ] test_nuttx_syscall_setsockopt01
+[CPU0] [ RUN      ] test_nuttx_syscall_liste[CPU0] bad file descriptor successful
+[CPU0] listen(3, 0) failed
+[CPU0] not a socket successfu UDP listen successful
+[CPU0] [       OK ] test_nuttx_syscall_listen01
+[CPU0] [ RUN      ] tes[CPU0] [       OK ] test_nuttx_syscall_ftruncate01
+[CPU0] [ RUN      ] test_nuttx_syscall_getcwnuttx_syscall_getcwd01
+[CPU0] [ RUN      ] test_nuttx_syscall_getcwd02
+[CPU0] [       OK ] tes] [ RUN      ] test_nuttx_syscall_getpid01
+[CPU0] [       OK ] test_nuttx_syscall_getpid01
+[CPll_getppid01
+[CPU0] [       OK ] test_nuttx_syscall_getppid01
+[CPU0] [ RUN      ] test_nuttx_syscall_gethostname01
+[CPU0] [       OK ] test_nuttx_syscall_gethostname01
+[CPU0] [ RUN      ] test_nuttx_syscall_gettimeofday01
+[CPU0] [       OK ] test_nuttx_syscall_gettimeofday01
+[CPU0] [ est_nuttx_syscall_lseek01
+[CPU0] [       OK ] test_nuttx_syscal
+[CPU0] [ RUN      ] test_nuttx_syscall_lseek07
+[CPU0] [       OK ] test_nuttx_syscall_lseek07CPU0] [ RUN      ] test_nuttx_syscall_lstat01
+[CPU0] [       OK ] test_nuttx_syscall_lstat01
+[CPU0] [ RUN      ] test_nuttx_syscall_dup01
+[CPU0] [       OK ] test_nuttx_syscall_dup01
+[CPU0] [ RUN      ] test_nuttx_syscall_dup02
+[CPU0] [       OK ] test_nuttx_syscall_dup02
+[CPU0] [ [CPU0] [       OK ] test_nuttx_s0] [ RUN      ] test_nuttx_syscall_dup04
+[CPU0] [       OK ] test_nuttx_syscall_dup04
+[CPU0] [ RUN      ] test_nuttx_syscall_dup05
+[CPU0] [       OK ] test_nuttx_syscall_dup05
+[CPU0] [ RUN      ] test_nuttx_syscall_dup20] test_nuttx_syscall_dup201
+[CPU0] [ RUN      ] test_nuttx_syscall_dup202
+[CPU0] [       OK ] test_nuttx_syscall_dup202
+[CPU0] [ RUN      ] test_nuttx_syscall_fpathconf01
+[CPU0] [       OK ] test_nuttx_syscall_fpathconf0st_nuttx_syscall_getegid01
+[CPU0] [       OK ] test_nuttx_syscall_getegid01
+[CPU0] [ RUN      ] test_nuttx_syscall_getegid02
+[CPU0] [       OK ] test_nuttx_syscall_getegid02
+[CPU0] [ RUN      ] test_nuttx_syscall_geteuid01
+[CPU0] [       OK ] test_nuttx_syscall_geteuid01
+[CPU0] [ RUN      ] test_nuttx_syscall_getgid01
+[CPU0] [       OK ] test_nuttx_syscall_getgid01
+[CPU0] [ RUN      ] test_nuttx_syscall_getgid02
+[CPU0] [       OK ] test_nuttx_syscall_getgid02
+[CPU0] [ RUN      ] test_nuttx_syscall_getuid01
+[CPU0] [       OK ] test_nuttx_syscall_getuid01
+[CPURUN      ] test_nuttx_syscall_pathconf01
+[CPU0] [       OK ] test_nuttx_syscall_pathconf01
+[CPll_pipe01
+[CPU0] [       OK ] test_nuttx_syscall_pipe01
+[CPU0] [ RUN      ] test_nuttx_syscallOK ] test_nuttx_syscall_pipe02
+[CPU0] [ RUN      ] test_nuttx_syscall_pread01
+[CPU0] [       O01
+[CPU0] [ RUN      ] test_nuttx_syscall_pwrite01
+[CPU0] [       OK ] test_nuttx_syscall_pwrinuttx_syscall_pwrite02
+[CPU0] [       OK ] test_nuttx_syscall_pwrite02
+[CPU0] [ RUN      ] tes[CPU0] [       OK ] test_nuttx_sPU0] [ RUN      ] test_nuttx_syscall_rmdir02
+[CPU0] [       OK ] test_nuttx_syscall_rmdir02
+[CPU0] [ RUN      ] test_nuttx_syscall_truncate01
+[CPU0] [       OK ] test_nuttx_syscall_truncate01
+[CPU0] [ RUN      ] test_nut[CPU0] [       OK ] test_nuttx_syscall_unlink01
+[CPU0] [ RUN      ] test_nuttx_syscall_nansleep01
+[CPU0] [       OK ] test_nuttx_syscall_nansleep01
+[CPU0] [ RUN st_nuttx_syscall_nansleep02
+[CPU0] [       OK ] test_nuttx_syscnansleep02
+[CPU0] [ RUN      ] test_nuttx_syscall_time01
+[CPU0] [       OK ] test_nuttx_syscal [ RUN      ] test_nuttx_syscall_time02
+[CPU0] [       OK ] test_nuttx_syscall_time02
+[CPU0] [ RUN      ] test_nuttx_syscall_timercreate01
+[CPU0] [       OK ] test_nuttx_syscall_timercreate01
+[CPU0] [ RUN      ] test_nuttx_syscall_timerdelete01
+[CPU0] [       OK ] test_nuttx_syscall_timerdelete01
+[CPU0] [ RUN      ] test_nuttx_syscall_timergettime01
+[CPU0] [       OK ] test_nuttx_syscall_timergettime01
+[CPU0] [ RUN      ] test_nuttx_syscall_mkdir01
+[CPU0] [       OK ] test_nuttx_syscall_mkdir01
+[CPU0] [ RUN      ] test_nuttx_syscall_mkdir02
+[CPU0] [       OK ] test_nuttx_syscall_mkdir02
+[CPU0] [ RUN      ] test_nuttx_syscall_mkdir03
+[CPU0] [       OK ] test_nuttx_syscall_mkdir03
+[CPU0] [ RUN      ] test_nuttx_syscall_sched01
+[CPU0] [       OK ] test_nuttx_s_nuttx_syscall_sched02
+[CPU0] [       OK ] test_nuttx_syscall_sched02
+[CPU0] [ RUN      ] test0] [       OK ] test_nuttx_syscall_sched03
+[CPU0] [ RUN      ] test_nuttx_syscall_sched04
+[CPUll_sched04
+[CPU0] [ RUN      ] test_nuttx_syscall_write01
+[CPU0] [       OK ] test_nuttx_sysca     ] test_nuttx_syscall_write02
+[CPU0] [       OK ] test_nuttx_syscall_write02
+[CPU0] [ RUN 03
+[CPU0] [       OK ] test_nuttx_syscall_write03
+[CPU0] [ RUN      ] test_nuttx_syscall_read0   OK ] test_nuttx_syscall_read01
+[CPU0] [ RUN      ] test_nuttx_syscall_read02
+[CPU0] [      
+[CPU0] [ RUN      ] test_nuttx_syscall_read03
+[CPU0] [       OK ] test_nuttx_syscall_read03
+[_syscall_read04
+[CPU0] [       OK ] test_nuttx_syscall_read04
+[CPU0] [ RUN      ] test_nuttx_s[       OK ] test_nuttx_syscall_symlink01
+[CPU0] [ RUN      ] test_nuttx_syscall_symlink02
+[CPscall_symlink02
+[CPU0] [ RUN      ] test_nuttx_syscall_sockettest01
+[CPU0] NO.1 do socket() tePU0] NO.2 do socket() test, ret=-1  erron=93 experrno=97
+[CPU0] NO.3 do socket() test, ret=-1  socket() test, ret=-1  erron=93 experrno=97
+[CPU0] NO.6 do socket() test, ret=-1  erron=93 expettx_syscall_sockettest01
+[CPU0] [ RUN      ] test_nuttx_syscall_sockettest02
+[CPU0] [       OKst02
+[CPU0] [==========] nuttx_syscall_test_suites: 82 test(s) run.
+[CPU0] [  PASSED  ] 82 tes

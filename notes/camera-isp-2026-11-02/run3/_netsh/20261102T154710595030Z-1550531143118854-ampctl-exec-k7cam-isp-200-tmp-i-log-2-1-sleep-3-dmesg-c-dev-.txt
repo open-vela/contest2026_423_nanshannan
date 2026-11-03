@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "(k7cam isp 200 - >/tmp/i.log 2>&1 &); sleep 3; dmesg -c >/dev/null"
+[Linux 6.1.75 aarch64 on k7-linux, up 695s, 53 procs]
+nsh> 

@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "grep -n -i -E \"sensor|fmt|1944|3864|2688|reso\" /tmp/rkaiq.log | head -n 15 | cut -c1-160"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 270s, 62 procs]
+nsh> 

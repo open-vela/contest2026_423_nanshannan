@@ -1,0 +1,4 @@
+[Kmd5_test -f /tmp/1.txt -c 100
+
+nsh> 
+{"command": "md5_test -f /tmp/1.txt -c 100", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599371.095229, "host_at_done": 1793599372.308407, "elapsed_monotonic_s": 1.213178314967081, "host_clock_moved_back": false, "raw": "_netsh/20261102T060251087001Z-1515517785953537-md5-test-f-tmp-1-txt-c-100.raw", "text": "_netsh/20261102T060251087001Z-1515517785953537-md5-test-f-tmp-1-txt-c-100.txt", "prompt_returned": true}

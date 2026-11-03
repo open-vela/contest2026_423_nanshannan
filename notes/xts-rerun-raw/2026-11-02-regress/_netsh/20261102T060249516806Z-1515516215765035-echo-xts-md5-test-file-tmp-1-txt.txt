@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kecho xts-md5-test-file > /tmp/1.txt
+nsh> 

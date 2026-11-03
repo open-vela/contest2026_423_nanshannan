@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kresetcause
+power_on(2093684454)
+nsh> 

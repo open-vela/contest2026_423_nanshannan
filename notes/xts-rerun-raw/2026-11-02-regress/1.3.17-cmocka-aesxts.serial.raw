@@ -1,0 +1,5 @@
+[CPU0] [==========] aesxts_tests: Running 1 test(s).
+[CPU0] [ RUN      ] test_aesxts
+[CPU2] [       OK ] test_aesxts
+[CPU2] [==========] aesxts_tests: 1 test(s) run.
+[CPU2] [  PAS test(s).

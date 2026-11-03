@@ -1,0 +1,16 @@
+
+NuttShell (NSH)
+nsh> ÿû[Ki2c get -b 1 -a 23 -r 0; mw 0x2ac40000; mw 0x2ac40004; mw 0x2ac4001c; mw 0x2ac40024; mw 0x2ac400cc; i2c get -b 2 -a 51 -r 2; mw 0x2ac50000; mw 0x2ac50004; mw 0x2ac5001c; mw 0x2ac50024; mw 0x2ac500cc
+ÿüi2ctool: get: Transfer failed: 1
+  0x2ac40000 = 0x00061241
+  0x2ac40004 = 0x00061241
+  0x2ac4001c = 0x00061241
+  0x2ac40024 = 0x00061241
+  0x2ac400cc = 0x00061241
+READ Bus: 2 Addr: 51 Subaddr: 02 Value: 30
+  0x2ac50000 = 0x00060000
+  0x2ac50004 = 0x007c007c
+  0x2ac5001c = 0x00000000
+  0x2ac50024 = 0x00000020
+  0x2ac500cc = 0x00000000
+nsh> 

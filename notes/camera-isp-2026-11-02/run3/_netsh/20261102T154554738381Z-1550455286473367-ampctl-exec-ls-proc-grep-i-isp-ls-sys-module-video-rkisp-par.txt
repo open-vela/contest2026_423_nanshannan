@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "ls /proc | grep -i isp; ls /sys/module/video_rkisp/parameters/ | tr \"\\n\" \" \""
+[Linux 6.1.75 aarch64 on k7-linux, up 619s, 53 procs]
+rkisp-vir2
+buf_dbg clk_dbg clr_unready_dev debug debug_reg irq_dbg monitor rdbk_auto version wait_line wrap_line nsh> 

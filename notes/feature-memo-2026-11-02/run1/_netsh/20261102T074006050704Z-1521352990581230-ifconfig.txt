@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> [Kifconfig
+lo	Link encap:Local Loopback at RUNNING mtu 1518
+	inet addr:127.0.0.1 DRaddr:127.0.0.1 Mask:255.0.0.0
+
+eth0	Link encap:Ethernet HWaddr 02:00:35:76:00:02 at RUNNING mtu 1504
+	inet addr:192.168.1.50 DRaddr:192.168.1.1 Mask:255.255.255.0
+
+nsh> 

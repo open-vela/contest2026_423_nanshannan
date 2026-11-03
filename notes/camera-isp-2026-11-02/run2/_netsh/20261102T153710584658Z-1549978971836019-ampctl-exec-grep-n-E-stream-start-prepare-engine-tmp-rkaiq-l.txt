@@ -1,0 +1,30 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "grep -n -E \"stream|start|prepare|engine\" /tmp/rkaiq.log | tail -n 25 | cut -c1-170"
+[Linux 6.1.75 aarch64 on k7-linux, up 143s, 67 procs]
+84:DBG: /dev/media1: wait stream stop event...
+85:DBG: /dev/media1: wait stream stop event success ...
+87:DBG: /dev/media1: wait stream start event...
+88:DBG: /dev/media1: wait stream start event success ...
+89:DBG: device manager start
+90:CAMHW:K:cid[2] AiqCamHw_start success. isGroup:0, isOnline:1, isMultiIsp:0, init_ens:0x5ffcc7fe473b
+91:XCORE:K:cid[2] rk_aiq_uapi2_sysctl_start success.
+92:DBG: rkisp_init engine succeed
+93:DBG: /dev/media1: wait stream stop event...
+788:DBG: /dev/media1: wait stream stop event success ...
+790:DBG: /dev/media1: wait stream start event...
+791:DBG: /dev/media1: wait stream start event success ...
+792:DBG: device manager start
+793:CAMHW:K:cid[2] AiqCamHw_start success. isGroup:0, isOnline:1, isMultiIsp:0, init_ens:0x5ffcc7fe473b
+794:XCORE:K:cid[2] rk_aiq_uapi2_sysctl_start success.
+795:DBG: rkisp_init engine succeed
+796:DBG: /dev/media1: wait stream stop event...
+1941:DBG: /dev/media1: wait stream stop event success ...
+1943:DBG: /dev/media1: wait stream start event...
+1944:DBG: /dev/media1: wait stream start event success ...
+1945:DBG: device manager start
+1946:CAMHW:K:cid[2] AiqCamHw_start success. isGroup:0, isOnline:1, isMultiIsp:0, init_ens:0x5ffcc7fe473b
+1947:XCORE:K:cid[2] rk_aiq_uapi2_sysctl_start success.
+1948:DBG: rkisp_init engine succeed
+1949:DBG: /dev/media1: wait stream stop event...
+nsh> 

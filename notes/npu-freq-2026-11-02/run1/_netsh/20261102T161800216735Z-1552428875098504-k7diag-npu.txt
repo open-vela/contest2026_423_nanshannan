@@ -1,0 +1,11 @@
+
+NuttShell (NSH)
+nsh> [Kk7diag npu
+RK806: 读不到（/dev/i2c1 0x23）
+PMU: PWR=0x00000000/0x00000200 STATUS=0x02000000 REPAIR=0xfdffffff
+     CHAIN=0xfdffffff MEM=0x02000000 REQ=0x00000000 ACK=0x00000001 IDLE=0x00000001
+  npu     已上电
+  nputop  已上电
+  npu0    已上电
+  npu1    已上电
+nsh> 

@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "(k7cam isp 200 - >/tmp/i.log 2>&1 &); sleep 3; dmesg -c >/dev/null; P=/sys/module/video_rkisp/parameters/debug; echo 4 >$P; sleep 1; echo 0 >$P; dmesg > /tmp/d4.txt; wc -l /tmp/d4.txt"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 685s, 53 procs]
+sh: syntax error: unexpected end of file
+[é€€å‡ºç  2]
+nsh> 

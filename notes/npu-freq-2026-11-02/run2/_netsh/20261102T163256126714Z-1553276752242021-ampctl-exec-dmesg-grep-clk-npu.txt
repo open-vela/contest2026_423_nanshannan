@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "dmesg | grep clk_npu"
+[Linux 6.1.75 aarch64 on k7-linux, up 32s, 62 procs]
+<6>[   28.129883] RKNPU 27700000.npu: RKNPU: clk_npu 198000000 -> 198000000 Hz
+<12>[   34.078048] k7d: exec: dmesg | grep clk_npu
+nsh> 

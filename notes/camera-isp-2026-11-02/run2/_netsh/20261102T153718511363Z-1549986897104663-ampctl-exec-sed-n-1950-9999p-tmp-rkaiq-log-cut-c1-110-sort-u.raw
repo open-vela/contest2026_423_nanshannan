@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "sed -n 1950,9999p /tmp/rkaiq.log | cut -c1-110 | sort | uniq -c | sort -rn | head -n 15"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 151s, 67 procs]
+    900 XCORE:E:aec_stats_valid=false,meas_type=0x0
+    900 ANALYZER:E:AWB stats invalid, ignore
+nsh> 

@@ -1,0 +1,27 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "k7npu load 0 2>&1 | tail -n 3; k7npu test 10"
+[Linux 6.1.75 aarch64 on k7-linux, up 26s, 66 procs]
+<3>[   28.129909] RKNPU 27700000.npu: can't request region for resource [mem 0x27708000-0x2770ffff]
+<6>[   28.130137] [drm] Initialized rknpu 0.9.8 20240828 for 27700000.npu on minor 0
+<6>[   28.130351] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+rknn_init: 0，用时 13 ms
+api 2.0.0b0 (35a6907d79@2024-03-24T10:31:14) / driver 0.9.8
+输入 1 个、输出 1 个；输入 0：1x224x224x3，150528 字节
+第 0 次：rknn_run 8 ms（NPU 8758 us）
+第 1 次：rknn_run 8 ms（NPU 8623 us）
+第 2 次：rknn_run 8 ms（NPU 8646 us）
+第 3 次：rknn_run 8 ms（NPU 8660 us）
+第 4 次：rknn_run 8 ms（NPU 8633 us）
+第 5 次：rknn_run 8 ms（NPU 8620 us）
+第 6 次：rknn_run 8 ms（NPU 8635 us）
+第 7 次：rknn_run 8 ms（NPU 8645 us）
+第 8 次：rknn_run 8 ms（NPU 8622 us）
+第 9 次：rknn_run 8 ms（NPU 8582 us）
+输出 1001 类，top-5：
+   283  0.4153
+   282  0.1758
+   286  0.1588
+   278  0.0603
+   279  0.0434
+nsh> 

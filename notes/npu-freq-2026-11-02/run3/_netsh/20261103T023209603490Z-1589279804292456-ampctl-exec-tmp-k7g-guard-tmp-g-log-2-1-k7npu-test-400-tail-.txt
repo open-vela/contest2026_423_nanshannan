@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "(/tmp/k7g guard > /tmp/g.log 2>&1 &); k7npu test 400 | tail -n 6 | head -n 1; cat /proc/sys/kernel/printk >/dev/null; cat /tmp/g.log; cat /sys/module/rknpu/parameters/npu_hz; dmesg | grep clk_npu"
+[Linux 6.1.75 aarch64 on k7-linux, up 54s, 62 procs]
+输出 1001 类，top-5：
+800000000
+<6>[   41.477372] RKNPU 27700000.npu: RKNPU: clk_npu 198000000 -> 800000000 Hz (0)
+<12>[   55.307046] k7d: exec: (/tmp/k7g guard > /tmp/g.log 2>&1 &); k7npu test 400 | tail -n 6 | head -n 1; cat /proc/sys/kernel/printk >/dev/null; cat /tmp/g.log; cat /sys/module/rknpu/parameters/npu_hz; dmesg | grep clk_npu
+nsh> 

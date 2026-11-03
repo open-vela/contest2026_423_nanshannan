@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kcmocka_sched_test
+nsh> 

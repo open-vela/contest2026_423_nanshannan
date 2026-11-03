@@ -1,0 +1,8 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "cat /etc/k7-lxroot"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 28s, 56 procs]
+k7 lxroot 2026-11-02T16:40:29Z
+repo 49344e3-dirty
+kernel 6.1.75
+nsh> 

@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kecho 明天下午三点给王总回电话，确认第二批样品的报价 > /tmp/k7-memo
+nsh> 

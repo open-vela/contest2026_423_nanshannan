@@ -1,0 +1,8 @@
+[CPU0] [==========] hmac_tests: Running 3 test(s).
+[CPU0] [ RUN      ] test_hmac_md5
+[CPU0] [       OK ] test_hmac_md5
+[CPU0] [ RUN      ] test_hmac_sha1
+[CPU0] [       OK ] test_hmac_sha1hmac_sha256
+[CPU0] [       OK ] test_hmac_sha256
+[CPU0] [==========] hmac_tests: 3 test(s) run.
+[CPU0] [  PASSED  ] 3 test(s).

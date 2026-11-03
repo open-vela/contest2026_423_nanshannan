@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "LD_PRELOAD=/tmp/stackscan.so rkaiq_3A_server >/tmp/r5.log 2>&1 </dev/null; echo rc=\$?; grep SCAN /tmp/r5.log | head -n 60 | tr \"\\n\" \" \""
+[Linux 6.1.75 aarch64 on k7-linux, up 2580s, 48 procs]
+rc=139
+SCAN fault 0 SCAN pc 7f92e139cc SCAN lr 7f92de9840 SCAN rkaiq+ b6667 SCAN rkaiq+ b6667 SCAN rkaiq+ b6685 SCAN rkaiq+ b6667 SCAN rkaiq+ 1dbd8 SCAN rkaiq+ 1c1b8 SCAN rkaiq+ b672d SCAN rkaiq+ 1c11c SCAN rkaiq+ 1c4e4 nsh> 

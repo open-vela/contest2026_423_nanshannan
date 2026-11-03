@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kampctl cam stop
+[Linux 6.1.75 aarch64 on k7-linux, up 1663s, 48 procs]
+nsh> 

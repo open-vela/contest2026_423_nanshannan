@@ -1,0 +1,25 @@
+
+nsh> [K
+>>> rb -f /tmp
+
+>>> md5_test -f /tmp/xts-uart-pattern.bin -c 1
+md5_test -f /tmp/xts-uart-pattern.bin -c 1
+[CPU1] file /tmp/xts-uart-pattern.bin md5 is 2bcd3c4de20c918e19fab5c36249c70d
+nsh> [K
+>>> sb /tmp/xts-uart-pattern.bin
+nsh> [K
+>>> rm /tmp/xts-uart-pattern.bin
+rm /tmp/xts-uart-pattern.bin
+nsh> [K
+>>> rb -f /tmp
+
+>>> md5_test -f /tmp/xts-uart-random.bin -c 1
+md5_test -f /tmp/xts-uart-random.bin -c 1
+[CPU1] file /tmp/xts-uart-random.bin md5 is 507dc7bf187c85c64f3b7a907cd0948e
+nsh> [K
+>>> sb /tmp/xts-uart-random.bin
+nsh> [K
+>>> rm /tmp/xts-uart-random.bin
+rm /tmp/xts-uart-random.bin
+nsh> [K
+>>> k7diag baud 1500000

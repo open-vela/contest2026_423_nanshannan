@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "cat /tmp/k7live.log | head -n 5"
+[Linux 6.1.75 aarch64 on k7-linux, up 82s, 68 procs]
+rkaiq_3A_server 在跑（pid 223，1 秒）
+XCORE:K:Module rgbir: opMode:1,en:0,bypass:0,man_ptr:0x7f84b9149c
+XCORE:K:Module cgc: opMode:1,en:1,bypass:0,man_ptr:0x7f84bb6380
+XCORE:K:Module cp: opMode:2,en:1,bypass:0,man_ptr:0x7f84b91e82
+XCORE:K:Module ie: opMode:2,en:0,bypass:0,man_ptr:0x7f84b91e8f
+nsh> 

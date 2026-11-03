@@ -1,0 +1,38 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "k7npu test 10; dmesg | grep -E \"clk_npu|RKNPU.*(fail|err)\"; k7pmic npu-mv"
+[Linux 6.1.75 aarch64 on k7-linux, up 29s, 58 procs]
+PMU STATUS=0x02000000 REPAIR=0xfdffffff：npu 开 nputop 开 npu0 开 npu1 开
+RK806 806a，DCDC2 开，VSEL 0x28 = 750000 uV
+写 0x3c，回读 0x3c = 875000 uV
+<12>[   30.407043] k7d: exec: k7npu test 10; dmesg | grep -E "clk_npu|RKNPU.*(fail|err)"; k7pmic npu-mv
+<4>[   30.431850] rknpu: loading out-of-tree module taints kernel.
+<6>[   30.432636] RKNPU 27700000.npu: Adding to iommu group 0
+<6>[   30.432754] RKNPU 27700000.npu: RKNPU: rknpu iommu is enabled, using iommu mode
+<3>[   30.432799] RKNPU 27700000.npu: can't request region for resource [mem 0x27700000-0x27707fff]
+<3>[   30.432814] RKNPU 27700000.npu: can't request region for resource [mem 0x27708000-0x2770ffff]
+<6>[   30.433024] [drm] Initialized rknpu 0.9.8 20240828 for 27700000.npu on minor 0
+<6>[   30.433225] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+rknn_init: 0，用时 13 ms
+api 2.0.0b0 (35a6907d79@2024-03-24T10:31:14) / driver 0.9.8
+输入 1 个、输出 1 个；输入 0：1x224x224x3，150528 字节
+第 0 次：rknn_run 2 ms（NPU 2191 us）
+第 1 次：rknn_run 2 ms（NPU 2024 us）
+第 2 次：rknn_run 2 ms（NPU 2019 us）
+第 3 次：rknn_run 2 ms（NPU 2024 us）
+第 4 次：rknn_run 2 ms（NPU 2017 us）
+第 5 次：rknn_run 2 ms（NPU 2014 us）
+第 6 次：rknn_run 2 ms（NPU 2012 us）
+第 7 次：rknn_run 2 ms（NPU 2019 us）
+第 8 次：rknn_run 2 ms（NPU 2013 us）
+第 9 次：rknn_run 2 ms（NPU 2013 us）
+输出 1001 类，top-5：
+   283  0.4153
+   282  0.1758
+   286  0.1588
+   278  0.0603
+   279  0.0434
+<12>[   30.407043] k7d: exec: k7npu test 10; dmesg | grep -E "clk_npu|RKNPU.*(fail|err)"; k7pmic npu-mv
+<6>[   30.445491] RKNPU 27700000.npu: RKNPU: clk_npu 198000000 -> 950000000 Hz (0)
+RK806 806a，DCDC2 开，VSEL 0x3c = 875000 uV
+nsh> 

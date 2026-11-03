@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "ls -l /tmp/libSegFault.so"
+[Linux 6.1.75 aarch64 on k7-linux, up 1913s, 48 procs]
+-rw-r--r--    1 0        0              316 Jan  1 00:31 /tmp/libSegFault.so
+nsh> 

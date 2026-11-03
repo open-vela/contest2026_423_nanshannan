@@ -1,0 +1,18 @@
+[Kgetprime
+
+Set thread priority to 10
+
+Set thread policy to SCHED_RR
+
+Start thread #0
+
+thread #0 started, looking for primes < 10000, doing 10 run(s)
+
+thread #0 finished, found 1230 primes, last one was 9973
+
+Done
+
+getprime took 148 msec
+
+nsh> 
+{"command": "getprime", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599324.3087053, "host_at_done": 1793599324.5388286, "elapsed_monotonic_s": 0.23012330383062363, "host_clock_moved_back": false, "raw": "_netsh/20261102T060204301344Z-1515470995468550-getprime.raw", "text": "_netsh/20261102T060204301344Z-1515470995468550-getprime.txt", "prompt_returned": true}

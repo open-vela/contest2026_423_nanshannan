@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kls /tmp/k7-shot
+nsh: ls: stat failed: 2
+nsh> 

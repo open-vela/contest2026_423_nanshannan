@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "cd /etc/iqfiles; sed -i 's/gain_dot.: \[1,2,8,8,32,256\]/gain_dot\": [1,2,8,8,16,16]/' imx415*.json; grep -c '1,2,8,8,16,16' imx415*.json; grep -c '8,32,256' imx415*.json"
+[Linux 6.1.75 aarch64 on k7-linux, up 976s, 58 procs]
+0
+3
+nsh> 

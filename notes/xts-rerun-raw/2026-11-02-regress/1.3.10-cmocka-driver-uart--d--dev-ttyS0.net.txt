@@ -1,0 +1,4 @@
+[Kcmocka_driver_uart -d /dev/ttyS0
+
+nsh> 
+{"command": "cmocka_driver_uart -d /dev/ttyS0", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599414.9751117, "host_at_done": 1793599415.092228, "elapsed_monotonic_s": 0.11711625405587256, "host_clock_moved_back": false, "raw": "_netsh/20261102T060334967128Z-1515561666368761-cmocka-driver-uart-d-dev-ttyS0.raw", "text": "_netsh/20261102T060334967128Z-1515561666368761-cmocka-driver-uart-d-dev-ttyS0.txt", "prompt_returned": true}

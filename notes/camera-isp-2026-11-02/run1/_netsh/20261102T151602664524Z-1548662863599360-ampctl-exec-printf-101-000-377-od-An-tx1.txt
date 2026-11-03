@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "printf '\101\000\377' | od -An -tx1"
+[Linux 6.1.75 aarch64 on k7-linux, up 1844s, 48 procs]
+od: invalid option -- 'A'
+[退出码 1]
+nsh> 

@@ -1,0 +1,116 @@
+[Kcmocka_aesxts
+
+OK encrypt test vector 0
+
+OK encrypt test vector 0 in stream mode
+
+OK decrypt test vector 0
+
+OK decrypt test vector 0 in stream mode
+
+OK encrypt test vector 1
+
+OK encrypt test vector 1 in stream mode
+
+OK decrypt test vector 1
+
+OK decrypt test vector 1 in stream mode
+
+OK encrypt test vector 2
+
+OK encrypt test vector 2 in stream mode
+
+OK decrypt test vector 2
+
+OK decrypt test vector 2 in stream mode
+
+OK encrypt test vector 3
+
+OK encrypt test vector 3 in stream mode
+
+OK decrypt test vector 3
+
+OK decrypt test vector 3 in stream mode
+
+OK encrypt test vector 4
+
+OK encrypt test vector 4 in stream mode
+
+OK decrypt test vector 4
+
+OK decrypt test vector 4 in stream mode
+
+OK encrypt test vector 5
+
+OK encrypt test vector 5 in stream mode
+
+OK decrypt test vector 5
+
+OK decrypt test vector 5 in stream mode
+
+OK encrypt test vector 6
+
+OK encrypt test vector 6 in stream mode
+
+OK decrypt test vector 6
+
+OK decrypt test vector 6 in stream mode
+
+OK encrypt test vector 7
+
+OK encrypt test vector 7 in stream mode
+
+OK decrypt test vector 7
+
+OK decrypt test vector 7 in stream mode
+
+OK encrypt test vector 8
+
+OK encrypt test vector 8 in stream mode
+
+OK decrypt test vector 8
+
+OK decrypt test vector 8 in stream mode
+
+OK encrypt test vector 9
+
+OK encrypt test vector 9 in stream mode
+
+OK decrypt test vector 9
+
+OK decrypt test vector 9 in stream mode
+
+OK encrypt test vector 10
+
+OK encrypt test vector 10 in stream mode
+
+OK decrypt test vector 10
+
+OK decrypt test vector 10 in stream mode
+
+OK encrypt test vector 11
+
+OK encrypt test vector 11 in stream mode
+
+OK decrypt test vector 11
+
+OK decrypt test vector 11 in stream mode
+
+OK encrypt test vector 12
+
+OK encrypt test vector 12 in stream mode
+
+OK decrypt test vector 12
+
+OK decrypt test vector 12 in stream mode
+
+OK encrypt test vector 13
+
+OK encrypt test vector 13 in stream mode
+
+OK decrypt test vector 13
+
+OK decrypt test vector 13 in stream mode
+
+nsh> 
+{"command": "cmocka_aesxts", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599447.7299385, "host_at_done": 1793599447.9172287, "elapsed_monotonic_s": 0.18729039886966348, "host_clock_moved_back": false, "raw": "_netsh/20261102T060407722029Z-1515594424069783-cmocka-aesxts.raw", "text": "_netsh/20261102T060407722029Z-1515594424069783-cmocka-aesxts.txt", "prompt_returned": true}

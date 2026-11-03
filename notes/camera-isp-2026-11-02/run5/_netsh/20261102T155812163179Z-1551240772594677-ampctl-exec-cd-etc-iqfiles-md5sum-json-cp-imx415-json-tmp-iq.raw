@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "cd /etc/iqfiles; md5sum *.json; cp imx415*.json /tmp/iq.bak; sed -i '8910s/\"en\": 1/\"en\": 0/' imx415*.json; sed -n 8908,8911p imx415*.json"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 188s, 62 procs]
+366fafe969575ebdaca77da2711dcfe5  imx415_CMK-OT2022-PX1_IR0147-50IRC-8M-F20.json
+						"bayertnr": {
+							"opMode": "RK_AIQ_OP_MODE_AUTO",
+							"en": 0,
+							"bypass": 0,
+nsh> 

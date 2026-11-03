@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "df -h"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 1989s, 51 procs]
+df: invalid option -- 'h'
+[é€€å‡ºç  1]
+nsh> 

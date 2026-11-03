@@ -1,0 +1,8 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "grep -i -E 'gain|exp|time' /tmp/rkaiq.log | tail -n 8 | cut -c1-150; wc -l /tmp/rkaiq.log"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 618s, 58 procs]
+XCORE:K:Module gain: opMode:2,en:1,bypass:0,man_ptr:0x7f8cbb6428
+XCORE:K:GAIN: 0x7f8c5e30d1, man en:1, bypass:0
+103 /tmp/rkaiq.log
+nsh> 

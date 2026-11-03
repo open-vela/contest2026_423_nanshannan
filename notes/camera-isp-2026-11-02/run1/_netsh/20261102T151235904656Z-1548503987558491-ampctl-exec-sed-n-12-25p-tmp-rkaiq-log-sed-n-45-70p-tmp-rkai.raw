@@ -1,0 +1,20 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec "sed -n 12,25p /tmp/rkaiq.log; sed -n 45,70p /tmp/rkaiq.log | grep -v Module"
+��[Linux 6.1.75 aarch64 on k7-linux, up 1686s, 48 procs]
+rkaiq log level ff1
+XCORE:K:rk_aiq_init_lib, ISP HW ver: 39
+
+************************** VERSION INFOS **************************
+version release date: 2024-06-18
+         AIQ:       AIQ v6.0x6.3-rc1
+git logs:
+49344e3 skw6621s: WiFi WPA2 关联与数据通道实板打通，DHCP 和 ping 通过
+9c65318 skw6621s: WiFi 命令通道实板打通，2.4G 扫描通过
+df7df12 skw6621s: 接入 NuttX 蓝牙协议栈，BLE 扫描实板通过
+dd4c14f skw6621s: 蓝牙服务启动与 HCI 通道实板打通
+fa31572 skw6621s: 固件下载与 CP 首次启动实板通过（bt init）
+
+************************ VERSION INFOS END ************************
+[退出码 1]
+nsh> 

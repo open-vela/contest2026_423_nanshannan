@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kecho 下期视频讲一下 K7 开发板的双系统是怎么分工的 > /tmp/k7-memo
+nsh> 

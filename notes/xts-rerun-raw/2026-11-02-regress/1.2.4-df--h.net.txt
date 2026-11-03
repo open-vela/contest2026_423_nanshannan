@@ -1,0 +1,14 @@
+[Kdf -h
+
+  Filesystem      Size      Used  Available Mounted on
+
+  vfat            383M     1152K       382M /data
+
+  procfs            0B        0B         0B /proc
+
+  tmpfs           512B        0B       512B /tests
+
+  tmpfs            19K       17K         2K /tmp
+
+nsh> 
+{"command": "df -h", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599378.3885934, "host_at_done": 1793599378.4686902, "elapsed_monotonic_s": 0.08009687392041087, "host_clock_moved_back": false, "raw": "_netsh/20261102T060258380817Z-1515525078734893-df-h.raw", "text": "_netsh/20261102T060258380817Z-1515525078734893-df-h.txt", "prompt_returned": true}

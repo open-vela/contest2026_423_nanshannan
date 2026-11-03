@@ -1,0 +1,11 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "k7npu mhz 800; grep -c 1,2,8,8,16,16 /etc/iqfiles/*.json; grep -A2 bayertnr.:.. /etc/iqfiles/*.json | grep -c .en.:.0; pidof rkaiq_3A_server k7cam; tail -n 3 /tmp/k7live.log"
+[Linux 6.1.75 aarch64 on k7-linux, up 101s, 63 procs]
+目标 800 MHz（温控会在过热时临时降）
+3
+3
+tail: can't open '/tmp/k7live.log': No such file or directory
+tail: no files
+[退出码 1]
+nsh> 

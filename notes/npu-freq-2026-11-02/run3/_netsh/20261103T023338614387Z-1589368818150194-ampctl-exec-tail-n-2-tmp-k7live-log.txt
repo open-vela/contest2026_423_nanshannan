@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "tail -n 2 /tmp/k7live.log"
+[Linux 6.1.75 aarch64 on k7-linux, up 142s, 73 procs]
+帧 601: seq=600 字节=1382400 间隔=33 ms  均值 Y=22 U=135 V=130
+帧 901: seq=900 字节=1382400 间隔=33 ms  均值 Y=24 U=136 V=132
+nsh> 

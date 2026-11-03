@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec "tail -n 3 /tmp/k7live.log; grep -c ERROR /tmp/k7live.log"
+��[Linux 6.1.75 aarch64 on k7-linux, up 157s, 67 procs]
+ISP /dev/video11: 1280x720 fourcc=NV12 planes=1 bytesperline=1280 sizeimage=1382400
+帧 1: seq=0 字节=1382400 间隔=0 ms  均值 Y=69 U=133 V=135
+0
+[退出码 1]
+nsh> 

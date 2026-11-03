@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec ls -l /dev/dri
+[Linux 6.1.75 aarch64 on k7-linux, up 86s, 58 procs]
+ls: /dev/dri: No such file or directory
+[退出码 1]
+nsh> 

@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kramtest -h -s 52245696
+ÿüRAMTest: Marching ones: 4b21cb40 52245696
+RAMTest: Marching zeroes: 4b21cb40 52245696
+RAMTest: Pattern test: 4b21cb40 52245696 55555555 aaaaaaaa
+RAMTest: Pattern test: 4b21cb40 52245696 66666666 99999999
+RAMTest: Pattern test: 4b21cb40 52245696 33333333 cccccccc
+RAMTest: Address-in-address test: 4b21cb40 52245696
+nsh> 

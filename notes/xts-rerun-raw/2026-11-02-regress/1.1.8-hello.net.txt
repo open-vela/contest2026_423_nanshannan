@@ -1,0 +1,6 @@
+[Khello
+
+Hello, World!!
+
+nsh> 
+{"command": "hello", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599332.7846363, "host_at_done": 1793599332.8447647, "elapsed_monotonic_s": 0.060128655983135104, "host_clock_moved_back": false, "raw": "_netsh/20261102T060212777248Z-1515479473841051-hello.raw", "text": "_netsh/20261102T060212777248Z-1515479473841051-hello.txt", "prompt_returned": true}

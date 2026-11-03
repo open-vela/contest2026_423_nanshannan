@@ -1,0 +1,8 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "rmmod rknpu; insmod /lib/modules/6.1.75/kernel/drivers/rknpu/rknpu.ko npu_hz=950000000; cat /sys/module/rknpu/parameters/npu_hz; dmesg | grep clk_npu"
+[Linux 6.1.75 aarch64 on k7-linux, up 84s, 59 procs]
+0
+<12>[   42.225045] k7d: exec: k7npu test 10; dmesg | grep -E "clk_npu|RKNPU.*(fail|err)"
+<12>[   86.004048] k7d: exec: rmmod rknpu; insmod /lib/modules/6.1.75/kernel/drivers/rknpu/rknpu.ko npu_hz=950000000; cat /sys/module/rknpu/parameters/npu_hz; dmesg | grep clk_npu
+nsh> 

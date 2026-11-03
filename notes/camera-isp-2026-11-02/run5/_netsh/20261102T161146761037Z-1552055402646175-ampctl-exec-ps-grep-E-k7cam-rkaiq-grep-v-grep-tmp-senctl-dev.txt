@@ -1,0 +1,13 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "ps | grep -E 'k7cam|rkaiq' | grep -v grep; /tmp/senctl /dev/v4l-subdev3 3; grep '^帧' /tmp/k7live.log | tail -n 2"
+[Linux 6.1.75 aarch64 on k7-linux, up 1003s, 58 procs]
+  707 0         1312 S    sh -c if pidof k7cam >/dev/null; then touch /tmp/k7l
+  711 0         182m S    rkaiq_3A_server
+  722 0        71736 R    k7cam live-isp 600
+exp 2025 again 80 vblank 58
+exp 2025 again 80 vblank 58
+exp 2025 again 80 vblank 58
+帧 1: seq=0 字节=1382400 间隔=0 ms  均值 Y=4 U=128 V=129
+帧 301: seq=300 字节=1382400 间隔=33 ms  均值 Y=130 U=128 V=132
+nsh> 

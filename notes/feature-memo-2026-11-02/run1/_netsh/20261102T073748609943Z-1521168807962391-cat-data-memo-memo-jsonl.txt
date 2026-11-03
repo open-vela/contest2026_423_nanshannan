@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kcat /data/memo/memo.jsonl
+nsh: cat: open failed: 2
+nsh> 

@@ -1,0 +1,62 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kpopen
+ÿüCalling popen("help")
+help usage:  help [-v] [<cmd>]
+
+    .             df            ifup          ps            true          
+    [             dmesg         kill          put           truncate      
+    ?             echo          pkill         pwd           uname         
+    alias         env           ln            readlink      umount        
+    unalias       exec          ls            reboot        unset         
+    arp           exit          mkdir         resetcause    uptime        
+    basename      expr          mkfatfs       rm            usleep        
+    break         false         mkfifo        rmdir         watch         
+    cat           fdinfo        mkrd          rpmsg         wget          
+    cd            free          mount         rptun         xd            
+    cp            get           mv            set           wait          
+    cmp           help          mw            sleep         
+    dirname       hexdump       nslookup      source        
+    date          ifconfig      pidof         test          
+    dd            ifdown        printf        time          
+
+Builtin Apps:
+    abnormal_test_backtrace        gpio                           
+    ai_agent                       hdmi                           
+    ampctl                         hello                          
+    bt                             helloxx                        
+    btsak                          i2c                            
+    cam                            ir                             
+    cmocka                         k7diag                         
+    cmocka_aescbc                  k7mqttd                        
+    cmocka_aesctr                  kickpi_ui                      
+    cmocka_aesxts                  loader                         
+    cmocka_crc32                   lxroot                         
+    cmocka_des3cbc                 md5_test                       
+    cmocka_driver_audio            mem_batch_opt_perf_test        
+    cmocka_driver_block            mem_cycle_opt_perf_test        
+    cmocka_driver_framebuffer      memstress                      
+    cmocka_driver_gpio             mic                            
+    cmocka_driver_i2c_read         mm                             
+    cmocka_driver_i2c_spi          nsh                            
+    cmocka_driver_i2c_write        nxlooper                       
+    cmocka_driver_i2cdev_master    nxplayer                       
+    cmocka_driver_oneshot          nxrecorder                     
+    cmocka_driver_simple           ostest                         
+    cmocka_driver_spidev_master    ping                           
+    cmocka_driver_touchpanel       pipe                           
+    cmocka_driver_uart             popen                          
+    cmocka_driver_watchdog         ramtest                        
+    cmocka_ecdsa                   rb                             
+    cmocka_hash                    renew                          
+    cmocka_hmac                    sb                             
+    cmocka_mm_test                 scanftest                      
+    cmocka_sched_test              sh                             
+    cmocka_syscall_test            spi_selftest                   
+    cxxtest                        telnetd                        
+    fstest                         v4l2cap                        
+    getprime                       
+End of data
+Calling pclose()
+The shell has already exited (and exit status is not available)
+nsh> 

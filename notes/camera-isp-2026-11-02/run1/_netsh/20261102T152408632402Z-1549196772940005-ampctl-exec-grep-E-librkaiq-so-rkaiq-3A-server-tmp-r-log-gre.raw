@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "grep -E \"librkaiq.so|rkaiq_3A_server\" /tmp/r.log | grep r-xp"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 2378s, 48 procs]
+00400000-00405000 r-xp 00000000 00:02 185                                /usr/bin/rkaiq_3A_server
+7fae0da000-7fae1a7000 r-xp 00000000 00:02 187                            /usr/lib64/librkaiq.so
+nsh> 

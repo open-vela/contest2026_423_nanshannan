@@ -1,0 +1,6 @@
+[Kk7diag baud 1500000
+
+ttyS0 波特率 -> 1500000：成功（读回 1500000）
+
+nsh> 
+{"command": "k7diag baud 1500000", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793600192.4898386, "host_at_done": 1793600192.5810099, "elapsed_monotonic_s": 0.09117130097001791, "host_clock_moved_back": false, "raw": "/home/dministrator/openvela-amlogic/src/contest2026_423_nanshannan/notes/xts-rerun-raw/2026-11-02-uart/_netsh/20261102T061632482436Z-1516339211529426-k7diag-baud-1500000.raw", "text": "/home/dministrator/openvela-amlogic/src/contest2026_423_nanshannan/notes/xts-rerun-raw/2026-11-02-uart/_netsh/20261102T061632482436Z-1516339211529426-k7diag-baud-1500000.txt", "prompt_returned": true}

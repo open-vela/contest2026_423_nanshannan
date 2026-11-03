@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kk7diag baud 1500000
+ttyS0 波特率 -> 1500000：成功（读回 1500000）
+nsh> 

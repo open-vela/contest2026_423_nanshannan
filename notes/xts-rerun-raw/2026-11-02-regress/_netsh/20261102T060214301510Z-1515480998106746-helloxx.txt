@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> [Khelloxx
+helloxx_main: Saying hello from the dynamically constructed instance
+CHelloWorld::HelloWorld: Hello, World!!
+helloxx_main: Saying hello from the instance constructed on the stack
+CHelloWorld::HelloWorld: Hello, World!!
+helloxx_main: Saying hello from the statically constructed instance
+CHelloWorld::HelloWorld: Hello, World!!
+nsh> 

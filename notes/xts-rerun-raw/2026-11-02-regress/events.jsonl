@@ -1,0 +1,36 @@
+{"case": "镜像", "cmd": "uname -a", "elapsed_s": 1.5, "net_bytes": 459, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.2", "cmd": "cmocka_sched_test", "elapsed_s": 2.3, "net_bytes": 429, "serial_bytes": 1343, "rc": 0}
+{"case": "1.1.3", "cmd": "cmocka_syscall_test", "elapsed_s": 14.6, "net_bytes": 439, "serial_bytes": 7381, "rc": 0}
+{"case": "1.1.5", "cmd": "getprime", "elapsed_s": 1.7, "net_bytes": 623, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.6", "cmd": "mm", "elapsed_s": 4.9, "net_bytes": 77504, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.7", "cmd": "scanftest", "elapsed_s": 1.9, "net_bytes": 3556, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.8", "cmd": "hello", "elapsed_s": 1.5, "net_bytes": 401, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.9", "cmd": "helloxx", "elapsed_s": 1.6, "net_bytes": 725, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.10", "cmd": "popen", "elapsed_s": 1.7, "net_bytes": 3985, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.11", "cmd": "pipe", "elapsed_s": 32.0, "net_bytes": 8006, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.12", "cmd": "echo xts-md5-test-file > /tmp/1.txt", "elapsed_s": 1.6, "net_bytes": 496, "serial_bytes": 0, "rc": 0}
+{"case": "1.1.12", "cmd": "md5_test -f /tmp/1.txt -c 100", "elapsed_s": 2.7, "net_bytes": 470, "serial_bytes": 6400, "rc": 0}
+{"case": "1.1.13", "cmd": "cxxtest", "elapsed_s": 1.5, "net_bytes": 668, "serial_bytes": 0, "rc": 0}
+{"case": "1.2.3", "cmd": "free", "elapsed_s": 1.5, "net_bytes": 531, "serial_bytes": 0, "rc": 0}
+{"case": "1.2.3", "cmd": "ampctl exec free", "elapsed_s": 1.6, "net_bytes": 691, "serial_bytes": 0, "rc": 0}
+{"case": "1.2.4", "cmd": "df -h", "elapsed_s": 1.5, "net_bytes": 642, "serial_bytes": 0, "rc": 0}
+{"case": "1.2.4", "cmd": "ampctl exec \"df -h\"", "elapsed_s": 1.6, "net_bytes": 527, "serial_bytes": 0, "rc": 0}
+{"case": "1.3.2", "cmd": "fstest -n 10 -m /tmp", "elapsed_s": 20.0, "net_bytes": 362632, "serial_bytes": 0, "rc": 0}
+{"case": "1.3.3", "cmd": "ramtest -w -s 52185136", "elapsed_s": 1.6, "net_bytes": 873, "serial_bytes": 0, "rc": 0}
+{"case": "1.3.3", "cmd": "ramtest -h -s 52185136", "elapsed_s": 1.6, "net_bytes": 874, "serial_bytes": 0, "rc": 0}
+{"case": "1.3.3", "cmd": "ramtest -b -s 52185136", "elapsed_s": 1.6, "net_bytes": 873, "serial_bytes": 0, "rc": 0}
+{"case": "1.3.4", "cmd": "mkrd -m 10 -s 1000 1024", "elapsed_s": 1.6, "net_bytes": 450, "serial_bytes": 0, "rc": 0}
+{"case": "1.3.4", "cmd": "cmocka_driver_block -m /dev/ram10", "elapsed_s": 1.7, "net_bytes": 492, "serial_bytes": 348, "rc": 0}
+{"case": "1.3.6", "cmd": "cmocka_driver_gpio -i /dev/gpio3 -o /dev/gpio2", "elapsed_s": 3.9, "net_bytes": 652, "serial_bytes": 410, "rc": 0}
+{"case": "1.3.7", "cmd": "cmocka_driver_i2c_spi", "elapsed_s": 1.6, "net_bytes": 446, "serial_bytes": 261, "rc": 0}
+{"case": "1.3.10", "cmd": "cmocka_driver_uart -d /dev/ttyS0", "elapsed_s": 1.6, "net_bytes": 487, "serial_bytes": 229, "rc": 0}
+{"case": "1.3.13", "cmd": "cmocka_driver_oneshot -d /dev/oneshot", "elapsed_s": 26.6, "net_bytes": 506, "serial_bytes": 226, "rc": 0}
+{"case": "1.3.17", "cmd": "cmocka_des3cbc", "elapsed_s": 1.5, "net_bytes": 476, "serial_bytes": 185, "rc": 0}
+{"case": "1.3.17", "cmd": "cmocka_aescbc", "elapsed_s": 1.5, "net_bytes": 415, "serial_bytes": 181, "rc": 0}
+{"case": "1.3.17", "cmd": "cmocka_aesctr", "elapsed_s": 1.6, "net_bytes": 847, "serial_bytes": 190, "rc": 0}
+{"case": "1.3.17", "cmd": "cmocka_aesxts", "elapsed_s": 1.6, "net_bytes": 2308, "serial_bytes": 194, "rc": 0}
+{"case": "1.3.17", "cmd": "cmocka_hmac", "elapsed_s": 1.5, "net_bytes": 407, "serial_bytes": 323, "rc": 0}
+{"case": "1.3.17", "cmd": "cmocka_hash", "elapsed_s": 1.6, "net_bytes": 407, "serial_bytes": 399, "rc": 0}
+{"case": "1.3.17", "cmd": "cmocka_crc32", "elapsed_s": 1.5, "net_bytes": 410, "serial_bytes": 353, "rc": 0}
+{"case": "1.3.17", "cmd": "cmocka_ecdsa", "elapsed_s": 1.6, "net_bytes": 523, "serial_bytes": 0, "rc": 0}
+{"case": "1.2.3", "cmd": "free", "elapsed_s": 1.5, "net_bytes": 531, "serial_bytes": 0, "rc": 0}

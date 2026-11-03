@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "grep -E 'AWBGAIN' /proc/rkisp-vir2 | cut -c1-90"
+[Linux 6.1.75 aarch64 on k7-linux, up 101s, 68 procs]
+AWBGAIN    ON(0x6197) (gain0:0x01000100 0x01000100 gain1:0x10d010d 0x1f40284)
+nsh> 

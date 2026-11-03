@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "cd /sys/module/video_rkisp/parameters; echo 4 >debug; sleep 1; echo 0 >debug; dmesg >/tmp/d4.txt; wc -l /tmp/d4.txt"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 698s, 57 procs]
+325 /tmp/d4.txt
+nsh> 

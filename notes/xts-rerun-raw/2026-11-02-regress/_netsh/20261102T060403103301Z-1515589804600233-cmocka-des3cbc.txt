@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kcmocka_des3cbc
+ok, encrypt with /dev/crypto, decrypt with /dev/crypto
+nsh> 

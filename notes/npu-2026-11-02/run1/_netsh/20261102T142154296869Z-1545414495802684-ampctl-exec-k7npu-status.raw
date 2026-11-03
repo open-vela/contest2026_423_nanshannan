@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec k7npu status
+��[Linux 6.1.75 aarch64 on k7-linux, up 53s, 57 procs]
+PMU STATUS=0x02000000 REPAIR=0xfdffffff：npu 开 nputop 开 npu0 开 npu1 开
+rknpu 未装
+tail: invalid option -- '5'
+[退出码 1]
+nsh> 

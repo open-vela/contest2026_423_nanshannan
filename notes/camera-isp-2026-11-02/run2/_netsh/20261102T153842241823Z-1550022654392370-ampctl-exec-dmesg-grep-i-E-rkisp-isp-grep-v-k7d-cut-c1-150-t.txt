@@ -1,0 +1,29 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "dmesg | grep -i -E \"rkisp|isp\" | grep -v k7d | cut -c1-150 | tail -n 25"
+[Linux 6.1.75 aarch64 on k7-linux, up 186s, 67 procs]
+<6>[    2.319701] platform rkisp-vir2: Fixed dependency cycle(s) with /rkcif-mipi-lvds3-sditf/port/endpoint
+<6>[    2.319903] platform rkvpss-vir2: Fixed dependency cycle(s) with /rkisp-vir2-sditf/port/endpoint
+<6>[    2.595172] rkisp_hw 27c00000.isp: Adding to iommu group 1
+<6>[    2.595256] rkisp_hw 27c00000.isp: is_thunderboot: 0
+<4>[    2.595261] rkisp_hw 27c00000.isp: Missing rockchip,grf property
+<6>[    2.595279] rkisp_hw 27c00000.isp: max input:0x0@0fps
+<4>[    2.595420] rkisp_hw 27c00000.isp: no find phandle sram
+<6>[    2.595795] rkisp rkisp-vir2: rkisp driver version: v02.06.00
+<6>[    2.595899] rkisp rkisp-vir2: No memory-region-thunderboot specified
+<4>[    2.595992] rkisp rkisp-vir2: Entity type for entity rkisp-isp-subdev was not initialized!
+<6>[    2.604824] rkisp-vir2: Async subdev notifier completed
+<12>[    4.609350] k7 camera: v4l-subdev0 rkisp-vir2-sditf
+<12>[    4.614494] k7 camera: v4l-subdev4 rkisp-isp-subdev
+<6>[   14.827411] rkisp rkisp-vir2: first params buf queue
+<6>[   15.301050] rkisp_hw 27c00000.isp: set isp clk = 594000000Hz
+<6>[   18.195213] rkisp_hw 27c00000.isp: set isp clk = 594000000Hz
+<6>[   18.195857] rkisp rkisp-vir2: first params buf queue
+<4>[   18.195875] rkisp rkisp-vir2: id:0 no first iq setting cfg_upd:c000dfecc7fe473b en_upd:0 ens:5ffcc7fe473b
+<6>[   32.482297] rkisp_hw 27c00000.isp: set isp clk = 594000000Hz
+<6>[   32.482948] rkisp rkisp-vir2: first params buf queue
+<4>[   32.482965] rkisp rkisp-vir2: id:0 no first iq setting cfg_upd:c000dfecc7fe473b en_upd:0 ens:5ffcc7fe473b
+<6>[  122.212171] rkisp_hw 27c00000.isp: set isp clk = 594000000Hz
+<6>[  122.212827] rkisp rkisp-vir2: first params buf queue
+<4>[  122.212841] rkisp rkisp-vir2: id:0 no first iq setting cfg_upd:c000dfecc7fe473b en_upd:0 ens:5ffcc7fe473b
+nsh> 

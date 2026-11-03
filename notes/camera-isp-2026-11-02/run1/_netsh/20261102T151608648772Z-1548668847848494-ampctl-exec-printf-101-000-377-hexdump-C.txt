@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "printf '\101\000\377' | hexdump -C"
+[Linux 6.1.75 aarch64 on k7-linux, up 1850s, 48 procs]
+00000000  31 30 31 30 30 30 33 37  37                       |101000377|
+00000009
+nsh> 

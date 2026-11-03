@@ -1,0 +1,13 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "k7npu test 20000 > /tmp/n.log; grep -c rknn_run /tmp/n.log; grep -c \"NPU 20[0-9][0-9] us\" /tmp/n.log; grep rknn_run /tmp/n.log | grep -v \"NPU 20[0-9][0-9] us\" | head -n 5; tail -n 5 /tmp/n.log"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 124s, 59 procs]
+20000
+19999
+ç¬¬ 0 æ¬¡ï¼šrknn_run 2 msï¼ˆNPU 2140 usï¼‰
+   283  0.4153
+   282  0.1758
+   286  0.1588
+   278  0.0603
+   279  0.0434
+nsh> 

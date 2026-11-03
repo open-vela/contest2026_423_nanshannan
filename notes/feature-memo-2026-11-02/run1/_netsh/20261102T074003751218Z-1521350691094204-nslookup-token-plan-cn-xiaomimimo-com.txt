@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Knslookup token-plan-cn.xiaomimimo.com
+Host: token-plan-cn.xiaomimimo.com Addr: 111.13.213.63
+nsh> 

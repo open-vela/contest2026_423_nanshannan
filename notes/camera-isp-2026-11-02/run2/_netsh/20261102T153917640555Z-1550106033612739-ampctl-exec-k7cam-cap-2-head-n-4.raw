@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec "k7cam cap 2 - | head -n 4"
+��[Linux 6.1.75 aarch64 on k7-linux, up 270s, 62 procs]
+传感器 /dev/v4l-subdev3: 3864x2192 code=0x300e
+CIF /dev/video0: 3864x2192 fourcc=GB10 bytesperline=7680 sizeimage=16588800
+按 3840x2160（16 位/像素）解释
+缓冲 0: 0x7faefb3000 + 16588800
+nsh> 

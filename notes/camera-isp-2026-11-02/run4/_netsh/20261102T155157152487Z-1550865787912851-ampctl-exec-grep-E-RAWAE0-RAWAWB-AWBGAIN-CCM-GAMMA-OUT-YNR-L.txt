@@ -1,0 +1,12 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "grep -E 'RAWAE0|RAWAWB|AWBGAIN|CCM|GAMMA_OUT|YNR|LSC' /proc/rkisp-vir2 | cut -c1-90"
+[Linux 6.1.75 aarch64 on k7-linux, up 82s, 68 procs]
+AWBGAIN    ON(0x6197) (gain0:0x01000100 0x01000100 gain1:0x10d010d 0x1f6028b)
+LSC        ON(0x5)
+CCM        ON(0xc8000011)
+GAMMA_OUT  ON(0xc0000005)
+YNR        ON(0xc4001001) bypass(lospnr:0 hispnr:0)
+RAWAWB     ON(0x4737688f)
+RAWAE0     ON(0x800000f5)
+nsh> 

@@ -1,0 +1,60 @@
+
+NuttShell (NSH)
+nsh> [Kcmocka_aesxts
+OK encrypt test vector 0
+OK encrypt test vector 0 in stream mode
+OK decrypt test vector 0
+OK decrypt test vector 0 in stream mode
+OK encrypt test vector 1
+OK encrypt test vector 1 in stream mode
+OK decrypt test vector 1
+OK decrypt test vector 1 in stream mode
+OK encrypt test vector 2
+OK encrypt test vector 2 in stream mode
+OK decrypt test vector 2
+OK decrypt test vector 2 in stream mode
+OK encrypt test vector 3
+OK encrypt test vector 3 in stream mode
+OK decrypt test vector 3
+OK decrypt test vector 3 in stream mode
+OK encrypt test vector 4
+OK encrypt test vector 4 in stream mode
+OK decrypt test vector 4
+OK decrypt test vector 4 in stream mode
+OK encrypt test vector 5
+OK encrypt test vector 5 in stream mode
+OK decrypt test vector 5
+OK decrypt test vector 5 in stream mode
+OK encrypt test vector 6
+OK encrypt test vector 6 in stream mode
+OK decrypt test vector 6
+OK decrypt test vector 6 in stream mode
+OK encrypt test vector 7
+OK encrypt test vector 7 in stream mode
+OK decrypt test vector 7
+OK decrypt test vector 7 in stream mode
+OK encrypt test vector 8
+OK encrypt test vector 8 in stream mode
+OK decrypt test vector 8
+OK decrypt test vector 8 in stream mode
+OK encrypt test vector 9
+OK encrypt test vector 9 in stream mode
+OK decrypt test vector 9
+OK decrypt test vector 9 in stream mode
+OK encrypt test vector 10
+OK encrypt test vector 10 in stream mode
+OK decrypt test vector 10
+OK decrypt test vector 10 in stream mode
+OK encrypt test vector 11
+OK encrypt test vector 11 in stream mode
+OK decrypt test vector 11
+OK decrypt test vector 11 in stream mode
+OK encrypt test vector 12
+OK encrypt test vector 12 in stream mode
+OK decrypt test vector 12
+OK decrypt test vector 12 in stream mode
+OK encrypt test vector 13
+OK encrypt test vector 13 in stream mode
+OK decrypt test vector 13
+OK decrypt test vector 13 in stream mode
+nsh> 

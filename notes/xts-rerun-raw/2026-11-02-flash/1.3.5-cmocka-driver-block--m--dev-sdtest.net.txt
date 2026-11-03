@@ -1,0 +1,4 @@
+[Kcmocka_driver_block -m /dev/sdtest
+
+nsh> 
+{"command": "cmocka_driver_block -m /dev/sdtest", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599749.2936668, "host_at_done": 1793599892.2407653, "elapsed_monotonic_s": 142.95260670688003, "host_clock_moved_back": false, "raw": "_netsh/20261102T060909286260Z-1515896000366336-cmocka-driver-block-m-dev-sdtest.raw", "text": "_netsh/20261102T060909286260Z-1515896000366336-cmocka-driver-block-m-dev-sdtest.txt", "prompt_returned": true}

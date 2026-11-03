@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> ÿû[Ki2c get -b 1 -a 23 -r 0
+ÿüi2ctool: get: Transfer failed: 1
+nsh> 

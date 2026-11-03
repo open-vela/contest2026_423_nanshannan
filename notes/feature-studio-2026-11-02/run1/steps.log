@@ -1,0 +1,18 @@
+  50.71 开始前 {'living_light': 'ON', 'desk_lamp': 'OFF', 'ac': 'ON', 'fresh_air': 'ON', 'kettle': 'OFF', 'tv': 'OFF'}
+  50.71 PASS 开始前：空调、新风开，台灯关
+  50.71 >>> echo 1 > /tmp/k7-studio
+   6.64 开始后消息 ['home/desk_lamp/set ON', 'home/ac/set OFF', 'home/fresh_air/set OFF', 'home/studio/onair ON', 'home/desk_lamp/state ON', 'home/ac/state OFF', 'home/fresh_air/state OFF']
+   6.64 PASS 开始：下发 台灯 ON、空调 OFF、新风 OFF
+   6.64 PASS 开始：电视、饮水机本来就关，不发指令
+   6.64 PASS 开始：门口状态 ON（retain）
+   6.64 >>> 门铃
+   8.14 门铃后消息 ['home/doorbell/event ring', 'home/doorbell/reply 主人正在录制，请把东西放在门口，谢谢。']
+   8.14 PASS 门铃：录制中代答
+   8.14 >>> 录制中手动打开新风
+  11.77 >>> echo 0 > /tmp/k7-studio
+  14.43 结束后消息 ['home/desk_lamp/set OFF', 'home/ac/set ON', 'home/studio/onair OFF', 'home/desk_lamp/state OFF', 'home/ac/state ON']
+  14.43 PASS 结束：台灯恢复 OFF、空调恢复 ON
+  14.43 PASS 结束：录制中被手动打开的新风不去动
+  14.43 PASS 结束：门口状态 OFF
+  14.43 结束后状态 {'living_light': 'ON', 'desk_lamp': 'OFF', 'ac': 'ON', 'fresh_air': 'ON', 'kettle': 'OFF', 'tv': 'OFF', 'onair': 'OFF'}
+  14.57 PASS 打点清单写进 /data/studio/marks.txt

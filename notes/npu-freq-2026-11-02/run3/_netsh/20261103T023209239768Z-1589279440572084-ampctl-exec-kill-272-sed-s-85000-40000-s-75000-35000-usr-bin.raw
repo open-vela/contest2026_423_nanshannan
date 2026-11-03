@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "kill 272; sed s/85000/40000/\;s/75000/35000/ /usr/bin/k7npu > /tmp/k7g; chmod +x /tmp/k7g; rm -f /tmp/k7npu-guard.pid"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 53s, 63 procs]
+sh: s/75000/35000/: not found
+nsh> 

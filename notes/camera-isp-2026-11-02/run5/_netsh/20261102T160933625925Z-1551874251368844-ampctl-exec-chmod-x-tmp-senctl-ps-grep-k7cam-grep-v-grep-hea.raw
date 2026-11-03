@@ -1,0 +1,12 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec "chmod +x /tmp/senctl; ps | grep k7cam | grep -v grep | head -n 1; /tmp/senctl /dev/v4l-subdev3 5; grep '^帧' /tmp/k7live.log | tail -n 1"
+��[Linux 6.1.75 aarch64 on k7-linux, up 822s, 58 procs]
+  322 0         1312 S    sh -c if pidof k7cam >/dev/null; then touch /tmp/k7l
+exp 2025 again 116 vblank 58
+exp 2025 again 116 vblank 58
+exp 2025 again 116 vblank 58
+exp 2025 again 116 vblank 58
+exp 2025 again 116 vblank 58
+帧 8701: seq=8700 字节=1382400 间隔=33 ms  均值 Y=89 U=133 V=131
+nsh> 

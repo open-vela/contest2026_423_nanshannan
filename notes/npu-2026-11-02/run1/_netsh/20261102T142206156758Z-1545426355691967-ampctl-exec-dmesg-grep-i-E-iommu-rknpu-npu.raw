@@ -1,0 +1,16 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "dmesg | grep -i -E \"iommu|rknpu|npu\""
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 65s, 58 procs]
+<6>[    2.346819] iommu: Default domain type: Translated 
+<6>[    2.346826] iommu: DMA domain TLB invalidation policy: strict mode 
+<3>[    2.400162] rga_iommu: rga_iommu_bind, binding map scheduler failed!
+<3>[    2.400168] rga: rga iommu bind failed!
+<6>[    2.563795] rkcifhw 27c10000.rkcif: Adding to iommu group 2
+<6>[    2.564162] rkcif rkcif-mipi-lvds3: Adding to iommu group 2
+<6>[    2.570019] rkisp_hw 27c00000.isp: Adding to iommu group 1
+<6>[    2.570125] rkisp_hw 27c00000.isp: max input:0x0@0fps
+<6>[    2.573723] rkvpss_hw 27c30000.vpss: Adding to iommu group 3
+<12>[   54.376044] k7d: exec: k7npu status
+<12>[   66.298046] k7d: exec: dmesg | grep -i -E "iommu|rknpu|npu"
+nsh> 

@@ -1,0 +1,20 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec "k7npu test 5 | grep -E \"NPU|283\"; sleep 2; k7npu status | grep -E \"npu_hz|uV|npu-thermal\"; pidof k7npu; cat /tmp/k7npu-guard.log"
+��[Linux 6.1.75 aarch64 on k7-linux, up 40s, 60 procs]
+<6>[   41.463326] RKNPU 27700000.npu: Adding to iommu group 0
+<6>[   41.463449] RKNPU 27700000.npu: RKNPU: rknpu iommu is enabled, using iommu mode
+<3>[   41.463498] RKNPU 27700000.npu: can't request region for resource [mem 0x27700000-0x27707fff]
+<3>[   41.463514] RKNPU 27700000.npu: can't request region for resource [mem 0x27708000-0x2770ffff]
+<6>[   41.463949] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+第 0 次：rknn_run 2 ms（NPU 2306 us）
+第 1 次：rknn_run 2 ms（NPU 2195 us）
+第 2 次：rknn_run 2 ms（NPU 2187 us）
+第 3 次：rknn_run 2 ms（NPU 2204 us）
+第 4 次：rknn_run 2 ms（NPU 2204 us）
+   283  0.4153
+RK806 806a，DCDC2 开，VSEL 0x30 = 800000 uV
+npu_hz 800000000，目标 800 MHz
+npu-thermal 42.5
+272
+nsh> 

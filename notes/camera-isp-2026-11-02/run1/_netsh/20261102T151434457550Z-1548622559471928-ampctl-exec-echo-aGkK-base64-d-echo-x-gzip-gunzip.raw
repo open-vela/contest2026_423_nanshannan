@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "echo aGkK | base64 -d; echo x | gzip | gunzip"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 1804s, 48 procs]
+sh: base64: not found
+sh: gzip: not found
+sh: gunzip: not found
+[é€€å‡ºç  127]
+nsh> 

@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kcmocka_syscall_test
+nsh> 

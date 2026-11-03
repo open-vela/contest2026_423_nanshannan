@@ -1,0 +1,6 @@
+[CPU0] [==========] tests: Running 1 test(s).
+[CPU0] [ RUN      ] drivertest_oneshot
+[CPU0] ma404
+[CPU0] maxdelay nsec:564650625
+[CPU0] [       OK ] drivertest_oneshot
+[CPU0] [==========] testU0] [  PASSED  ] 1 test(s).

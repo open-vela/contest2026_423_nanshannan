@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> ��[Kampctl exec "k7npu test 30000 | awk -F\"NPU \" \"/NPU/{split(\\\\\$2,a,\\\\\" \\\\\");n++;s+=a[1];if(a[1]>m)m=a[1]} END{print n, s/n, m}\"; k7npu test 1 | tail -n 5"
+��[Linux 6.1.75 aarch64 on k7-linux, up 54s, 59 procs]
+awk: cmd. line:1: Unexpected token
+[退出码 124：Linux 侧 60s 超时被杀]
+nsh> 

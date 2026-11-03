@@ -1,0 +1,6 @@
+[Kls -l /dev/sdtest
+
+ brw-rw-rw-   1    67108864 /dev/sdtest
+
+nsh> 
+{"command": "ls -l /dev/sdtest", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599747.7708313, "host_at_done": 1793599747.8639698, "elapsed_monotonic_s": 0.09313858207315207, "host_clock_moved_back": false, "raw": "_netsh/20261102T060907764441Z-1515894476336684-ls-l-dev-sdtest.raw", "text": "_netsh/20261102T060907764441Z-1515894476336684-ls-l-dev-sdtest.txt", "prompt_returned": true}

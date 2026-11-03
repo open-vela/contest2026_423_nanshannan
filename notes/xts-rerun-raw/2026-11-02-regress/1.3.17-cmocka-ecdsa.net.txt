@@ -1,0 +1,13 @@
+[Kcmocka_ecdsa
+
+p256 generate key sync success
+
+p256 sign sync success
+
+p256 verify sync success
+
+Test SECP256R1 case success
+
+
+nsh> 
+{"command": "cmocka_ecdsa", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599454.0231342, "host_at_done": 1793599454.115313, "elapsed_monotonic_s": 0.09217909490689635, "host_clock_moved_back": false, "raw": "_netsh/20261102T060414015680Z-1515600714860428-cmocka-ecdsa.raw", "text": "_netsh/20261102T060414015680Z-1515600714860428-cmocka-ecdsa.txt", "prompt_returned": true}

@@ -1,0 +1,10 @@
+[Kampctl exec "df -h"
+
+[Linux 6.1.75 aarch64 on k7-linux, up 1989s, 51 procs]
+
+df: invalid option -- 'h'
+
+[退出码 1]
+
+nsh> 
+{"command": "ampctl exec \"df -h\"", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599379.9106925, "host_at_done": 1793599380.046791, "elapsed_monotonic_s": 0.13609889592044055, "host_clock_moved_back": false, "raw": "_netsh/20261102T060259903406Z-1515526601320747-ampctl-exec-df-h.raw", "text": "_netsh/20261102T060259903406Z-1515526601320747-ampctl-exec-df-h.txt", "prompt_returned": true}

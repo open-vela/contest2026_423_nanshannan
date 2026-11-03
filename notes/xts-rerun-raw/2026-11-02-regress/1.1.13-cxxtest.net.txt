@@ -1,0 +1,22 @@
+[Kcxxtest
+
+Test std::vector =============================
+
+v1=1 2 3
+
+s1=Hello, World!
+
+Hello World Good Luck 
+
+Test std::map ===============================
+
+Test RTTI =============================
+
+extend
+
+Test Exception ===============================
+
+Catch Exception: runtime error
+
+nsh> 
+{"command": "cxxtest", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599373.7705264, "host_at_done": 1793599373.8526456, "elapsed_monotonic_s": 0.08211915707215667, "host_clock_moved_back": false, "raw": "_netsh/20261102T060253763942Z-1515520461769383-cxxtest.raw", "text": "_netsh/20261102T060253763942Z-1515520461769383-cxxtest.txt", "prompt_returned": true}

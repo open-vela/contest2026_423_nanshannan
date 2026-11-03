@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "(k7cam isp 240 - >/tmp/i.log 2>&1 &); sleep 4; cat /proc/rkisp-vir2 > /tmp/p.txt; wc -l /tmp/p.txt"
+[Linux 6.1.75 aarch64 on k7-linux, up 627s, 53 procs]
+63 /tmp/p.txt
+nsh> 

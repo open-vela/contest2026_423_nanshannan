@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kdmesg | grep -a -E "ampctl cam|界面: 相机" | tail -n 8
+sh [114:100]
+nsh: grep: command not found
+nsh: tail: command not found
+nsh> 

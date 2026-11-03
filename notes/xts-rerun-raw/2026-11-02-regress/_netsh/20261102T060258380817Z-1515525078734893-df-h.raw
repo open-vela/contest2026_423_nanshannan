@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kdf -h
+ÿü  Filesystem      Size      Used  Available Mounted on
+  vfat            383M     1152K       382M /data
+  procfs            0B        0B         0B /proc
+  tmpfs           512B        0B       512B /tests
+  tmpfs            19K       17K         2K /tmp
+nsh> 

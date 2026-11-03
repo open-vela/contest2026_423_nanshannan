@@ -1,0 +1,21 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "persist_camera_engine_log=0xff4 LD_PRELOAD=/tmp/libSegFault.so rkaiq_3A_server >/tmp/r4.log 2>&1 </dev/null; echo rc=\$?; grep -n -B 14 \"signal\" /tmp/r4.log | cut -c1-160"
+[Linux 6.1.75 aarch64 on k7-linux, up 2419s, 48 procs]
+rc=139
+58-XCORE:K:Module CAC: opMode:1,en:0,bypass:0,man_ptr:0x7f8cbb14c0
+59-XCORE:K:Module LDCH: opMode:1,en:0,bypass:0,man_ptr:(nil)
+60-XCORE:K:Module HISTEQ: opMode:1,en:1,bypass:0,man_ptr:0x7f8cb90f84
+61-XCORE:K:Module csm: opMode:2,en:1,bypass:0,man_ptr:0x7f8cbb634c
+62-XCORE:K:Module MERGE: opMode:1,en:1,bypass:0,man_ptr:0x7f8cb8e5f8
+63-XCORE:K:Module LSC: opMode:1,en:1,bypass:0,man_ptr:0x7f8cb921f8
+64-XCORE:K:Module rgbir: opMode:1,en:0,bypass:0,man_ptr:0x7f8cb9149c
+65-XCORE:K:Module cgc: opMode:1,en:1,bypass:0,man_ptr:0x7f8cbb6380
+66-XCORE:K:Module cp: opMode:2,en:1,bypass:0,man_ptr:0x7f8cb91e82
+67-XCORE:K:Module ie: opMode:2,en:0,bypass:0,man_ptr:0x7f8cb91e8f
+68-XCORE:K:Module gain: opMode:2,en:1,bypass:0,man_ptr:0x7f8cbb6428
+69-XCORE:K:Module 3DLUT: opMode:1,en:0,bypass:0,man_ptr:0x7f8cb877e4
+70-XCORE:K:Module CCM: opMode:1,en:1,bypass:0,man_ptr:0x7f8cb86de8
+71-XCORE:K:cid[2] rk_aiq_uapi2_sysctl_init success. iq:/etc/iqfiles//imx415_CMK-OT2022-PX1_IR0147-50IRC-8M-F20.json
+72:*** signal 
+nsh> 

@@ -1,0 +1,4 @@
+[Kcmocka_hmac
+
+nsh> 
+{"command": "cmocka_hmac", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599449.3510199, "host_at_done": 1793599449.424273, "elapsed_monotonic_s": 0.07325329608283937, "host_clock_moved_back": false, "raw": "_netsh/20261102T060409343157Z-1515596045197863-cmocka-hmac.raw", "text": "_netsh/20261102T060409343157Z-1515596045197863-cmocka-hmac.txt", "prompt_returned": true}

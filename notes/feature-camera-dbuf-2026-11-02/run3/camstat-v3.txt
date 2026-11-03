@@ -1,0 +1,7 @@
+# v3：flush 拷贝线程化，帧缓冲仍是两块（openvela 09:38:32）。从 /tmp/k7-camstat 读出，第一行是刚开相机页的过渡
+3s: grab 83 avg 36 ms | refr 298 avg 12 ms | flush-copy 6 ms/refr | update+pan 1 ms/refr | latch-wait 737 ms total | take 1 ms/frame | new frames 71
+3s: grab 90 avg 33 ms | refr 78 avg 35 ms | flush-copy 20 ms/refr | update+pan 6 ms/refr | latch-wait 821 ms total | take 1 ms/frame | new frames 78
+3s: grab 90 avg 33 ms | refr 78 avg 35 ms | flush-copy 20 ms/refr | update+pan 7 ms/refr | latch-wait 791 ms total | take 1 ms/frame | new frames 78
+3s: grab 90 avg 33 ms | refr 78 avg 35 ms | flush-copy 20 ms/refr | update+pan 6 ms/refr | latch-wait 831 ms total | take 1 ms/frame | new frames 78
+3s: grab 91 avg 33 ms | refr 78 avg 35 ms | flush-copy 20 ms/refr | update+pan 6 ms/refr | latch-wait 815 ms total | take 1 ms/frame | new frames 78
+3s: grab 91 avg 33 ms | refr 78 avg 35 ms | flush-copy 20 ms/refr | update+pan 6 ms/refr | latch-wait 809 ms total | take 1 ms/frame | new frames 78

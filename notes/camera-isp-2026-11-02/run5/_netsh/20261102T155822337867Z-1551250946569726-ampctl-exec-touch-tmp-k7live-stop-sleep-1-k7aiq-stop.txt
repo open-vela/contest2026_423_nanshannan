@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "touch /tmp/k7live.stop; sleep 1; k7aiq stop"
+[Linux 6.1.75 aarch64 on k7-linux, up 198s, 62 procs]
+已停
+nsh> 

@@ -1,0 +1,8 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "dmesg | grep -i 'first iq' | tail -n 2; grep -c 'stats_valid=false' /tmp/rkaiq.log"
+[Linux 6.1.75 aarch64 on k7-linux, up 83s, 68 procs]
+<12>[   84.409098] k7d: exec: dmesg | grep -i 'first iq' | tail -n 2; grep -c 'stats_valid=false' /tmp/rkaiq.log
+0
+[退出码 1]
+nsh> 

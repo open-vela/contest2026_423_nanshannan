@@ -1,0 +1,17 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "grep -E 'isr_other_en|isr_meas_en|isr_meas_config|send_meas' /tmp/d4.txt | sed -e 's/^.*vir2: //' | head -n 12"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 707s, 53 procs]
+rkisp_stats_send_meas_v39 seq:95 params_id:0 ris:0x0 buf:00000000d502ea50 meas_type:0x0
+__isp_isr_meas_config id:0 seq:0 module_cfg_update:0xc000012000000000
+__isp_isr_other_en id:0 seq:0 module_en_update:0x0 module_ens:0x3400000000
+__isp_isr_meas_en id:0 seq:0 module_en_update:0x0 module_ens:0x3400000000
+rkisp_stats_send_meas_v39 seq:96 params_id:0 ris:0x0 buf:00000000e25520b8 meas_type:0x0
+rkisp_stats_send_meas_v39 seq:97 params_id:0 ris:0x0 buf:00000000a138799d meas_type:0x0
+__isp_isr_meas_config id:0 seq:0 module_cfg_update:0xc000012000000000
+__isp_isr_other_en id:0 seq:0 module_en_update:0x0 module_ens:0x3400000000
+__isp_isr_meas_en id:0 seq:0 module_en_update:0x0 module_ens:0x3400000000
+rkisp_stats_send_meas_v39 seq:98 params_id:0 ris:0x0 buf:0000000050f17920 meas_type:0x0
+__isp_isr_meas_config id:0 seq:0 module_cfg_update:0xc000012000000000
+__isp_isr_other_en id:0 seq:0 module_en_update:0x0 module_ens:0x3400000000
+nsh> 

@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kmd5_test -f /tmp/1.txt -c 100
+nsh> 

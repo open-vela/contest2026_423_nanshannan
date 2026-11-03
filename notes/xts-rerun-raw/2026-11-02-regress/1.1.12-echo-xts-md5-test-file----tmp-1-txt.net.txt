@@ -1,0 +1,4 @@
+[Kecho xts-md5-test-file > /tmp/1.txt
+
+nsh> 
+{"command": "echo xts-md5-test-file > /tmp/1.txt", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599369.524177, "host_at_done": 1793599369.644288, "elapsed_monotonic_s": 0.12011084705591202, "host_clock_moved_back": false, "raw": "_netsh/20261102T060249516806Z-1515516215765035-echo-xts-md5-test-file-tmp-1-txt.raw", "text": "_netsh/20261102T060249516806Z-1515516215765035-echo-xts-md5-test-file-tmp-1-txt.txt", "prompt_returned": true}

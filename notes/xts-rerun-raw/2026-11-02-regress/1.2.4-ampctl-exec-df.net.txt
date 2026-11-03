@@ -1,0 +1,5 @@
+[Kampctl exec df
+[Linux 6.1.75 aarch64 on k7-linux, up 142s, 58 procs]
+Filesystem           1024-blocks    Used Available Use% Mounted on
+nsh> 
+{"command": "ampctl exec df", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599686.3170028, "host_at_done": 1793599686.4091628, "elapsed_monotonic_s": 0.09216008405201137, "host_clock_moved_back": false, "raw": "/home/dministrator/openvela-amlogic/src/contest2026_423_nanshannan/notes/xts-rerun-raw/2026-11-02-regress/_netsh/20261102T060806308700Z-1515833019317063-ampctl-exec-df.raw", "text": "/home/dministrator/openvela-amlogic/src/contest2026_423_nanshannan/notes/xts-rerun-raw/2026-11-02-regress/_netsh/20261102T060806308700Z-1515833019317063-ampctl-exec-df.txt", "prompt_returned": true}

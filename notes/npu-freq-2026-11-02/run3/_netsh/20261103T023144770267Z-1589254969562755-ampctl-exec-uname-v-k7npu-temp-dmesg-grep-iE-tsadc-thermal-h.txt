@@ -1,0 +1,16 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "uname -v; k7npu temp; dmesg | grep -iE \"tsadc|thermal\" | head -n 5"
+[Linux 6.1.75 aarch64 on k7-linux, up 29s, 59 procs]
+#29 SMP Mon Nov  2 21:23:16 EST 2026
+soc-thermal 42.5
+bigcore-thermal 43.4
+little-core-thermal 42.5
+ddr-thermal 42.5
+npu-thermal 42.5
+gpu-thermal 43.4
+<6>[    2.322870] thermal_sys: Registered thermal governor 'step_wise'
+<4>[    2.371736] rockchip-thermal 2ae70000.tsadc: Missing rockchip,grf property
+<6>[    2.372529] rockchip-thermal 2ae70000.tsadc: tsadc is probed successfully!
+<12>[   31.262060] k7d: exec: uname -v; k7npu temp; dmesg | grep -iE "tsadc|thermal" | head -n 5
+nsh> 

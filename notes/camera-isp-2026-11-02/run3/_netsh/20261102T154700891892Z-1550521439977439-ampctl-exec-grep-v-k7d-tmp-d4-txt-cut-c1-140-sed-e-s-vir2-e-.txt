@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "grep -v k7d /tmp/d4.txt | cut -c1-140 | sed -e 's/^.*vir2: //' -e 's/[0-9]//g' | sort | uniq -c | sort -rn | head -n 20"
+[Linux 6.1.75 aarch64 on k7-linux, up 685s, 53 procs]
+grep: /tmp/d4.txt: No such file or directory
+nsh> 

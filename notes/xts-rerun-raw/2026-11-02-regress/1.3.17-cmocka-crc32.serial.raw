@@ -1,0 +1,11 @@
+[CPU0] [==========] crc32_tests: Running 4 test(s).
+[CPU0] [ RU1
+[CPU0] [       OK ] test_crc32_case1
+[CPU0] [ RUN      ] test_crc32_case2
+[CPU0] [       OK ] test_crc32_case2
+[CPU0] [ RUN      ] test_crc32_case3
+[CPU0e3
+[CPU0] [ RUN      ] test_crc32_case4
+[CPU0] [       OK ] test_crc32_case4
+[CPU0] [========
+[CPU0] [  PASSED  ] 4 test(s).

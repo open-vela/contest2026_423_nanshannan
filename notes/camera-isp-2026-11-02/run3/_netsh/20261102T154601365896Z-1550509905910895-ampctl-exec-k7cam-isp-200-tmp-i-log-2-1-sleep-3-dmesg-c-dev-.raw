@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "(k7cam isp 200 - >/tmp/i.log 2>&1 &); sleep 3; dmesg -c >/dev/null; echo 4 > /sys/module/video_rkisp/parameters/debug; sleep 1; echo 0 > /sys/module/video_rkisp/parameters/debug; dmesg > /tmp/d4.txt; wc -l /tmp/d4.txt; grep -v k7d /tmp/d4.txtÿünsh: ": no matching "
+nsh> 

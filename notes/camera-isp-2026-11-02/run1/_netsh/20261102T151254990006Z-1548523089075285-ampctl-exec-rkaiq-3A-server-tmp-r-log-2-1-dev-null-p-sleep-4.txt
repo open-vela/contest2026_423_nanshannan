@@ -1,0 +1,12 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "rkaiq_3A_server >/tmp/r.log 2>&1 </dev/null & p=\$!; sleep 4; wait \$p; echo rc=\$?; tail -n 3 /tmp/r.log; dmesg | grep -i -E \"rkaiq|segfault|unhandled\" | tail -n 5"
+[Linux 6.1.75 aarch64 on k7-linux, up 1705s, 48 procs]
+rc=139
+XCORE:K:Module 3DLUT: opMode:1,en:0,bypass:0,man_ptr:0x7f80b877e4
+XCORE:K:Module CCM: opMode:1,en:1,bypass:0,man_ptr:0x7f80b86de8
+XCORE:K:cid[2] rk_aiq_uapi2_sysctl_init success. iq:/etc/iqfiles//imx415_CMK-OT2022-PX1_IR0147-50IRC-8M-F20.json
+<12>[ 1681.311047] k7d: exec: wc -l /tmp/rkaiq.log; grep -n -i -E "err|fail|fault|abort|exit|signal|not found|no such|E:" /tmp/rkaiq.log | head -n 30
+<12>[ 1687.322045] k7d: exec: sed -n 12,25p /tmp/rkaiq.log; sed -n 45,70p /tmp/rkaiq.log | grep -v Module
+<12>[ 1706.607045] k7d: exec: rkaiq_3A_server >/tmp/r.log 2>&1 </dev/null & p=$!; sleep 4; wait $p; echo rc=$?; tail -n 3 /tmp/r.log; dmesg | grep -i -E "rkaiq|segfault|unhandled" | tail -n 5
+nsh> 

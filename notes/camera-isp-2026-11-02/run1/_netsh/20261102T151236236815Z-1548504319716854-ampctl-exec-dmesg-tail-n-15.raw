@@ -1,0 +1,20 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "dmesg | tail -n 15"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 1686s, 48 procs]
+<6>[ 1671.510041] virtio_rpmsg_bus virtio0: destroying channel rpmsg-raw addr 0x407
+<12>[ 1671.510134] k7d: closed /dev/rpmsg0
+<6>[ 1681.286084] virtio_rpmsg_bus virtio0: creating channel rpmsg-raw addr 0x408
+<12>[ 1681.308789] k7d: opened /dev/rpmsg0
+<12>[ 1681.311047] k7d: exec: wc -l /tmp/rkaiq.log; grep -n -i -E "err|fail|fault|abort|exit|signal|not found|no such|E:" /tmp/rkaiq.log | head -n 30
+<6>[ 1681.379037] virtio_rpmsg_bus virtio0: destroying channel rpmsg-raw addr 0x408
+<12>[ 1681.379195] k7d: closed /dev/rpmsg0
+<6>[ 1687.279079] virtio_rpmsg_bus virtio0: creating channel rpmsg-raw addr 0x409
+<12>[ 1687.319781] k7d: opened /dev/rpmsg0
+<12>[ 1687.322045] k7d: exec: sed -n 12,25p /tmp/rkaiq.log; sed -n 45,70p /tmp/rkaiq.log | grep -v Module
+<6>[ 1687.354036] virtio_rpmsg_bus virtio0: destroying channel rpmsg-raw addr 0x409
+<12>[ 1687.354128] k7d: closed /dev/rpmsg0
+<6>[ 1687.497066] virtio_rpmsg_bus virtio0: creating channel rpmsg-raw addr 0x40a
+<12>[ 1687.520299] k7d: opened /dev/rpmsg0
+<12>[ 1687.523042] k7d: exec: dmesg | tail -n 15
+nsh> 

@@ -1,0 +1,12 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec k7npu load
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 100s, 57 procs]
+PMU STATUS=0x02000000 REPAIR=0xfdffffffï¼šnpu å¼€ nputop å¼€ npu0 å¼€ npu1 å¼€
+<6>[  101.746710] RKNPU 27700000.npu: Adding to iommu group 0
+<6>[  101.746841] RKNPU 27700000.npu: RKNPU: rknpu iommu is enabled, using iommu mode
+<3>[  101.746889] RKNPU 27700000.npu: can't request region for resource [mem 0x27700000-0x27707fff]
+<3>[  101.746905] RKNPU 27700000.npu: can't request region for resource [mem 0x27708000-0x2770ffff]
+<6>[  101.747111] [drm] Initialized rknpu 0.9.8 20240828 for 27700000.npu on minor 0
+<6>[  101.747309] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+nsh> 

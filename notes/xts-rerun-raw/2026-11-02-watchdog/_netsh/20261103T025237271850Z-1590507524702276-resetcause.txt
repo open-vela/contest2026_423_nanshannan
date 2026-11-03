@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kresetcause
+rtc_watchdog(1380107016)
+nsh> 

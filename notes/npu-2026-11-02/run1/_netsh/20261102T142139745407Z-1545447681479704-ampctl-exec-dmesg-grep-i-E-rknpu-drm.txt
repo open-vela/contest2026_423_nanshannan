@@ -1,0 +1,16 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "dmesg | grep -i -E \"rknpu|drm\""
+[Linux 6.1.75 aarch64 on k7-linux, up 86s, 58 procs]
+<3>[    2.087569] OF: fdt: Reserved memory: failed to reserve memory for node 'drm-cubic-lut@0': base 0x0000000000000000, size 0 MiB
+<3>[    2.087621] uboot@f0000000 (0x00000000f0000000--0x0000000100000000) overlaps with drm-logo@0 (0x00000000fdf00000--0x00000000fe608000)
+<12>[   66.298046] k7d: exec: dmesg | grep -i -E "iommu|rknpu|npu"
+<6>[   87.401150] RKNPU 27700000.npu: Adding to iommu group 0
+<6>[   87.401273] RKNPU 27700000.npu: RKNPU: rknpu iommu is enabled, using iommu mode
+<3>[   87.401320] RKNPU 27700000.npu: can't request region for resource [mem 0x27700000-0x27707fff]
+<3>[   87.401335] RKNPU 27700000.npu: can't request region for resource [mem 0x27708000-0x2770ffff]
+<6>[   87.401549] [drm] Initialized rknpu 0.9.8 20240828 for 27700000.npu on minor 0
+<3>[   87.401667] RKNPU 27700000.npu: RKNPU: failed to get pm runtime for rknpu, ret: -95
+<4>[   87.401813] RKNPU: probe of 27700000.npu failed with error -95
+<12>[   87.587044] k7d: exec: dmesg | grep -i -E "rknpu|drm"
+nsh> 

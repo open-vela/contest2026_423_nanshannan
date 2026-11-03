@@ -1,0 +1,14 @@
+
+NuttShell (NSH)
+nsh> [Kramtest -h -s 52185136
+RAMTest: malloc failed, We were unableto continue with the follow-up work
+
+Usage: ramtest [-w|h|b] -a [hex-address] -s <decimal-size>
+
+Where:
+  -a [hex-address] starting address of the test,
+  -s <decimal-size> number of memory locations (in bytes).
+  -w Sets the width of a memory location to 32-bits.
+  -h Sets the width of a memory location to 16-bits (default).
+  -b Sets the width of a memory location to 8-bits.
+nsh> 

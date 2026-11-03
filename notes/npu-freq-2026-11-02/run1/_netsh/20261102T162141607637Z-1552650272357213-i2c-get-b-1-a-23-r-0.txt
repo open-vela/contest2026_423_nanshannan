@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Ki2c get -b 1 -a 23 -r 0
+i2ctool: get: Transfer failed: 1
+nsh> 

@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "grep -E '^ISP|^帧' /tmp/k7live.log"
+[Linux 6.1.75 aarch64 on k7-linux, up 101s, 68 procs]
+ISP /dev/video11: 1280x720 fourcc=NV12 planes=1 bytesperline=1280 sizeimage=1382400
+帧 1: seq=0 字节=1382400 间隔=0 ms  均值 Y=10 U=128 V=128
+帧 301: seq=300 字节=1382400 间隔=34 ms  均值 Y=112 U=129 V=130
+帧 601: seq=600 字节=1382400 间隔=34 ms  均值 Y=113 U=129 V=128
+帧 901: seq=900 字节=1382400 间隔=33 ms  均值 Y=117 U=130 V=132
+nsh> 

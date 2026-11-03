@@ -1,0 +1,9 @@
+{"start": 1793600189.3117173, "prompt_at_115200": false, "prompt_back_at_1500000": true, "end": 1793600192.6625562}
+Traceback (most recent call last):
+  File "/home/dministrator/openvela-amlogic/src/contest2026_423_nanshannan/notes/xts-rerun-raw/2026-11-02-uart/run.py", line 160, in <module>
+    main()
+  File "/home/dministrator/openvela-amlogic/src/contest2026_423_nanshannan/notes/xts-rerun-raw/2026-11-02-uart/run.py", line 140, in main
+    transfers(con, out, recv, files, ev)
+  File "/home/dministrator/openvela-amlogic/src/contest2026_423_nanshannan/notes/xts-rerun-raw/2026-11-02-uart/run.py", line 84, in transfers
+    raise RuntimeError('115200 下没有 nsh 提示符')
+RuntimeError: 115200 下没有 nsh 提示符

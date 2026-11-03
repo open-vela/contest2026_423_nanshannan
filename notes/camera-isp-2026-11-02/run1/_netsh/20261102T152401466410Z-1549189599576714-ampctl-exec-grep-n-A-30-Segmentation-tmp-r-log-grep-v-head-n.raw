@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "grep -n -A 30 \"Segmentation\" /tmp/r.log | grep -v \"^.*-/\" | head -n 40"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 2371s, 48 procs]
+143:Segmentation fault
+nsh> 

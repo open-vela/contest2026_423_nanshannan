@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "wc -l /tmp/r.log; sed -n 136,200p /tmp/r.log | grep -v -E \"r-xp|r--p|rw-p|---p\" "
+[Linux 6.1.75 aarch64 on k7-linux, up 2378s, 48 procs]
+141 /tmp/r.log
+Segmentation fault
+nsh> 

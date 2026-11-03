@@ -1,0 +1,17 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "dmesg | grep -iE \"rknpu:|param|unknown\" | tail -n 8; ls /sys/module/rknpu/parameters/; busybox | head -n 2"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 94s, 60 procs]
+<4>[   42.248578] rknpu: loading out-of-tree module taints kernel.
+<6>[   42.249501] RKNPU 27700000.npu: RKNPU: rknpu iommu is enabled, using iommu mode
+<6>[   42.249997] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+<12>[   55.399048] k7d: exec: cat /sys/module/rknpu/parameters/npu_hz; cat /sys/class/devfreq/*/cur_freq; ls /sys/kernel/debug; grep -c . /proc/modules
+<12>[   86.004048] k7d: exec: rmmod rknpu; insmod /lib/modules/6.1.75/kernel/drivers/rknpu/rknpu.ko npu_hz=950000000; cat /sys/module/rknpu/parameters/npu_hz; dmesg | grep clk_npu
+<6>[   86.036259] RKNPU 27700000.npu: RKNPU: rknpu iommu is enabled, using iommu mode
+<6>[   86.036741] RKNPU 27700000.npu: RKNPU: nbuf region: [0x000000003fe80000, 0x000000003ff80000), nbuf size: 0x100000
+<12>[   96.123047] k7d: exec: dmesg | grep -iE "rknpu:|param|unknown" | tail -n 8; ls /sys/module/rknpu/parameters/; busybox | head -n 2
+bypass_irq_handler
+bypass_soft_reset
+npu_hz
+busybox: applet not found
+nsh> 

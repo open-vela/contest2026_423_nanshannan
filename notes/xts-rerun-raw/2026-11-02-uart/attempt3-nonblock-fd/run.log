@@ -1,0 +1,3 @@
+xts-uart-pattern.bin {"size": 4096, "sha256": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193", "md5": "2bcd3c4de20c918e19fab5c36249c70d", "host_sb_rc": 128, "board_md5": "d41d8cd98f00b204e9800998ecf8427e", "host_rb_rc": 128, "back_size": 0, "back_identical": false}
+xts-uart-random.bin {"size": 65536, "sha256": "325c4840065b274c4ab5494cd60923097e1fff645ce896a8ec1686773cafea7c", "md5": "6a6fd318eff399aa83d96f7ee7958df1", "host_sb_rc": 128, "board_md5": "d41d8cd98f00b204e9800998ecf8427e", "host_rb_rc": 128, "back_size": 0, "back_identical": false}
+{"start": 1793600463.3106701, "prompt_at_115200": true, "prompt_back_at_1500000": true, "end": 1793600477.5889897}

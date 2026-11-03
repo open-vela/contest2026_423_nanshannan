@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "cat /etc/k7-lxroot; uname -v; k7aiq start | tail -n 3"
+[Linux 6.1.75 aarch64 on k7-linux, up 41s, 67 procs]
+k7 lxroot 2026-11-02T15:32:23Z
+repo 49344e3-dirty
+kernel 6.1.75
+#28 SMP Mon Nov  2 10:30:51 EST 2026
+已经在跑（pid 218）
+nsh> 

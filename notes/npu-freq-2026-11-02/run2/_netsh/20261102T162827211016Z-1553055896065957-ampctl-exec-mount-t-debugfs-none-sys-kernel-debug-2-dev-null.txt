@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "mount -t debugfs none /sys/kernel/debug 2>/dev/null; grep -iE \"rknn|npu\" /sys/kernel/debug/clk/clk_summary"
+[Linux 6.1.75 aarch64 on k7-linux, up 2003s, 53 procs]
+grep: /sys/kernel/debug/clk/clk_summary: No such file or directory
+[退出码 2]
+nsh> 

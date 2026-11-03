@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec dmesg | grep -i -E "iommu|rknpu|imx415|camera" | tail -12
+ÿüsh [59:100]
+nsh: grep: command not found
+nsh: tail: command not found
+nsh> 

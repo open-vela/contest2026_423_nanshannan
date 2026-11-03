@@ -1,0 +1,11 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kgetprime
+ÿüSet thread priority to 10
+Set thread policy to SCHED_RR
+Start thread #0
+thread #0 started, looking for primes < 10000, doing 10 run(s)
+thread #0 finished, found 1230 primes, last one was 9973
+Done
+getprime took 148 msec
+nsh> 

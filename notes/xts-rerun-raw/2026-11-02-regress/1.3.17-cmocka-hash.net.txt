@@ -1,0 +1,4 @@
+[Kcmocka_hash
+
+nsh> 
+{"command": "cmocka_hash", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599450.873097, "host_at_done": 1793599451.0173442, "elapsed_monotonic_s": 0.14424778707325459, "host_clock_moved_back": false, "raw": "_netsh/20261102T060410866603Z-1515597568642167-cmocka-hash.raw", "text": "_netsh/20261102T060410866603Z-1515597568642167-cmocka-hash.txt", "prompt_returned": true}

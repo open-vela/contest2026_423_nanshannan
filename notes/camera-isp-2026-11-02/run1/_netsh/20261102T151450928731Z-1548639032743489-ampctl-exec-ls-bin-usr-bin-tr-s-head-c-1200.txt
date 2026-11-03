@@ -1,0 +1,8 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "ls /bin /usr/bin | tr -s \" \" | head -c 1200"
+[Linux 6.1.75 aarch64 on k7-linux, up 1820s, 48 procs]
+head: invalid option -- 'c'
+tr: write error: Broken pipe
+[退出码 1]
+nsh> 

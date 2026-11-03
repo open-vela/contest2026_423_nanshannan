@@ -1,0 +1,28 @@
+[CPU0] з•Њйќў: NTP е·ІеЇ№ж—¶
+[CPU0] и§¦ж‘ё: дё­ж–­иў«е¤–йѓЁе±Џи”Ѕпј€е·ІжЊЃз»­ 100msпј‰пјЊе·Ій‡Ќж–°ж”ѕејЂпјЊз¬¬ 1 ж¬Ў
+[CPU0] йЂџ[иC®P°U:1 ]и ®ж°ЁдЎёе‹ћ ‹1:7 9и3Ї6·0ж5±4‚9 65г7Ђ8Њ е¤ЌзЋ°з¬¬дёЂжќЎег­Ђ—ЌиеЉЅ‚•й
+џі ж—ndshake start: Host=token-plan-cn.xiaomimimo.com, UNIX=1793605496
+[CPU1] [vela_tls] Handshake OK: TLSv1.2 / TLS-ECDHE-RSA-WITH-CHACHA20-POLY1305-SHA256
+[CPU1] жЁЎећ‹: HTTP 401пјЊз”Ёж—¶ 189 ms
+[CPU1] жЁЎећ‹: HTTP 401API Key",
+        "param": "Please provide valid API Key",
+   ",
+        "type": "invalid_key"
+    }
+}
+
+[CPU1] йЂџи®°: ж‰“ж ‡з­ѕе¤±иґҐ -5пј€иЇ·ж±‚жЁЎећ‹е 401пј‰гЂ‚пј‰
+[CPU0] йЂ[џCиP®U°1:]  иж®Ё°Ўдеёћ‹‹ :1 7и9Ї3·6ж0±5‚5 1567г8Ђ Њее¤єЊжќЎ­г—ЂиЌЉе‚Ѕ•
+йџі ж— 
+[CPU0] [vela_tls] Reusing pooled connection to token-plan-cn.xia:443
+[CPU0] жЁЎећ‹: HTTP 401пјЊз”Ёж—¶ 178 ms
+[CPU0] жЁЎећ‹: HTTP 401 {
+    "error": {
+        "message": "Invalid API Key",
+       "param": "Please provide valid API Key",
+        "code": "401",
+        "type": "invalid_key"
+    }
+}
+
+[CPU0] йЂџи®°: ж‰“ж ‡з­ѕе¤±иґҐ -5пј€иЇ·ж±‚жЁЎећ‹е¤±иґҐпј€HTTP 401пј‰гЂ‚пј‰

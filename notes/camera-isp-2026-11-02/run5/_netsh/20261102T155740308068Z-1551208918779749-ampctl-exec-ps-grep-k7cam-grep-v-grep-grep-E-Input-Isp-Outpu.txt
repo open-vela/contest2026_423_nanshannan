@@ -1,0 +1,19 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "ps | grep k7cam | grep -v grep; grep -E 'Input|Isp |Output|BAY3D|YNR|CNR|SHARP|DHAZ|HDRDRC|GAIN |BigMode' /proc/rkisp-vir2 | cut -c1-120"
+[Linux 6.1.75 aarch64 on k7-linux, up 157s, 67 procs]
+  237 0         1312 S    sh -c if pidof k7cam >/dev/null; then touch /tmp/k7l
+  240 0        71736 R    k7cam live-isp 600
+Input      rkcif-mipi-lvds3 Format:SGBRG10_1X10 Size:3840x2160@30fps Offset(0,0) Inp:0x100
+Isp online frame:116 state:working time:32ms v-blank:1075us
+Output     rkisp_mainpath Format:NV12 Size:1280x720 Dcrop(0,0|3840x2160) (frame:116 rate:33ms delay:32ms frameloss:0 buf
+AWBGAIN    ON(0x6197) (gain0:0x01000100 0x01000100 gain1:0x10e010e 0x1f302e0)
+HDRDRC     ON(0xc0000001)
+DHAZ       ON(0xd4110111) contrast:1 hist:1 enhance:1 blk(row:8 col:8)
+BAY3D      ON(0x80010001 0x23800 0x3f3f0000) bypass:0 iirsparse:0 size:14516224
+YNR        ON(0xc4001001) bypass(lospnr:0 hispnr:0)
+CNR        ON(0xe003f131)
+SHARP      ON(0x67000071) bypass:0
+GAIN       ON(0x80000001)
+BigMode    ON(0x30000010)
+nsh> 

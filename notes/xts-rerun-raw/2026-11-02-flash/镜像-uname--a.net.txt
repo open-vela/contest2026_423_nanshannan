@@ -1,0 +1,6 @@
+[Kuname -a
+
+NuttX  0.0.0 ed8f69ad-dirty Nov  2 2026 01:03:54 arm64 kickpi-k7
+
+nsh> 
+{"command": "uname -a", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599744.728687, "host_at_done": 1793599744.7957907, "elapsed_monotonic_s": 0.06710377102717757, "host_clock_moved_back": false, "raw": "_netsh/20261102T060904721042Z-1515891432941569-uname-a.raw", "text": "_netsh/20261102T060904721042Z-1515891432941569-uname-a.txt", "prompt_returned": true}

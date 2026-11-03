@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> [Kcat /data/memo/memo.jsonl
+{"id":1793605023,"ts":1793605023,"state":0,"wav":false,"text":"下期视频讲一下 K7 开发板的双系统是怎么分工的","type":"","title":"","tags":""}
+{"id":1793605024,"ts":1793605024,"state":0,"wav":false,"text":"明天下午三点给王总回电话，确认第二批样品的报价","type":"","title":"","tags":""}
+{"id":1793605496,"ts":1793605496,"state":0,"wav":false,"text":"复现第一条","type":"","title":"","tags":""}
+{"id":1793605516,"ts":1793605516,"state":0,"wav":false,"text":"复现第二条","type":"","title":"","tags":""}
+{"id":1793605978,"ts":1793605978,"state":0,"wav":false,"text":"修复后第一条","type":"","title":"","tags":""}
+nsh> 

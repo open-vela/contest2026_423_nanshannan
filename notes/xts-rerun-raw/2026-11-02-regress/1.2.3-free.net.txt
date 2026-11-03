@@ -1,0 +1,8 @@
+[Kfree
+
+      total       used       free    maxused    maxfree  nused  nfree name
+
+   62468096   11194656   51273440   12620976   49847824    380     22 Umem
+
+nsh> 
+{"command": "free", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599455.5951757, "host_at_done": 1793599455.659379, "elapsed_monotonic_s": 0.06420355290174484, "host_clock_moved_back": false, "raw": "_netsh/20261102T060415588246Z-1515602287425137-free.raw", "text": "_netsh/20261102T060415588246Z-1515602287425137-free.txt", "prompt_returned": true}

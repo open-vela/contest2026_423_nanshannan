@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kmw 0x26040008
+  0x26040008 = 0x0000bb00
+nsh> 

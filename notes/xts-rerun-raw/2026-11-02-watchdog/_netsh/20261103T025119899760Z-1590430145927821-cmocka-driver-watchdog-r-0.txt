@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kcmocka_driver_watchdog -r 0
+

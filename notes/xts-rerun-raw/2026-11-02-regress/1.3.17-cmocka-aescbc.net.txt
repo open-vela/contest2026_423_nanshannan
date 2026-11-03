@@ -1,0 +1,4 @@
+[Kcmocka_aescbc
+
+nsh> 
+{"command": "cmocka_aescbc", "host": "192.168.1.50", "port": 2323, "host_at_enter": 1793599444.634531, "host_at_done": 1793599444.7117076, "elapsed_monotonic_s": 0.07717664982192218, "host_clock_moved_back": false, "raw": "_netsh/20261102T060404626183Z-1515591327486614-cmocka-aescbc.raw", "text": "_netsh/20261102T060404626183Z-1515591327486614-cmocka-aescbc.txt", "prompt_returned": true}

@@ -1,0 +1,6 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kls -l /data/memo
+ÿü/data/memo:
+ -rw-rw-rw-   0         327 memo.jsonl
+nsh> 

@@ -1,0 +1,9 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "cat /sys/module/rknpu/parameters/npu_hz; cat /sys/class/devfreq/*/cur_freq; ls /sys/kernel/debug; grep -c . /proc/modules"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 54s, 59 procs]
+0
+cat: can't open '/sys/class/devfreq/*/cur_freq': No such file or directory
+ls: /sys/kernel/debug: No such file or directory
+22
+nsh> 

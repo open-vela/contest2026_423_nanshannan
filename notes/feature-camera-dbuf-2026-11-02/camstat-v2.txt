@@ -1,0 +1,4 @@
+3s: grab 91 avg 33 ms | refr 66 avg 42 ms | flush-copy 18 ms/refr | update+pan 6 ms/refr | latch-wait 321 ms total | take 1 ms/frame | new frames 66
+3s: grab 91 avg 33 ms | refr 65 avg 42 ms | flush-copy 18 ms/refr | update+pan 6 ms/refr | latch-wait 327 ms total | take 1 ms/frame | new frames 65
+3s: grab 91 avg 33 ms | refr 66 avg 42 ms | flush-copy 18 ms/refr | update+pan 6 ms/refr | latch-wait 312 ms total | take 1 ms/frame | new frames 66
+3s: grab 90 avg 33 ms | refr 65 avg 42 ms | flush-copy 18 ms/refr | update+pan 7 ms/refr | latch-wait 293 ms total | take 1 ms/frame | new frames 65

@@ -1,0 +1,18 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "cat /sys/class/thermal/thermal_zone*/type /sys/class/thermal/thermal_zone*/temp; k7npu test 2000 | tail -n 9; cat /sys/class/thermal/thermal_zone*/temp"
+[Linux 6.1.75 aarch64 on k7-linux, up 40s, 59 procs]
+cat: can't open '/sys/class/thermal/thermal_zone*/type': No such file or directory
+cat: can't open '/sys/class/thermal/thermal_zone*/temp': No such file or directory
+第 1997 次：rknn_run 2 ms（NPU 2012 us）
+第 1998 次：rknn_run 2 ms（NPU 2011 us）
+第 1999 次：rknn_run 2 ms（NPU 2012 us）
+输出 1001 类，top-5：
+   283  0.4153
+   282  0.1758
+   286  0.1588
+   278  0.0603
+   279  0.0434
+cat: can't open '/sys/class/thermal/thermal_zone*/temp': No such file or directory
+[退出码 1]
+nsh> 

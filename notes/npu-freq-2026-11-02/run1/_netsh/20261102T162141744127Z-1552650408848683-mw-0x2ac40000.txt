@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> [Kmw 0x2ac40000
+  0x2ac40000 = 0x00061241
+nsh> 

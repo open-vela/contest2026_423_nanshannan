@@ -1,0 +1,23 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "sed -n 46,95p /tmp/p.txt | cut -c1-150"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 631s, 57 procs]
+OB         ON(0x181)
+DEBUG1     space full status group (0xf99fffff)
+	   ibuf2:0xf ibuf1:0x9 ibuf0:0x9 mpfbc_infifo:0xf
+	   r1fifo:0xf r0fifo:0xf outfifo:0xf lafifo:0xf
+DEBUG2     0x6da86d3
+	   bay3d_fifo_full iir:0 cur:0
+	   module outform vertical counter:1754, out frame counter:2
+	   isp output line counter:1747
+DEBUG3     isp pipeline group (0xfdf5555d)
+	   mge(1 1) rawnr(1 1) bay3d(1 1) tmo(0 1)
+	   gic(1 1) dbr(1 1) debayer(0 1) dhaz(0 1)
+	   lut3d(0 1) ldch(0 1) ynr(0 1) shp(0 1)
+	   cgc(0 1) cac(0 1) isp_out(1 1) isp_in(0 1)
+DEBUG4     isp pipeline group (0x14)
+	   expd(0 1) ynr(0 0)
+Monitor    OFF Cnt:0
+
+Debug      mode:0x0
+nsh> 

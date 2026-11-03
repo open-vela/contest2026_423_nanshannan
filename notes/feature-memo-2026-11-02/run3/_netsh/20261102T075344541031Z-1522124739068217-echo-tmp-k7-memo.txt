@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kecho 修复后第一条 > /tmp/k7-memo
+nsh> 

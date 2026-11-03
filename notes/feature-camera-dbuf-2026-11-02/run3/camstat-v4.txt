@@ -1,0 +1,3 @@
+# v4：拷贝线程 + 帧缓冲三块（openvela 09:44:44）。最后一行是 free 的 Umem
+3s: grab 90 avg 33 ms | refr 85 avg 19 ms | flush-copy 20 ms/refr | update+pan 7 ms/refr | latch-wait 0 ms total | take 1 ms/frame | new frames 84
+   62291968   24957984   37333984   24972080   37320240    431      2 Umem

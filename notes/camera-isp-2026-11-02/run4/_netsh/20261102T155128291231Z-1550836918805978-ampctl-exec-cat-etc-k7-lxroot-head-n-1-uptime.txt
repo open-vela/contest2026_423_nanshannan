@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "cat /etc/k7-lxroot | head -n 1; uptime"
+[Linux 6.1.75 aarch64 on k7-linux, up 53s, 59 procs]
+k7 lxroot 2026-11-02T15:51:02Z
+ 00:00:52 up 0 min,  load average: 0.00, 0.00, 0.00
+nsh> 

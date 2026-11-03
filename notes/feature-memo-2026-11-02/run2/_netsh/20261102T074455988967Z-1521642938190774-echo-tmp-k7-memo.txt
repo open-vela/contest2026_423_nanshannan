@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kecho 复现第一条 > /tmp/k7-memo
+nsh> 

@@ -1,0 +1,10 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kampctl exec "chmod +x /tmp/k7pmic; /tmp/k7pmic 0x5a 2; /tmp/k7pmic 0x00 1; /tmp/k7pmic 0x1a 2"
+ÿü[Linux 6.1.75 aarch64 on k7-linux, up 1983s, 53 procs]
+0x5a = 0x80
+0x5b = 0x6a
+0x00 = 0x0f
+0x1a = 0x38
+0x1b = 0x28
+nsh> 

@@ -1,0 +1,11 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "rmmod rknpu && k7pmic npu-mv 875 && insmod /lib/modules/6.1.75/kernel/drivers/rknpu/rknpu.ko npu_hz=950000000; dmesg | grep clk_npu"
+[Linux 6.1.75 aarch64 on k7-linux, up 47s, 62 procs]
+RK806 806a，DCDC2 开，VSEL 0x28 = 750000 uV
+写 0x3c，回读 0x3c = 875000 uV
+<6>[   28.129883] RKNPU 27700000.npu: RKNPU: clk_npu 198000000 -> 198000000 Hz
+<12>[   34.078048] k7d: exec: dmesg | grep clk_npu
+<12>[   48.704045] k7d: exec: rmmod rknpu && k7pmic npu-mv 875 && insmod /lib/modules/6.1.75/kernel/drivers/rknpu/rknpu.ko npu_hz=950000000; dmesg | grep clk_npu
+<6>[   48.730250] RKNPU 27700000.npu: RKNPU: clk_npu 198000000 -> 198000000 Hz
+nsh> 

@@ -1,0 +1,24 @@
+[CPU0] з•Њйќў: NTP е·ІеЇ№ж—¶
+[CPU0] и§¦ж‘ё: дё­ж–­иў«е¤–йѓЁе±Џи”Ѕпј€е·ІжЊЃз»­ 100msпј‰пјЊе·Ій[CPU0] йЂ[џCиP®U°1:]  иж®Ё°Ўдеёћ‹‹ :1 7и9Ї3·6ж0±5‚9 7588г1Ђ Њедї®е¤ЌеђЋз¬¬дёЂжќЎ­г—ЂиЌЉе‚Ѕ•
+йџі [ж— CP
+U1] [vela_tls] Handshake start: Host=token-plan-cn.xiaomimimo.com, UNIX=1793605978
+[CPU1] [vela_tls] Handshake OK: TLSv1.2 / TLS-ECDHE-RSA-WITH-CHA[CPU1] жЁЎећ‹: HTTP 401пјЊз”Ёж—¶ 188 ms
+[CPU1] жЁЎећ‹: HTTP 401    "message": "Invalid API Key",
+        "param": "Please provid API Key",
+        "code": "401",
+        "type": "invalid_key"
+    }
+}
+
+[CPU1] йЂџи®°: ж‰“ж ‡з­ѕе¤±иґҐ -5пј€иЇ·ж±‚жЁЎећTTP 401пј‰гЂ‚пј‰
+[CPU0] йЂ[џCиP®U°1:]  иж®Ё°Ўдеёћ‹‹ :1 7и9Ї3·6ж0±6‚1 7599г9Ђ ЊедїЂиЌЉе‚Ѕ•
+йџі [ж— CP
+U0] [vela_tls] Pooled connection stale, re[CPU0] [vela_tls] Handshake start: Host=token-plan-cn.xiaomimimo[CPU1] [vela_tls] Handshake OK: TLSv1.2 / TLS-ECDHE-RSA-WITH-CHA[CPU1] жЁЎећ‹: HTTP 401пјЊз”Ёж—¶ 1195 ms
+[CPU1] жЁЎећ‹: HTTP 40 "message": "Invalid API Key",
+        "param": "Please provide Key",
+        "code": "401",
+        "type": "invalid_key"
+    }
+}
+
+[CPU1] йЂџи®°: ж‰“ж ‡‚жЁЎећ‹е¤±иґҐпј€HTTP 401пј‰гЂ‚пј‰

@@ -1,0 +1,5 @@
+
+NuttShell (NSH)
+nsh> ÿû[Kcat /tmp/k7-camstat
+ÿü3s: grab 90 avg 33 ms | refr 85 avg 19 ms | flush-copy 20 ms/refr | update+pan 7 ms/refr | latch-wait 0 ms total | take 1 ms/frame | new frames 84
+nsh> 

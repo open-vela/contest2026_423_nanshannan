@@ -1,0 +1,7 @@
+
+NuttShell (NSH)
+nsh> [Kampctl exec "pkill -f guard; rm -f /tmp/k7npu-guard.pid; sed -e s/85000/40000/ -e s/75000/35000/ /usr/bin/k7npu > /tmp/k7g; chmod +x /tmp/k7g; grep -c 40000 /tmp/k7g"
+[Linux 6.1.75 aarch64 on k7-linux, up 63s, 61 procs]
+sh: pkill: not found
+1
+nsh> 
