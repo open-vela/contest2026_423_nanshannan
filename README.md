@@ -3,12 +3,13 @@
 **队伍**：`contest2026_423_nanshannan`　**赛道**：新硬件适配
 
 在 KICKPI-K7（Rockchip RK3576）上完成 openvela 从 0 到 1 的首次适配 ——
-启动引导、GICv2 中断、串口控制台、基础外设驱动、显示与 LVGL 交互界面、
-**语音唤醒 + 拍照问答 + 语音播报**的端侧 AI 助手，
-以及 **openvela(A53×4) + Linux(A72×4) 异构双 OS（AMP）**。
+启动引导、GICv2 中断、串口控制台、基础外设驱动、显示与 LVGL 交互界面，
+**openvela(A53×4) + Linux(A72×4) 异构双 OS（AMP）**，
+并在上面做成一台**桌面家庭中控 + 工作健康助手**：家居 MQTT 控制、语音唤醒与拍照问答、
+语音速记、工作室录制模式、久坐/喝水/用眼提醒；摄像头经 ISP 出图，NPU 跑在 Linux 一侧。
 
-开机 **2.8 秒**进系统；xTS 通用自测 35 项中 **31 项按原文严格口径通过并留了原始日志**（
-见 [`notes/xts-final-2026-09-20.md`](notes/xts-final-2026-09-20.md)）。
+开机 **2.8 秒**进系统；xTS 通用自测 35 项中 **34 项按原文严格口径通过并留了原始日志**（
+见 [`notes/xts-final-2026-11-02.md`](notes/xts-final-2026-11-02.md)）。
 
 ## 作品简介
 
@@ -35,7 +36,7 @@ RK3576 在 openvela 与上游 NuttX 里都没有芯片层 —— 这是一块**�
 **openvela 已在 KICKPI-K7 上启动并运行，核心外设与端侧 AI 能力均已上板验证。**
 
 ```
-nuttx.bin        3,567,616 字节（含 LVGL 界面、CJK 字库与 AI 能力）
+nuttx.bin        3,482,592 字节（含 LVGL 界面、CJK 字库与 AI 能力）
 启动             reboot 2.76 s / 冷启动 2.84 s（到 NuttShell 横幅，10 次均值）
 CPU              openvela 4× Cortex-A53 SMP ＋ Linux 6.1 4× Cortex-A72（AMP 双系统）
 中断控制器       GIC-400 / GICv2（两个 OS 共享同一分发器）
@@ -60,19 +61,25 @@ CPU              openvela 4× Cortex-A53 SMP ＋ Linux 6.1 4× Cortex-A72（AMP 
 | **ai_agent** | 接 MiMo 后端（OpenAI 兼容），TLS 握手 + 真实对话，`status=ok` |
 | HDMI | 控制器探测：`CORE_ID` 读出 `"HQTX"`，电源域/时钟到位（尚未出图） |
 
-### 端侧 AI 助手（界面 + 语音 + 视觉）
+### 产品形态：桌面家庭中控 + 工作健康助手
 
-LVGL 界面开机自启，七个页签：双核状态 / 设备 / 曲线 / 助手 / 音视频 / 关于。
+LVGL 界面开机自启，五个页签。规划与取舍见 [`docs/ui-product-plan.md`](docs/ui-product-plan.md)。
+
+| 页签 | 能力 | 做法 / 实测 |
+|---|---|---|
+| **今日** | 时钟、久坐计时、喝水记录、用眼 20-20-20 | 到点弹全屏提醒卡片（用眼只出顶部横幅）；"10 分钟后"连按三次自动降频 |
+| **家居** | 灯、空调、窗帘、新风等设备与场景 | 自写 MQTT 3.1.1 客户端；**板上自带 broker `k7mqttd`**，设备直连面板即可。只按设备回报的状态着色，3 s 没回应提示"X 没有响应" |
+| **工作** | 工作室录制模式；语音速记 | 录制：按预设布景（补光开、空调/电视/新风关），门口牌子亮"录制中"，有人按门铃由面板代答并打点，录制期间语音不出板，结束只恢复被改过的设备。速记：说一句记一条，后台由大模型打标签 |
+| **助手** | 语音唤醒、拍照问答、语音播报 | 唤醒 → 识别 → 拍照 → 看图作答 → TTS 念出来；端点检测在 A72 的 Linux 上做 |
+| **设置** | 网络、音量、开发者页（录音机、相机） | 相机页经 ISP 出 1280×720 NV12，**约 29 fps** |
+
+摄像头和 NPU 走 Linux 一侧（见下节）：
 
 | 能力 | 做法 | 实测 |
 |---|---|---|
-| **语音唤醒** | openvela 采集 48k→FIR 降到 16k→12s 环形缓冲，经 rpmsg 送到 **A72 的 Linux 做端点检测**，回发整句区间 → 云端 ASR | 说"你好 openvela，桌上有什么？"可唤醒 |
-| **拍照问答** | `v4l2cap` 拍 1280×720 → 一次视觉模型请求（关深度思考） | 4.5~27 s（随网络） |
-| **语音播报** | 文本 → TTS → 24k PCM 插值到 48k → ES8388 | 回答会念出来 |
-| **录音机 / 音量** | 48k 立体声录放，ALC + 噪声门 + 差分输入；喇叭功放随放音开关 | 波形显示，音量可调 |
-
-一句话链路：**唤醒 → 识别 → 拍照 → 看图作答 → 念出来**，全部在板上串起来。
-Linux 那一核不是摆设：它承担端点检测这类计算，openvela 专心管外设与交互。
+| **摄像头 + ISP + 3A** | IMX415 整条链（CSI/CIF/ISP + rkaiq）在 Linux 上跑，帧经共享内存交给 openvela 显示 | 30 fps 出图；修了 rkaiq 两处 bug 后 3A 生效。为消拖影与暗处横纹关 BAY3D、增益封顶 16 倍（`amp/linux/rkaiq/tune-iq.py`） |
+| **NPU** | rknpu 编成模块，电源域由 openvela 开、驱动由 Linux 装 | MobileNet v1 单次 **2.0 ms（950 MHz）/ 2.2 ms（默认 800 MHz）**，原 198 MHz 时 8.6 ms |
+| **调压 + 温控** | vdd_npu（RK806 DCDC2）由 Linux 的 `k7pmic` 按 OPP 表升压；TSADC 温度驱动 + `k7npu guard` 软件降频 | 85°C 降到 600 MHz、95°C 降到 300 MHz；115°C 关机、120°C 硬件复位兜底 |
 
 ### 异构双 OS（AMP）—— openvela 与 Linux 同时在跑
 
@@ -97,7 +104,9 @@ nsh> ps
 | GIC 共享 | openvela 侧不复位 SPI、不动 `GICD_CTLR`，按字节认领自己的中断；Linux 侧用 `rockchip,amp` 的 `amp-irqs` 声明归属 |
 | 通信 | mailbox0 group0/3 门铃 + 0x47800000 起的 vring 与缓冲池，地址两侧逐字对齐 |
 | Linux 瘦身 | 43 MB → 7.6 MB，裁掉的都是 AMP 下归 openvela 的外设 —— 既省地方，也是资源划分本身 |
-| 资源划分 | 见 [`amp/OWNERSHIP.md`](amp/OWNERSHIP.md)：外设归 openvela，Linux 做纯计算域（连 regulator 与电源域框架都关掉） |
+| 资源划分 | 见 [`amp/OWNERSHIP.md`](amp/OWNERSHIP.md)：显示、音频、网络、存储归 openvela；**摄像头整链、ISP、NPU、i2c1/RK806 归 Linux**。Linux 不开 regulator 与电源域框架（会关掉 openvela 正在用的电源） |
+| 用户态与镜像 | 内核内嵌最小 initramfs；摄像头驱动、rkaiq、NPU 运行库放在 eMMC 上的 lxroot（cpio，U-Boot 读进内存、校验 sha256），openvela 经网络 4 MB/s 更新它（`scripts/lxroot-push.py`） |
+| 跨核调用 | `ampctl exec "<命令>"`：openvela 一侧发命令，Linux 的 `k7d` 执行并回传输出 |
 
 细节见 [`amp/README.md`](amp/README.md)、[`amp/FLASH.md`](amp/FLASH.md)、[`docs/amp.md`](docs/amp.md)。
 
@@ -105,14 +114,17 @@ nsh> ps
 
 | 项 | 状态 |
 |---|---|
-| HDMI 输出 | 硬件参数与 PHY 方案已定（见 `docs/` 与提交记录），待接显示器做链路 |
-| 蓝牙 / WiFi（实焊 SKW6621S，SDIO） | **SDIO 枚举已实板通过**（10-26，`bt probe` 读出 1ffe:6621 / SV6160LITE）。根因两处：模组蓝牙 UART_RXD（GPIO1_C4）复位释放时被下拉为低，模组不应答 CMD5；MANFID 要从公共 CIS 读。10-26 固件下载与 CP 启动也已实板通过（`bt init` 收到固件版本串）。蓝牙已接入 NuttX 协议栈，`btsak bnep0 scan` 能扫到周围 BLE 设备；连接/GATT 未测。10-27 WiFi 命令通道打通，`bt wifi scan` 能扫到周围 2.4G AP；关联、WPA2、数据通道和网卡**尚未实现**。见 [调研与结论](notes/wireless-research-2026-10-26.md) |
-| M.2 SSD（PCIe + NVMe） | 勘察完成，见 `docs/pcie-nvme.md`；NuttX 无 NVMe 驱动，需移植 |
-| xTS 剩余 3 项 | 1.3.5（板载 Flash 上跑破坏性块测试会毁掉启动镜像，16 GB SD 卡上 stress 子项约 2,920 万次循环不可行）、1.3.14（原文要求静置 24h 以上，截止日前时间不够）、1.3.15（复位原因寄存器被 ATF 清零，已定位）|
+| 蓝牙 / WiFi（SKW6621S，SDIO） | **已实板打通**：BLE 扫描；WiFi WPA2 关联、DHCP、ping。蓝牙连接/GATT 未测 |
+| USB Host（DWC3 xHCI + 板载 hub） | 给 NuttX xHCI 补了平台总线与 hub 支持（`bsp/upstream/xhci-platform-hub.patch`）；控制器能起、能检测到 hub，**xHC DMA 不通，未枚举成功** |
+| 红外接收 | 驱动与 `ir` 命令已写（`/dev/lirc0`，手动 `ir init`），未完成上板验证 |
+| 座位感知 | 久坐目前按界面计时；用 NPU 做人脸检测判断在座/离座还没接 |
+| HDMI 输出 | 控制器探测通过，未出图 |
+| M.2 SSD（PCIe + NVMe） | 勘察完成，见 `docs/pcie-nvme.md`；NuttX 无 NVMe 驱动 |
+| xTS 剩余 1 项 | 1.3.14 时间一致性：要关 NTP 静置 24 h 以上 |
 
 ### 沉淀
 
-235 次提交；`notes/DEBUG-CASES.md` **29 例**排查记录（现象—歧路—根因—修复—教训），
+271 次提交；`notes/DEBUG-CASES.md` **29 例**排查记录（现象—歧路—根因—修复—教训），
 其中多例是**上游缺陷**并已归档为可提交的补丁（见 `bsp/upstream/` 与 `amp/`）；
 **3 个可复用 Skill**（硬件参数勘察 / 板级时钟排查 / 有界 bring-up），
 均从本项目的真实返工中提炼，不绑定 RK3576。
@@ -131,6 +143,10 @@ LVGL 被原版顶替），单独记在 [`scripts/setup-host.md`](scripts/setup-h
 | NuttX `sched/task/task_posixspawn.c` | 找不到程序文件时按 ERROR 打日志。NSH 对**每条命令**都先当程序文件试一次，于是每条命令都多一行 `ERROR: exec failed: 2` —— 污染所有"日志无异常"的判据 |
 | NuttX `libs/libc/stdio/lib_fopen.c` | 用 `_POSIX_STREAM_MAX`（POSIX 规定的**最低**保证值 16）当流数上限且不可配置。NIST 随机数统计要同时开 32 个日志流，跑到一半失败 |
 | NuttX `apps/netutils/tftpc` | WRQ 首个 ACK 传 `blockno = NULL`，被无条件解引用 —— 任何一次握手成功的 TFTP put 都会 panic |
+| openvela `packages/ai_agent` | 连接池里服务器已关掉的 TLS 连接，重连前发 `close_notify` 用阻塞 `send()`，对端不再 ACK，调用线程卡 8 分钟以上 |
+| NuttX `drivers/usbhost/usbhost_xhci*` | `uint8_t no_erst = 1 << 15` 截成 0，ERSTSZ 写 0、事件环被关掉（DWC3 报 ERST Max=15 时必现）；另有只支持 PCI、不支持 hub、拒绝 64 字节上下文 |
+| 瑞芯微 rkaiq | ① tuning socket 失败时 `LOGE` 参数顺序错，直接段错误；② `_isp_module_ens` 跨次起流不清零，第二次起流 3A 统计模块全关，画面偏暗偏绿 |
+| 瑞芯微 rknpu | 不开 devfreq 时运行时 PM 回调返回 -EOPNOTSUPP，probe 失败（-95）；也从不设频率，NPU 停在 198 MHz |
 
 ### 启动时间
 
@@ -155,13 +171,17 @@ LVGL 被原版顶替），单独记在 [`scripts/setup-host.md`](scripts/setup-h
 ## xTS 验收
 
 大赛的 xTS 通用自测用例共 35 项。判定分三档，**不把内部功能进度当成严格通过**
-（完整对照表与每项原始日志见 [`notes/xts-final-2026-09-20.md`](notes/xts-final-2026-09-20.md)）：
+（最新总表 [`notes/xts-final-2026-11-02.md`](notes/xts-final-2026-11-02.md)，09-20 的完整对照表 [`notes/xts-final-2026-09-20.md`](notes/xts-final-2026-09-20.md)，每项原始日志在 `notes/xts-rerun-raw/`）：
 
 | 档 | 数量 | 含义 |
 |---|---|---|
-| A 严格通过 | **31** | 按原文步骤执行，保留原始串口/网络字节与镜像标识，判据未改 |
-| B 部分通过 | **1** | 1.3.11 UART 文件传输：主机→板通过，板→主机受 1.5 Mbaud 下主机侧丢字限制 |
-| C 未达成 | **3** | 见上面"进行中" |
+| A 严格通过 | **34** | 按原文步骤执行，保留原始串口/网络字节与镜像标识，判据未改 |
+| B 部分通过 | **0** | |
+| C 未达成 | **1** | 1.3.14 时间一致性（要静置 24 h 以上） |
+
+09-20 之后补齐的三项：1.3.5（SD 卡末尾 64 MB 注册成独立块设备跑原文块测试）、
+1.3.11（控制台运行时降到 115200 再用 `rb`/`sb` 双向传输）、1.3.15（复位原因改用重启模式寄存器，
+断电上电后 -r 0→3 顺序跑完并全程录串口）。1.3.15 原文"打印堆栈"一条做不到（非安全态配不了 FIQ），已在总表注明。
 
 为通过用例做的改动，也都是板子本身的改进：TF 卡按厂商设备树跳过 CMD1（去掉每次开机的驱动报错）、
 RTC 用系统定时器实现秒级闹钟（芯片硬件闹钟只到分钟，而用例要求 ±10 ms）、
@@ -245,8 +265,10 @@ ampctl,mic,hdmi,spi_selftest}` 下。manifest 在组委会仓里改不了，所�
 | `docs/xts-checklist.md` | xTS 必测项清单 = 开发路线图与验收标准 |
 | `docs/smp-amp.md` | SMP 启用过程与 Linux+NuttX AMP 方案 |
 | `docs/amp.md` | ★ **AMP 进展与三个「静默失败」的查法** |
-| `amp/` | ★ **异构双 OS 的全部产物**：`README.md`（总览）、`FLASH.md`（烧写与启动，含 rkdeveloptool 32MB 限制）、`OWNERSHIP.md`（资源划分）、`uboot/*.patch`（分核引导等 4 个补丁）、`linux/`（只含 A72 的 DTS、裁剪配置、GIC 补丁）、`fit/amp.its`（AMP 的全部契约） |
-| `app/kickpi_ui` | ★ **主界面**：双核状态 / 设备清单 / 曲线 / **AI 助手（问答·朗读·唤醒）** / 音视频（预览·拍照·录音·音量）/ 关于；开机自启 |
+| `amp/` | ★ **异构双 OS 的全部产物**：`README.md`（总览）、`FLASH.md`（烧写与启动，含 rkdeveloptool 32MB 限制）、`OWNERSHIP.md`（资源划分）、`uboot/*.patch`（分核引导、lxroot initrd、8 MB 内核窗口等）、`linux/`（A72 的 DTS、裁剪配置、内核补丁、`lxroot/`、`rkaiq/`、`npu/`）、`fit/amp.its`（AMP 的全部契约） |
+| `app/kickpi_ui` | ★ **主界面**：今日 / 家居 / 工作 / 助手 / 设置五个页签（见上文"产品形态"）；开机自启 |
+| `app/mqttd` | 板上 MQTT broker `k7mqttd`（家居设备直连面板） |
+| `app/lxroot`、`app/ir` | lxroot 镜像网络更新；红外接收 bring-up 命令 |
 | `scripts/setup-host.md` | ★ 主机环境两个**静默失效**的坑（kconfiglib、LVGL fork 被原版顶替） |
 | `docs/ai-agent-setup.md` | ai_agent 后端配置与上板验证 |
 | `docs/pcie-nvme.md` | M.2 SSD（PCIe + NVMe）勘察与移植方案 |
@@ -255,7 +277,8 @@ ampctl,mic,hdmi,spi_selftest}` 下。manifest 在组委会仓里改不了，所�
 | `docs/m1a-gicv2-qemu.md` | M1a：QEMU 上 GICv2 路径验证与驱动分析 |
 | `docs/refs/` | 官方文档离线副本 |
 | `notes/DEBUG-CASES.md` | 踩坑记录 29 例（现象—排查—根因—修复—验证） |
-| `notes/xts-final-2026-09-20.md` | ★ **xTS 35 项最终状态**（分 A/B/C 三档），逐项原始日志在 `notes/xts-rerun-raw/` |
+| `notes/xts-final-2026-11-02.md` | ★ **xTS 35 项最新状态**（分 A/B/C 三档；09-20 版保留），逐项原始日志在 `notes/xts-rerun-raw/` |
+| `notes/<功能>-<日期>/` | 各功能上板记录（相机 ISP、NPU 与提频、速记、录制模式等），原始输出在各自的 `run*/` |
 | `notes/HANDOFF.md` | 交接说明：现状、铁律、坑；换人/换会话先读这份 |
 | `scripts/` | `env.sh`、`flash*.sh`（FIT/U-Boot/内核/logo，均带备份回读回滚）、`gen-boot-logo.py`、`gen-cjk-font.sh`、`xts-*.py`（网络 NSH 取证、NIST 统计、长测）、`collect-logs.sh`（AI 日志白名单导出与脱敏）、`sync-bsp.sh` |
 | `.claude/skills/soc-hw-recon` | ★ Skill：无寄存器手册时勘察并**验证**新 SoC 的硬件参数 |
