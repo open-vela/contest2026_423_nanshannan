@@ -1,0 +1,4 @@
+
+NuttShell (NSH)
+nsh> [Kcat /proc/uptime
+184467440694220nsh> 

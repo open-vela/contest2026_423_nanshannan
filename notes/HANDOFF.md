@@ -1,6 +1,18 @@
 # 交接说明（给下一个 Claude Code 会话）
 
-## 2026-11-02 现状（最新，先读这段）
+## 2026-11-03 补充（先读）
+
+- **xTS 1.3.14 正在跑**：11-03 05:01:11 UTC（北京 13:01）起，到 11-04 约 05:11 UTC（北京 13:11）。
+  主机上有一个 `notes/xts-rerun-raw/2026-11-02-time/capture.py` 进程（setsid，每 10 分钟取样）。
+  **结束前不要动板子**：不跑别的用例、不重启、不刷机；也不要杀这个进程。结束后按该目录 README 填结果、改总表。
+- 这版镜像**带 NTP**：`kickpi_ui` 开机调 `ntpc_start()`，60 s 一次。板上没有 `ntpcstop`，
+  要停只能 `kill -9 <NTP_daemon 的 pid>`（`ps` 里看）。1.3.14 就是这么做的。
+- **WSL 墙钟不可信**：11-03 试跑时一次请求内跳了约 50 s，之后停在比 NTP 快约 50 s。凡是要拿"PC 时间"
+  做判据的，用 `notes/xts-rerun-raw/2026-11-02-time/sntp.py`（monotonic + 公网 NTP）。
+- 板上 `/proc/uptime` 读出溢出的大数（`184467440694220`），不能当开机时长用；原因未查。
+- 答辩 PPT 在仓外 `~/openvela-amlogic/src/docs/VelaPort-K7-答辩.pptx`（24 页，25 MB 主要是内嵌字体，未进仓）。
+
+## 2026-11-02 现状
 
 - **产品形态**：界面改成 今日 / 家居 / 工作 / 助手 / 设置 五页（`docs/ui-product-plan.md`）。家居走 MQTT，
   板上自带 broker `k7mqttd`（`app/mqttd`）；工作页有录制模式和语音速记。
@@ -13,7 +25,7 @@
 - **NPU**：`k7npu test` 默认 800 MHz（先用 k7pmic 把 vdd_npu 升到 800 mV）；`k7npu mhz 950`；`k7npu temp`。
   i2c1/RK806 归 Linux，openvela 的 `/dev/i2c1` 扫不到设备是正常的。见 `notes/npu-freq-2026-11-02/`。
 - **相机 IQ**：BAY3D 关、AE 增益封顶 16 倍（`amp/linux/rkaiq/tune-iq.py`）。暗处偏暗，用户还没定要不要放宽到 32 倍或降帧率。
-- **xTS**：A 34 / B 0 / C 1，以 `notes/xts-final-2026-11-02.md` 为准。剩 1.3.14（拔网线静置 24 h）；
+- **xTS**：A 34 / B 0 / C 1，以 `notes/xts-final-2026-11-02.md` 为准。剩 1.3.14（11-03 起跑，见上）；
   1.3.7 的 MPU-6050 当前没接上，重插后补跑。
 - **没进仓的本地文件**：`docs/项目全局梳理与面试准备.md`、`chip/rk3576/skw6621s/*.md`（用户自己的）；
   `notes/camera-isp-2026-11-02/run4/shot-isp-3a.jpg`、`run5/shot-*.jpg`（拍到人，仓库公开，不提交）。
