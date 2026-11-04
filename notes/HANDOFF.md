@@ -2,9 +2,8 @@
 
 ## 2026-11-03 补充（先读）
 
-- **xTS 1.3.14 正在跑**：11-03 05:01:11 UTC（北京 13:01）起，到 11-04 约 05:11 UTC（北京 13:11）。
-  主机上有一个 `notes/xts-rerun-raw/2026-11-02-time/capture.py` 进程（setsid，每 10 分钟取样）。
-  **结束前不要动板子**：不跑别的用例、不重启、不刷机；也不要杀这个进程。结束后按该目录 README 填结果、改总表。
+- **xTS 1.3.14 已通过**（11-04）：静置 24 h，6/12/18/24 h 偏差最大 0.865 s。xTS 现为 35/35 A。
+  长测已结束，板子可以正常用了（板上 NTP_daemon 仍是被杀掉的状态，重启后恢复）。
 - 这版镜像**带 NTP**：`kickpi_ui` 开机调 `ntpc_start()`，60 s 一次。板上没有 `ntpcstop`，
   要停只能 `kill -9 <NTP_daemon 的 pid>`（`ps` 里看）。1.3.14 就是这么做的。
 - **WSL 墙钟不可信**：11-03 试跑时一次请求内跳了约 50 s，之后停在比 NTP 快约 50 s。凡是要拿"PC 时间"
@@ -25,7 +24,7 @@
 - **NPU**：`k7npu test` 默认 800 MHz（先用 k7pmic 把 vdd_npu 升到 800 mV）；`k7npu mhz 950`；`k7npu temp`。
   i2c1/RK806 归 Linux，openvela 的 `/dev/i2c1` 扫不到设备是正常的。见 `notes/npu-freq-2026-11-02/`。
 - **相机 IQ**：BAY3D 关、AE 增益封顶 16 倍（`amp/linux/rkaiq/tune-iq.py`）。暗处偏暗，用户还没定要不要放宽到 32 倍或降帧率。
-- **xTS**：A 34 / B 0 / C 1，以 `notes/xts-final-2026-11-02.md` 为准。剩 1.3.14（11-03 起跑，见上）；
+- **xTS**：A 35 / B 0 / C 0，以 `notes/xts-final-2026-11-02.md` 为准；
   1.3.7 的 MPU-6050 当前没接上，重插后补跑。
 - **没进仓的本地文件**：`docs/项目全局梳理与面试准备.md`、`chip/rk3576/skw6621s/*.md`（用户自己的）；
   `notes/camera-isp-2026-11-02/run4/shot-isp-3a.jpg`、`run5/shot-*.jpg`（拍到人，仓库公开，不提交）。

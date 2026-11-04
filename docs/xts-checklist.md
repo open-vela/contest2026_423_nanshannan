@@ -102,7 +102,7 @@ SOH 块0 补码   文件名      长度              CRC-16/XMODEM（已核算�
 | 1.3.11 | UART 文件传输 | ✅ | **收发双向均通**。接收：主机 `sb --ymodem` → 板端 `rb -f /mnt`。发送：板端 `sb /tmp/big` → 主机 `rb --ymodem`，4 个块 4096 字节全零校验通过。**根因不在 YMODEM 实现，在链路速率**：1.5Mbps 下这条 CH340 链路丢 7~16% 字节，控制台降到 115200 后零丢失（见下）|
 | 1.3.12 | RTC 时钟 | ✅ | HYM8563 读写 + 掉电后时间保持 |
 | 1.3.13 | Timer 定时器 | ✅ | `cmocka_driver_oneshot` OK。改用**独立的** RK3576 TIMER（CH0 闹钟 + CH1 计数），不再碰调度器的 ARM 通用定时器；同时 `sleep 3/8` 实测 3.3/8.4 s、静置 120 s 零自发复位 |
-| 1.3.14 | 时间一致性 | ◐ | 11-03 起跑 24 h 静置，见 `notes/xts-rerun-raw/2026-11-02-time/`（最新状态以 `notes/xts-final-2026-11-02.md` 为准） |
+| 1.3.14 | 时间一致性 | ✅ | 11-04 通过：24 h 静置，四个检查点偏差最大 0.865 s，见 `notes/xts-rerun-raw/2026-11-02-time/`（最新状态以 `notes/xts-final-2026-11-02.md` 为准） |
 | 1.3.15 | Watchdog | ◐ | 时基修好后复测：确实触发复位并恢复，重启后能读到 `soc warm boot, reset status: 0x1050`。但 cmocka 那 4 个子项**跑不完** —— DW 看门狗使能后软件关不掉，第一个子项就把板子复位了（见下） |
 | 1.3.16 | RNG | ✅ | 自检两批不同；`hexdump /dev/random` 读数随机 |
 | 1.3.17 | Crypto | ✅ | 八项全过零失败：des3cbc / aescbc / aesctr / aesxts / hmac(md5,sha1,sha256) / hash(md5,sha1,sha256,sha512) / crc32×4 / ecdsa(P-256 生成·签名·验证) |
