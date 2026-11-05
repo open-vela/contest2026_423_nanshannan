@@ -1,0 +1,10 @@
+domain: MusicVolumeDomain
+    conf: mute
+        MusicVolume In 0
+        FFmpegCommand = Music,volume,0;
+    conf: index-%MusicVolume
+        MusicVolume In [1,9]
+        FFmpegCommand = Music,volume,10^(-4*(10-%MusicVolume%)/20);
+    conf: 10
+        MusicVolume In 10
+        FFmpegCommand = Music,volume,1;

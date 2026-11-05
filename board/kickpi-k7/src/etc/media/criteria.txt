@@ -1,0 +1,2 @@
+ExclusiveCriterion Music                   : abufsrc@Music
+NumericalCriterion persist.media.MusicVolume MusicVolume : [0,10] = 6
