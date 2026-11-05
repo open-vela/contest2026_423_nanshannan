@@ -60,6 +60,27 @@ LBA 2359262（super 分区里）的内容，和直接 `skip=2359262` 读出的�
 |---|---|---|---|
 | `/dev/data` | cache | 1165312 + 786432（384MB） | `/data`（FAT） |
 | `/dev/lxroot` | backup | 378880 + 786432（384MB） | A72 上 Linux 的根文件系统镜像，见 `app/lxroot` |
+| `/dev/abslot` | recovery | 182272 + 196608（96MB） | openvela 的 A/B 两个 FIT 槽（各 32MB），见下 |
+| `/dev/abctl` | trust 的末尾 | 32760 + 8 | A/B 启动控制块 |
+
+### openvela 镜像的 A/B 与 OTA（2026-11-04）
+
+```
+救援 FIT  trust 分区 LBA 24576，上限 8184 扇区    flash.sh 用 rkdeveloptool 写，永远保留
+控制块    LBA 32760 / 32761（两份，seq 奇偶轮流写） flash.sh 写完救援 FIT 顺手清零
+A/B 槽    recovery 分区，A 在 184320、B 在 249856  只能由 openvela 经网络写（≥ 65536）
+```
+
+- 格式：`amp/include/k7_bootab.h`；U-Boot：`amp/uboot/0014`；openvela：`app/k7ota`
+  （`ota install` / `bootctl`）；主机：`scripts/ota-push.py [--reboot]`。
+- 选槽规则照搬 `frameworks/system/ota` 的 `bootctl_boot()`：新槽先试启动，界面起来
+  15 秒后自动 `bootctl` 确认；没确认就在下一次进 U-Boot 时作废、回到原来的槽；
+  两个槽都不可用就启动救援 FIT。
+- U-Boot 在**拉起 A72 之前**就校验槽里 FIT 的哈希：`brought_up_all_amp()` 先起 Linux
+  再加载 openvela，到那时才发现哈希错就不能换槽了。
+- 控制块无效（从没做过 OTA，或 flash.sh 刚清过）= 没有 A/B，和以前完全一样。
+  `setenv amp_ab off` 临时关掉；`bootctl clear` 从板上清。
+- 上板验证与日志摘录：`notes/ota-ab-2026-11-04/README.md`。
 
 backup 分区 2026-10-31 全盘扫过是全零；首尾写标记后重启两次标记完好，
 U-Boot 启动时不改写它。super、userdata 跨过或整个在 4GB 以上，不用。

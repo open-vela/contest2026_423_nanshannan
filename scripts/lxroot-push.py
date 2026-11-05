@@ -80,19 +80,34 @@ def main():
             h.update(b)
     sha = a.sha256 or h.hexdigest()
     ip = host_ip_for(BOARD)
-    name = os.path.basename(a.image)
     print(f"镜像 {a.image}: {size} 字节 sha256 {h.hexdigest()}")
     if a.sha256:
         print(f"★ 告诉板子的 sha256 是 {sha}（负向测试）")
 
-    OneFile.path_on_disk = os.path.abspath(a.image)
-    OneFile.url_name = name
-    srv = SmallMssServer(("0.0.0.0", a.port), OneFile)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    srv, name = serve_one(a.image, a.port)
 
     # 总时限按体积算：最慢按 100KB/s 计，再加回读和余量
     budget = 120 + size // (100 * 1024)
-    cmd = f"lxroot write http://{ip}:{a.port}/{name} {size} {sha}\r\n"
+    out = run_on_board(f"lxroot write http://{ip}:{a.port}/{name} {size} {sha}",
+                       budget)
+    srv.shutdown()
+
+    ok = "完成：".encode() in out
+    print("\n结果:", "成功" if ok else "失败")
+    sys.exit(0 if ok else 1)
+
+
+def serve_one(path, port):
+    """起一个只服务这一个文件的 HTTP 服务，返回 (服务, URL 里的文件名)"""
+    OneFile.path_on_disk = os.path.abspath(path)
+    OneFile.url_name = os.path.basename(path)
+    srv = SmallMssServer(("0.0.0.0", port), OneFile)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, OneFile.url_name
+
+
+def run_on_board(cmd, budget):
+    """经 telnet NSH 发一条命令，把输出原样打出来，等到提示符或超时"""
     s = socket.create_connection((BOARD, TELNET_PORT), timeout=5)
     s.settimeout(1)
     time.sleep(1.5)
@@ -100,7 +115,7 @@ def main():
         s.recv(65536)
     except socket.timeout:
         pass
-    s.sendall(cmd.encode())
+    s.sendall((cmd + "\r\n").encode())
 
     out = b""
     end = time.time() + budget
@@ -119,11 +134,7 @@ def main():
     else:
         print(f"\n超过 {budget} 秒没结束")
     s.close()
-    srv.shutdown()
-
-    ok = "完成：".encode() in out
-    print("\n结果:", "成功" if ok else "失败")
-    sys.exit(0 if ok else 1)
+    return out
 
 
 if __name__ == "__main__":

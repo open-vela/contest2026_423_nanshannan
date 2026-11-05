@@ -1,0 +1,376 @@
+U-Boot：bootamp 从 A/B 槽选 openvela 的 FIT，未确认的试启动失败后回退
+
+应用：叠在 0013 之上，在 u-boot/ 下 `patch -p1 < 本文件`；编译同 0010
+（GCC 13 要 `KCFLAGS=-Wno-error ./make.sh rk3576-kickpi-k7 CROSS_COMPILE=...`，
+make.sh 末尾 fdtget 找不到只影响打印，uboot.img 照常生成）。
+配套：格式 amp/include/k7_bootab.h；写入方 openvela 的 bootctl / ota（app/k7ota）；
+     amp/layout.sh 的 FIT 上限同步改成 8184，flash.sh 写完救援 FIT 清控制块。
+
+布局：
+  救援 FIT  trust 分区 LBA 24576，上限 8184 扇区（原来 8192，末尾 8 扇区让给控制块）
+  控制块    LBA 32760 / 32761 两份，seq 奇偶轮流写，crc32
+  A/B 槽    recovery 分区 LBA 182272 起，每槽 32MB（A 在分区内 2048，B 在 67584）
+
+选槽规则照搬 openvela frameworks/system/ota 的 bootctl_boot()，另外两点：
+  - 启动前就校验槽里 FIT 的全部哈希：brought_up_all_amp() 先拉起 Linux 再
+    加载 openvela，到那时才发现哈希错就不能换槽了；
+  - 试启动作废时清 try（上游不清，下一次升级会被直接判失败）。
+控制块无效 / `setenv amp_ab off`：直接用救援 FIT，和没有本补丁时一样。
+
+--- a/cmd/bootamp.c	2026-11-04 09:23:12.545183804 -0500
++++ b/cmd/bootamp.c	2026-11-04 09:23:12.546410283 -0500
+@@ -36,11 +36,13 @@
+ 
+ #include <common.h>
+ #include <amp.h>
++#include <blk.h>
+ #include <command.h>
+ #include <environment.h>
+ #include <fdt_support.h>
+ #include <image.h>
+ #include <linux/libfdt.h>
++#include <u-boot/crc.h>
+ #include <u-boot/sha256.h>
+ 
+ /* eMMC 上的默认布局，和仓库 amp/layout.sh 一一对应（主机脚本以那边为准）。
+@@ -64,7 +66,7 @@
+  */
+ 
+ #define AMP_FIT_LBA		0x6000		/* 24576（trust 分区） */
+-#define AMP_FIT_CNT		0x2000		/*  8192 扇区 = 4MB 上限 */
++#define AMP_FIT_CNT		0x1ff8		/*  8184 扇区；末尾 8 扇区归 A/B 控制块 */
+ #define AMP_DTB_LBA		0x3800		/* 14336 */
+ #define AMP_DTB_CNT		0x220		/*   544 扇区 = 272KB 上限 */
+ #define AMP_KERNEL_LBA		0xC000		/* 49152 */
+@@ -75,6 +77,64 @@
+ #define AMP_KERNEL_ADDR		0x40400000
+ 
+ /*
++ * openvela 镜像的 A/B 槽（仓库 amp/include/k7_bootab.h，这里抄一份结构，
++ * 两边改一处就要改另一处）。
++ *
++ *   救援 FIT  trust 分区 AMP_FIT_LBA，flash.sh 写的那一份
++ *   控制块    LBA 32760 / 32761 两份，按 seq 的奇偶轮流写
++ *   A/B 槽    recovery 分区（LBA 182272，96MB），每槽 32MB，槽里直接是 FIT
++ *
++ * 选槽规则照搬 openvela frameworks/system/ota 的 bootctl_boot()：
++ *   active + bootable 但还没 successful 的槽 → 置 try，试启动；
++ *   下次进来 try 还在 → 那次试启动没被确认（openvela 侧 `bootctl`），作废，
++ *   回到 successful 的槽；
++ *   都没有 → 救援 FIT。
++ * 在上游规则之外多做两件事：
++ *   - 启动前就用 fit_all_image_verify() 校验槽里的 FIT。brought_up_all_amp()
++ *     先拉起 Linux 再加载 openvela，到那时才发现哈希不对就晚了（A72 已经
++ *     在跑，不能再换一个槽重来）。所以校验必须在这里、在任何核起来之前。
++ *   - 试启动作废时清 try。上游这里不清，下一次升级写完 bootctl done 之后，
++ *     新槽会因为 try 还在被直接判为"试启动失败"，根本没试。
++ *
++ * 控制块两份都无效（从没做过 OTA，或 flash.sh 刚清过）= 没有 A/B，直接用
++ * 救援 FIT，和没有这一段时完全一样。`setenv amp_ab off` 也走这条路。
++ */
++#define K7AB_MAGIC		"K7ABCTRL"
++#define K7AB_VERSION		1
++#define K7AB_CTRL_LBA		32760
++#define K7AB_PART_LBA		182272
++#define K7AB_SLOT_SECTORS	65536
++#define K7AB_SLOT_A		2048
++#define K7AB_SLOT_B		(K7AB_SLOT_A + K7AB_SLOT_SECTORS)
++#define K7AB_BOOTED_NONE	0xff
++#define K7AB_SLOT_LBA(i)	(K7AB_PART_LBA + ((i) ? K7AB_SLOT_B : K7AB_SLOT_A))
++#define K7AB_HDR_SECTORS	16		/* 8KB：FIT 的 FDT 部分（-p 0xe00） */
++
++/* 控制块读写缓冲：FIT 窗口（0x60000000 起，最多 32MB）下方 1MB */
++#define AMP_AB_BUF		0x5ff00000
++
++struct k7ab_slot_s {
++	u8	active;
++	u8	bootable;
++	u8	successful;
++	u8	reserved;
++	u32	length;
++	u8	sha256[32];
++};
++
++struct k7ab_ctrl_s {
++	char	magic[8];
++	u32	version;
++	u32	seq;
++	u8	try_boot;
++	u8	booted;
++	u8	boot_count;
++	u8	reserved;
++	struct k7ab_slot_s slot[2];
++	u32	crc32;
++};
++
++/*
+  * A72 上 Linux 的外部根文件系统镜像（openvela 的 `lxroot write` 写进来）。
+  *
+  *   分区：出厂 GPT 的 backup，LBA 378880 起 786432 扇区（384MB）。
+@@ -199,16 +259,11 @@
+  *   每个镜像节点里有 data-position（绝对偏移）和 data-size。取其中最大的
+  *   结束位置，就是整个 FIT 需要读进来的长度。
+  */
+-static int amp_check_fit_window(void *fit, ulong window)
++static ulong amp_fit_need(void *fit)
+ {
+ 	ulong need;
+ 	int images, node;
+ 
+-	if (fdt_check_header(fit)) {
+-		printf("AMP: FIT 头无效（LBA 0x%x 处不是 FIT）\n", AMP_FIT_LBA);
+-		return -EINVAL;
+-	}
+-
+ 	need = fdt_totalsize(fit);
+ 	images = fdt_path_offset(fit, FIT_IMAGES_PATH);
+ 	if (images >= 0) {
+@@ -228,19 +283,231 @@
+ 		}
+ 	}
+ 
++	return need;
++}
++
++static int amp_check_fit_window(void *fit, ulong window)
++{
++	ulong need;
++
++	if (fdt_check_header(fit)) {
++		printf("AMP: FIT 头无效（LBA 0x%x 处不是 FIT）\n", AMP_FIT_LBA);
++		return -EINVAL;
++	}
++
++	need = amp_fit_need(fit);
+ 	printf("AMP: FIT 需要 %lu 字节（%lu 扇区），读取窗口 %lu 扇区\n",
+ 	       need, (need + 511) / 512, window / 512);
+ 
+ 	if (need > window) {
+ 		printf("AMP: ★ FIT 超过读取窗口，读进来的镜像不完整，\n"
+ 		       "     后面的哈希校验必然失败。请缩小镜像或调大 AMP_FIT_CNT\n"
+-		       "     （上限 8192 扇区，再大就会压到 LBA 32768 的 misc）。\n");
++		       "     （上限 8184 扇区，再大就会压到 A/B 控制块）。\n");
+ 		return -E2BIG;
+ 	}
+ 
+ 	return 0;
+ }
+ 
++/* ---- A/B ---- */
++
++static u32 ab_crc(const struct k7ab_ctrl_s *c)
++{
++	return crc32(0, (const u8 *)c, offsetof(struct k7ab_ctrl_s, crc32));
++}
++
++static bool ab_valid(const struct k7ab_ctrl_s *c)
++{
++	return !memcmp(c->magic, K7AB_MAGIC, 8) &&
++	       c->version == K7AB_VERSION && c->crc32 == ab_crc(c);
++}
++
++static int ab_read(struct blk_desc *d, struct k7ab_ctrl_s *c)
++{
++	struct k7ab_ctrl_s *p0 = (void *)AMP_AB_BUF;
++	struct k7ab_ctrl_s *p1 = (void *)(AMP_AB_BUF + 512);
++	bool v0, v1;
++
++	if (blk_dread(d, K7AB_CTRL_LBA, 2, (void *)AMP_AB_BUF) != 2)
++		return -EIO;
++
++	v0 = ab_valid(p0);
++	v1 = ab_valid(p1);
++	if (!v0 && !v1)
++		return -ENOENT;
++
++	/* seq 用差值比较，回绕也对 */
++	memcpy(c, v0 && (!v1 || (int)(p0->seq - p1->seq) > 0) ? p0 : p1,
++	       sizeof(*c));
++	return 0;
++}
++
++static int ab_write(struct blk_desc *d, struct k7ab_ctrl_s *c)
++{
++	c->seq++;
++	c->crc32 = ab_crc(c);
++	memset((void *)AMP_AB_BUF, 0, 512);
++	memcpy((void *)AMP_AB_BUF, c, sizeof(*c));
++
++	/* seq 为偶数写第 0 份、奇数写第 1 份，另一份保留上一个状态 */
++	if (blk_dwrite(d, K7AB_CTRL_LBA + (c->seq & 1), 1,
++		       (void *)AMP_AB_BUF) != 1)
++		return -EIO;
++	return 0;
++}
++
++/* 返回要启动的槽（0 = A，1 = B），-1 表示用救援 FIT */
++static int ab_pick(struct k7ab_ctrl_s *c)
++{
++	int i;
++
++	for (i = 0; i < 2; i++) {
++		struct k7ab_slot_s *s = &c->slot[i];
++
++		if (!s->active || !s->bootable || s->successful)
++			continue;
++
++		if (c->try_boot) {
++			printf("AMP: 槽 %c 上次试启动没有被确认，作废\n",
++			       'A' + i);
++			s->active = 0;
++			s->bootable = 0;
++			c->try_boot = 0;
++			break;
++		}
++
++		c->try_boot = 1;
++		c->boot_count++;
++		printf("AMP: 槽 %c 尚未确认，试启动（第 %u 次）\n",
++		       'A' + i, c->boot_count);
++		return i;
++	}
++
++	for (i = 0; i < 2; i++)
++		if (c->slot[i].active && c->slot[i].successful)
++			return i;
++
++	for (i = 0; i < 2; i++) {
++		if (c->slot[i].successful) {
++			c->slot[i].active = 1;
++			c->slot[i].bootable = 1;
++			return i;
++		}
++	}
++
++	return -1;
++}
++
++/* 把槽里的 FIT 读到 AMP_FIT_ADDR 并校验全部镜像的哈希 */
++static int ab_load_slot(int i)
++{
++	void *fit = (void *)AMP_FIT_ADDR;
++	ulong lba = K7AB_SLOT_LBA(i);
++	ulong need, t0 = get_timer(0);
++	char cmd[128];
++
++	snprintf(cmd, sizeof(cmd), "mmc read 0x%x 0x%lx 0x%x",
++		 AMP_FIT_ADDR, lba, K7AB_HDR_SECTORS);
++	if (run_command(cmd, 0))
++		return -EIO;
++
++	if (fdt_check_header(fit) ||
++	    fdt_totalsize(fit) > K7AB_HDR_SECTORS * 512) {
++		printf("AMP: 槽 %c（LBA 0x%lx）不是 FIT\n", 'A' + i, lba);
++		return -EINVAL;
++	}
++
++	need = amp_fit_need(fit);
++	if (need > (ulong)K7AB_SLOT_SECTORS * 512) {
++		printf("AMP: 槽 %c 的 FIT 声称 %lu 字节，超过槽大小\n",
++		       'A' + i, need);
++		return -E2BIG;
++	}
++
++	snprintf(cmd, sizeof(cmd), "mmc read 0x%x 0x%lx 0x%lx",
++		 AMP_FIT_ADDR, lba, (need + 511) / 512);
++	if (run_command(cmd, 0))
++		return -EIO;
++
++	if (!fit_all_image_verify(fit)) {
++		printf("AMP: 槽 %c 的 FIT 哈希校验失败\n", 'A' + i);
++		return -EBADMSG;
++	}
++
++	printf("AMP: 槽 %c 的 FIT %lu 字节，哈希一致（读+校验 %lu ms）\n",
++	       'A' + i, need, get_timer(t0));
++	return 0;
++}
++
++static int amp_load_rescue_fit(void)
++{
++	char cmd[128];
++	int ret;
++
++	snprintf(cmd, sizeof(cmd), "mmc read 0x%x 0x%x 0x%x",
++		 AMP_FIT_ADDR, AMP_FIT_LBA, AMP_FIT_CNT);
++	ret = run_command(cmd, 0);
++	if (ret)
++		return ret;
++
++	return amp_check_fit_window((void *)(ulong)AMP_FIT_ADDR,
++				    (ulong)AMP_FIT_CNT * 512);
++}
++
++static int amp_load_openvela_fit(void)
++{
++	struct k7ab_ctrl_s c, orig;
++	struct blk_desc *d;
++	const char *env = env_get("amp_ab");
++	int n, slot, ret;
++
++	if (env && !strcmp(env, "off")) {
++		printf("AMP: A/B 已由 amp_ab=off 关闭，启动救援 FIT\n");
++		return amp_load_rescue_fit();
++	}
++
++	d = blk_get_dev("mmc", 0);
++	ret = d ? ab_read(d, &c) : -ENODEV;
++	if (ret) {
++		printf("AMP: 没有 A/B 控制块（%d），启动救援 FIT\n", ret);
++		return amp_load_rescue_fit();
++	}
++
++	orig = c;
++	printf("AMP: A/B seq %u：A[%c%c%c] B[%c%c%c] try=%u\n", c.seq,
++	       c.slot[0].active ? 'a' : '-', c.slot[0].bootable ? 'b' : '-',
++	       c.slot[0].successful ? 's' : '-',
++	       c.slot[1].active ? 'a' : '-', c.slot[1].bootable ? 'b' : '-',
++	       c.slot[1].successful ? 's' : '-', c.try_boot);
++
++	/* 每轮要么启动成功返回，要么作废一个槽；两轮之后必然收敛 */
++	for (n = 0; n < 3; n++) {
++		slot = ab_pick(&c);
++		if (slot < 0)
++			break;
++
++		ret = ab_load_slot(slot);
++		if (!ret) {
++			c.booted = slot;
++			if (memcmp(&c, &orig, sizeof(c)) && ab_write(d, &c))
++				printf("AMP: ★ 控制块写失败，照常启动\n");
++			return 0;
++		}
++
++		printf("AMP: 槽 %c 作废（%d）\n", 'A' + slot, ret);
++		c.slot[slot].active = 0;
++		c.slot[slot].bootable = 0;
++		c.slot[slot].successful = 0;
++		c.try_boot = 0;
++	}
++
++	c.booted = K7AB_BOOTED_NONE;
++	if (memcmp(&c, &orig, sizeof(c)) && ab_write(d, &c))
++		printf("AMP: ★ 控制块写失败\n");
++	printf("AMP: A/B 没有可用的槽，启动救援 FIT\n");
++	return amp_load_rescue_fit();
++}
++
+ static int amp_load_from_mmc(void)
+ {
+ 	char cmd[128];
+@@ -262,14 +529,7 @@
+ 	if (ret)
+ 		return ret;
+ 
+-	snprintf(cmd, sizeof(cmd), "mmc read 0x%x 0x%x 0x%x",
+-		 AMP_FIT_ADDR, AMP_FIT_LBA, AMP_FIT_CNT);
+-	ret = run_command(cmd, 0);
+-	if (ret)
+-		return ret;
+-
+-	ret = amp_check_fit_window((void *)(ulong)AMP_FIT_ADDR,
+-				   (ulong)AMP_FIT_CNT * 512);
++	ret = amp_load_openvela_fit();
+ 	if (ret)
+ 		return ret;
+ 

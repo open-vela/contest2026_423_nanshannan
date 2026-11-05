@@ -1,0 +1,14 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config LVX_USE_DEMO_CONTEST2026_423_K7OTA
+	bool "Contest 2026 team 423 OTA (FIT A/B)"
+	default n
+	depends on RK3576_SDHCI && GPT_PARTITION && NETUTILS_WEBCLIENT && CRYPTO_MBEDTLS
+	---help---
+		openvela 镜像（AMP FIT）的 A/B 升级：ota install 把新镜像写进没在
+		运行的槽，bootctl 管理启动控制块（与 frameworks/system/ota 的
+		bootctl 子命令相同）。U-Boot 侧见 amp/uboot/0014，格式见
+		amp/include/k7_bootab.h。

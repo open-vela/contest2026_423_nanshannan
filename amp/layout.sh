@@ -9,11 +9,12 @@
 # GPT（2026-09-17 从板上读出）：
 #   security   8192 ..  16383   4MB   dtb@14336（OP-TEE 安全存储也用这个分区）
 #   uboot     16384 ..  24575   4MB   U-Boot
-#   trust     24576 ..  32767   4MB   AMP FIT（openvela）
+#   trust     24576 ..  32767   4MB   救援 FIT（openvela）+ 末尾 8 扇区 A/B 控制块
 #   misc      32768 ..  40959   4MB   ✗ U-Boot 每次启动写 BCB，不能借
 #   dtbo      40960 ..  49151   4MB   开机 logo 的 resource 镜像（amp/uboot/0011）
 #   vbmeta    49152 ..  51199   1MB   ┐ Linux Image-amp（7.2MB）
 #   boot      51200 .. 182271  64MB   ┘ 从 49152 连续放
+#   recovery 182272 .. 378879  96MB   openvela A/B 槽（各 32MB），只能由 openvela 经网络写
 #
 # ★ rkdeveloptool 对 LBA >= 65536 的写静默丢弃（amp/FLASH.md），
 #   所以全部部件都必须在 32MB 以内。
@@ -25,7 +26,9 @@
 #   所有写盘脚本都必须先过 amp_check_write。
 
 AMP_FIT_LBA=24576
-AMP_FIT_MAX=8192          # 扇区；到 misc 起点 32768 为止
+AMP_FIT_MAX=8184          # 扇区；32760 起 8 扇区是 A/B 控制块（amp/include/k7_bootab.h）
+AMP_ABCTL_LBA=32760
+AMP_ABCTL_CNT=8           # 到 misc 起点 32768 为止
 AMP_DTB_LBA=14336
 AMP_DTB_MAX=544
 AMP_UBOOT_LBA=16384
@@ -34,12 +37,13 @@ AMP_KERNEL_LBA=49152
 AMP_KERNEL_END=65536      # 不含；rkdeveloptool 写得到的上限
 
 # amp_check_write <lba> <扇区数> <允许的用途>
-#   用途：fit | dtb | uboot | logo | kernel
+#   用途：fit | abctl | dtb | uboot | logo | kernel
 #   区间必须完整落在该用途自己的区域里，否则拒绝。
 amp_check_write() {
   local lba=$1 cnt=$2 what=$3 lo hi
   case "$what" in
     fit)    lo=$AMP_FIT_LBA;    hi=$((AMP_FIT_LBA + AMP_FIT_MAX)) ;;
+    abctl)  lo=$AMP_ABCTL_LBA;  hi=$((AMP_ABCTL_LBA + AMP_ABCTL_CNT)) ;;
     dtb)    lo=$AMP_DTB_LBA;    hi=$((AMP_DTB_LBA + AMP_DTB_MAX)) ;;
     uboot)  lo=$AMP_UBOOT_LBA;  hi=24576 ;;
     logo)   lo=$AMP_LOGO_LBA;   hi=$AMP_KERNEL_LBA ;;

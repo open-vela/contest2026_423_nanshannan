@@ -127,4 +127,24 @@ if ! "$rkdev" rl "$fit_lba" "$fit_sectors" "$readback" >/dev/null ||
 fi
 sha256sum "$readback"
 echo "FIT write verified. Current region backup: $backup"
+
+# ★ 清 A/B 控制块（amp/include/k7_bootab.h）。
+#   刚写的是救援 FIT；控制块若还指着 OTA 装过的槽，U-Boot 会启动那个槽，
+#   这次烧写等于没生效。清零后两份都无效 = 没有 A/B，U-Boot 启动救援 FIT。
+#   K7_KEEP_ABCTL=1 保留（只想更新救援 FIT、继续跑槽里的镜像时）。
+if [[ ${K7_KEEP_ABCTL:-0} != 1 ]]; then
+  amp_check_write "$AMP_ABCTL_LBA" "$AMP_ABCTL_CNT" abctl
+  abctl_backup="$run_dir/lba${AMP_ABCTL_LBA}-abctl-before.bin"
+  abctl_zero="$run_dir/abctl-zero.bin"
+  "$rkdev" rl "$AMP_ABCTL_LBA" "$AMP_ABCTL_CNT" "$abctl_backup" >/dev/null
+  head -c $(( AMP_ABCTL_CNT * 512 )) /dev/zero > "$abctl_zero"
+  if cmp -s "$abctl_backup" "$abctl_zero"; then
+    echo "A/B control block already clear"
+  else
+    "$rkdev" wl "$AMP_ABCTL_LBA" "$abctl_zero" >/dev/null
+    "$rkdev" rl "$AMP_ABCTL_LBA" "$AMP_ABCTL_CNT" "$run_dir/abctl-readback.bin" >/dev/null
+    cmp "$abctl_zero" "$run_dir/abctl-readback.bin"
+    echo "A/B control block cleared (backup: $abctl_backup)"
+  fi
+fi
 echo "Board remains in Loader mode; reset and bootamp only after review."
