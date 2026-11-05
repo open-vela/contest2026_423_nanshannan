@@ -92,9 +92,26 @@ int skw6621s_wifi_xmit(uint8_t channel, FAR const void *msg, size_t len);
 
 int skw6621s_wifi_init(FAR const char *dir);
 
-/* Bounded scan of 2.4 GHz 1-13 and 5 GHz 36-64 / 149-165, printing each BSS */
+/* Bounded scan of 2.4 GHz 1-13 and 5 GHz 36-64 / 149-165, printing each
+ * BSS
+ */
 
 int skw6621s_wifi_scan(void);
+
+/* Results of the last scan (up to max) and the link state, for the UI */
+
+struct skw6621s_ap_s
+{
+  uint8_t bssid[6];
+  char ssid[33];                        /* "" for a hidden network */
+  int16_t signal;                       /* dBm */
+  uint8_t chan;
+  uint8_t band;                         /* 0 = 2.4 GHz, 1 = 5 GHz */
+  bool secure;
+};
+
+int skw6621s_wifi_results(FAR struct skw6621s_ap_s *ap, int max);
+bool skw6621s_wifi_status(FAR char *ssid, size_t len);
 
 /* Join the strongest BSS whose SSID contains ssid (open, or WPA2-PSK
  * with passphrase), bounded.  Returns OK once the keys are installed.

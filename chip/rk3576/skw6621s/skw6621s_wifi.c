@@ -47,6 +47,11 @@
 #  include <nuttx/net/netdev_lowerhalf.h>
 #endif
 
+#ifdef CONFIG_NETDEV_WIRELESS_HANDLER
+#  include <net/if_arp.h>
+#  include <nuttx/wireless/wireless.h>
+#endif
+
 #include "skw6621s_sdio.h"
 #include "skw6621s_wpa.h"
 
@@ -214,6 +219,7 @@ struct skw_bss_s
   uint8_t chan;
   uint8_t band;                         /* SKW_BAND_2GHZ / SKW_BAND_5GHZ */
   int16_t signal;
+  uint16_t capability;                  /* bit 4: privacy (WEP / WPA) */
   uint8_t ssid_len;
   char ssid[33];
 };
@@ -330,9 +336,18 @@ static uint8_t g_mac[6];
 static bool g_wifi_ready;
 static mutex_t g_cmd_lock = NXMUTEX_INITIALIZER;
 
+/* One scan / connect / disconnect at a time: the settings UI thread and
+ * wapi (ioctl, in the caller's thread) both drive the chip, and a scan
+ * rewrites g_bss and g_target under whoever is reading them.
+ */
+
+static mutex_t g_op_lock = NXMUTEX_INITIALIZER;
+static bool g_scan_valid;               /* g_bss holds a finished scan */
+
 /* Connection state; the mgmt / eapol fields are filled by the callback */
 
 static FAR const char *g_want;          /* SSID substring while scanning */
+static bool g_want_exact;               /* ... or the whole SSID (wapi) */
 static uint8_t g_skip_bssid[6];         /* BSS that rejected our auth */
 static bool g_skip_valid;
 static bool g_pn_reuse;                 /* chip priv bit 2: msdu_len in pn[4] */
@@ -359,6 +374,9 @@ static FAR struct skw_wpa_s *g_wpa;
  ****************************************************************************/
 
 static void wifi_free_wpa(void);
+static int wifi_scan_run(void);
+static int wifi_connect(FAR const char *ssid, FAR const char *passphrase);
+static int wifi_disconnect(void);
 static void wifi_netdev_rx(FAR const uint8_t *frame, size_t len);
 static void wifi_netdev_link(bool up);
 
@@ -425,6 +443,7 @@ static void wifi_scan_report(FAR const uint8_t *data, size_t len)
   bss->chan = data[0];
   bss->band = data[1];
   bss->signal = (int16_t)skw_le16(data + 2);
+  bss->capability = skw_le16(mgmt + 34);
 
   ie = mgmt + 36;
   for (off = 0; off + 2 <= mlen - 36; off += 2 + ie[off + 1])
@@ -444,7 +463,9 @@ static void wifi_scan_report(FAR const uint8_t *data, size_t len)
    * capability sit just before them).
    */
 
-  if (g_want != NULL && bss->ssid_len > 0 && strstr(bss->ssid, g_want) &&
+  if (g_want != NULL && bss->ssid_len > 0 &&
+      (g_want_exact ? strcmp(bss->ssid, g_want) == 0 :
+                      strstr(bss->ssid, g_want) != NULL) &&
       !(g_skip_valid && memcmp(g_skip_bssid, bss->bssid, 6) == 0) &&
       (!g_have_target || memcmp(g_target.bss.bssid, bss->bssid, 6) == 0 ||
        bss->signal > g_target.bss.signal))
@@ -551,8 +572,9 @@ static void wifi_rx_data(FAR const uint8_t *d, size_t len)
         {
           for (i = 0; i + 16 <= len && i < 64; i += 16)
             {
-              syslog(LOG_WARNING, "  %02x: %02x %02x %02x %02x %02x %02x %02x "
-                     "%02x %02x %02x %02x %02x %02x %02x %02x %02x\n", i,
+              syslog(LOG_WARNING, "  %02x: %02x %02x %02x %02x %02x %02x "
+                     "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                     i,
                      d[i], d[i + 1], d[i + 2], d[i + 3], d[i + 4], d[i + 5],
                      d[i + 6], d[i + 7], d[i + 8], d[i + 9], d[i + 10],
                      d[i + 11], d[i + 12], d[i + 13], d[i + 14], d[i + 15]);
@@ -1122,6 +1144,10 @@ static int wifi_handshake(FAR struct skw_wpa_s *wpa)
 #define SKW_POLL_IDLE_US            5000
 
 #ifdef CONFIG_MM_IOB
+#ifdef CONFIG_NETDEV_WIRELESS_HANDLER
+static const struct wireless_ops_s g_wlan_iw_ops;
+#endif
+
 static struct netdev_lowerhalf_s g_wlan;
 static netpkt_queue_t g_rxq;
 static spinlock_t g_rxq_lock = SP_UNLOCKED;
@@ -1254,6 +1280,15 @@ static int wifi_netdev_register(void)
   g_wlan.quota[NETPKT_RX] = 2;
   g_wlan.quota[NETPKT_TX] = 1;
   g_wlan.ops = &g_wlan_ops;
+#ifdef CONFIG_NETDEV_WIRELESS_HANDLER
+  g_wlan.iw_ops = &g_wlan_iw_ops;
+#endif
+
+  /* NET_LL_ETHERNET, not IEEE80211: that type needs
+   * CONFIG_DRIVERS_IEEE80211, which also makes netinit configure wlan0
+   * instead of eth0 at boot.  The wireless ioctls do not care; only
+   * SIOCGIWNAME (unused by wapi) answers -ENODEV.
+   */
 
   ret = netdev_lower_register(&g_wlan, NET_LL_ETHERNET);
   syslog(LOG_INFO, "SKW WiFi: wlan0 register %d\n", ret);
@@ -1457,6 +1492,14 @@ int skw6621s_wifi_init(FAR const char *dir)
     }
 
   g_wifi_ready = true;
+
+#ifdef CONFIG_MM_IOB
+  /* wlan0 exists from here on (carrier off until joined), so wapi can
+   * scan and connect through the standard wireless ioctls.
+   */
+
+  wifi_netdev_register();
+#endif
   goto out;
 
 fail:
@@ -1468,7 +1511,7 @@ out:
   return ret;
 }
 
-int skw6621s_wifi_scan(void)
+static int wifi_scan_run(void)
 {
   uint8_t buf[sizeof(struct skw_scan_param_s) + SKW_SCAN_NCHAN * 3 + 33];
   FAR struct skw_scan_param_s *param = (FAR struct skw_scan_param_s *)buf;
@@ -1511,6 +1554,7 @@ int skw6621s_wifi_scan(void)
   g_nbss = 0;
   g_nreport = 0;
   g_scan_done = false;
+  g_scan_valid = false;
 
   ret = wifi_cmd(0, SKW_CMD_START_SCAN, buf, sizeof(buf), NULL, 0,
                  SKW_CMD_TIMEOUT_MS);
@@ -1551,7 +1595,53 @@ int skw6621s_wifi_scan(void)
              b->ssid_len ? b->ssid : "<hidden>");
     }
 
+  g_scan_valid = g_scan_done;
   return g_scan_done ? OK : -ETIMEDOUT;
+}
+
+int skw6621s_wifi_scan(void)
+{
+  int ret;
+
+  nxmutex_lock(&g_op_lock);
+  ret = wifi_scan_run();
+  nxmutex_unlock(&g_op_lock);
+  return ret;
+}
+
+/* Copy out the last scan, for the settings UI */
+
+int skw6621s_wifi_results(FAR struct skw6621s_ap_s *ap, int max)
+{
+  int n;
+
+  nxmutex_lock(&g_op_lock);
+  for (n = 0; n < max && n < (int)g_nbss; n++)
+    {
+      FAR const struct skw_bss_s *b = &g_bss[n];
+
+      memcpy(ap[n].bssid, b->bssid, 6);
+      strlcpy(ap[n].ssid, b->ssid, sizeof(ap[n].ssid));
+      ap[n].signal = b->signal;
+      ap[n].chan = b->chan;
+      ap[n].band = b->band;
+      ap[n].secure = (b->capability & 0x0010) != 0;
+    }
+
+  nxmutex_unlock(&g_op_lock);
+  return n;
+}
+
+/* Connected (keys installed, no deauth since); ssid gets the joined BSS */
+
+bool skw6621s_wifi_status(FAR char *ssid, size_t len)
+{
+  if (ssid != NULL && len > 0)
+    {
+      strlcpy(ssid, g_connected ? g_target.bss.ssid : "", len);
+    }
+
+  return g_connected;
 }
 
 static int wifi_connect_once(FAR const char *ssid,
@@ -1578,7 +1668,7 @@ static int wifi_connect_once(FAR const char *ssid,
 
   g_have_target = false;
   g_want = ssid;
-  ret = skw6621s_wifi_scan();
+  ret = wifi_scan_run();
   g_want = NULL;
   if (!g_have_target)
     {
@@ -1756,7 +1846,7 @@ out:
   return ret;
 }
 
-int skw6621s_wifi_connect(FAR const char *ssid, FAR const char *passphrase)
+static int wifi_connect(FAR const char *ssid, FAR const char *passphrase)
 {
   int ret;
 
@@ -1774,7 +1864,17 @@ int skw6621s_wifi_connect(FAR const char *ssid, FAR const char *passphrase)
   return ret;
 }
 
-int skw6621s_wifi_disconnect(void)
+int skw6621s_wifi_connect(FAR const char *ssid, FAR const char *passphrase)
+{
+  int ret;
+
+  nxmutex_lock(&g_op_lock);
+  ret = wifi_connect(ssid, passphrase);
+  nxmutex_unlock(&g_op_lock);
+  return ret;
+}
+
+static int wifi_disconnect(void)
 {
   if (!g_joined)
     {
@@ -1785,3 +1885,385 @@ int skw6621s_wifi_disconnect(void)
   wifi_free_wpa();
   return OK;
 }
+
+int skw6621s_wifi_disconnect(void)
+{
+  int ret;
+
+  nxmutex_lock(&g_op_lock);
+  ret = wifi_disconnect();
+  nxmutex_unlock(&g_op_lock);
+  return ret;
+}
+
+/****************************************************************************
+ * Standard wireless ioctls (wapi)
+ *
+ * netdev_upperhalf turns SIOCSIW* / SIOCGIW* on wlan0 into these handlers,
+ * so `wapi scan wlan0`, `wapi psk wlan0 <pass> 3 2`, `wapi essid wlan0
+ * <ssid> 1` work as on any NuttX WiFi driver.  They run in the caller's
+ * thread and block for the whole scan / connect (a few seconds, bounded
+ * by SKW_SCAN_TIMEOUT_MS and the join timeouts), like the NSH path.
+ *
+ * Only station mode with open or WPA2-PSK (CCMP): what the join and the
+ * in-driver 4-way handshake above support.  The chip itself is started by
+ * the board (kickpi_k7_wifi_initialize, ~40 s of firmware load); wlan0
+ * does not exist before that, so none of this can run on a cold chip.
+ ****************************************************************************/
+
+#if defined(CONFIG_MM_IOB) && defined(CONFIG_NETDEV_WIRELESS_HANDLER)
+
+static char g_iw_essid[33];             /* set by SIOCSIWESSID */
+static char g_iw_psk[64];               /* set by SIOCSIWENCODEEXT, "" = open */
+static uint32_t g_iw_wpa_version = IW_AUTH_WPA_VERSION_WPA2;
+static uint32_t g_iw_cipher = IW_AUTH_CIPHER_CCMP;
+
+static unsigned int wifi_chan_mhz(uint8_t chan, uint8_t band)
+{
+  if (band != SKW_BAND_2GHZ)
+    {
+      return 5000 + 5 * chan;
+    }
+
+  return chan == 14 ? 2484 : 2407 + 5 * chan;
+}
+
+static int wlan_iw_connect(FAR struct netdev_lowerhalf_s *dev)
+{
+  int ret;
+
+  if (g_iw_essid[0] == '\0')
+    {
+      return -EINVAL;
+    }
+
+  nxmutex_lock(&g_op_lock);
+  g_want_exact = true;
+  ret = wifi_connect(g_iw_essid, g_iw_psk[0] != '\0' ? g_iw_psk : NULL);
+  g_want_exact = false;
+  nxmutex_unlock(&g_op_lock);
+  return ret;
+}
+
+static int wlan_iw_disconnect(FAR struct netdev_lowerhalf_s *dev)
+{
+  int ret;
+
+  nxmutex_lock(&g_op_lock);
+  ret = wifi_disconnect();
+  nxmutex_unlock(&g_op_lock);
+  return ret == -ENOTCONN ? OK : ret;
+}
+
+static int wlan_iw_essid(FAR struct netdev_lowerhalf_s *dev,
+                         FAR struct iwreq *iwr, bool set)
+{
+  FAR const char *ssid;
+  size_t len;
+
+  if (set)
+    {
+      len = iwr->u.essid.length;
+      if (iwr->u.essid.pointer == NULL || len == 0 ||
+          len >= sizeof(g_iw_essid))
+        {
+          return -EINVAL;
+        }
+
+      memcpy(g_iw_essid, iwr->u.essid.pointer, len);
+      g_iw_essid[len] = '\0';
+      return OK;
+    }
+
+  ssid = g_connected ? g_target.bss.ssid : g_iw_essid;
+  len = strlen(ssid);
+  if (iwr->u.essid.pointer == NULL || iwr->u.essid.length < len)
+    {
+      return -E2BIG;
+    }
+
+  memcpy(iwr->u.essid.pointer, ssid, len);
+  if (iwr->u.essid.length > len)
+    {
+      ((FAR char *)iwr->u.essid.pointer)[len] = '\0';
+    }
+
+  iwr->u.essid.length = len;
+  iwr->u.essid.flags = g_connected ? IW_ESSID_ON : IW_ESSID_OFF;
+  return OK;
+}
+
+static int wlan_iw_bssid(FAR struct netdev_lowerhalf_s *dev,
+                         FAR struct iwreq *iwr, bool set)
+{
+  if (set)
+    {
+      return -ENOTSUP;                  /* joins by SSID only */
+    }
+
+  iwr->u.ap_addr.sa_family = ARPHRD_ETHER;
+  memset(iwr->u.ap_addr.sa_data, 0, sizeof(iwr->u.ap_addr.sa_data));
+  if (g_connected)
+    {
+      memcpy(iwr->u.ap_addr.sa_data, g_target.bss.bssid, 6);
+    }
+
+  return OK;
+}
+
+/* The key is the passphrase (8..63 characters); it never goes back out */
+
+static int wlan_iw_passwd(FAR struct netdev_lowerhalf_s *dev,
+                          FAR struct iwreq *iwr, bool set)
+{
+  FAR struct iw_encode_ext *ext = iwr->u.encoding.pointer;
+
+  if (ext == NULL || iwr->u.encoding.length < sizeof(*ext))
+    {
+      return -EINVAL;
+    }
+
+  if (!set)
+    {
+      ext->alg = g_iw_psk[0] != '\0' ? IW_ENCODE_ALG_CCMP :
+                                       IW_ENCODE_ALG_NONE;
+      ext->key_len = 0;
+      return OK;
+    }
+
+  if (ext->alg == IW_ENCODE_ALG_NONE || ext->key_len == 0)
+    {
+      memset(g_iw_psk, 0, sizeof(g_iw_psk));
+      return OK;
+    }
+
+  if (ext->alg != IW_ENCODE_ALG_CCMP)
+    {
+      return -ENOTSUP;                  /* no WEP / TKIP-only */
+    }
+
+  if (ext->key_len < 8 || ext->key_len >= sizeof(g_iw_psk) ||
+      iwr->u.encoding.length < sizeof(*ext) + ext->key_len)
+    {
+      return -EINVAL;                   /* 64 hex digits (raw PMK) too */
+    }
+
+  memcpy(g_iw_psk, ext->key, ext->key_len);
+  g_iw_psk[ext->key_len] = '\0';
+  return OK;
+}
+
+static int wlan_iw_mode(FAR struct netdev_lowerhalf_s *dev,
+                        FAR struct iwreq *iwr, bool set)
+{
+  if (set)
+    {
+      return iwr->u.mode == IW_MODE_INFRA ? OK : -ENOTSUP;
+    }
+
+  iwr->u.mode = IW_MODE_INFRA;
+  return OK;
+}
+
+static int wlan_iw_auth(FAR struct netdev_lowerhalf_s *dev,
+                        FAR struct iwreq *iwr, bool set)
+{
+  int idx = iwr->u.param.flags & IW_AUTH_INDEX;
+
+  switch (idx)
+    {
+      case IW_AUTH_WPA_VERSION:
+        if (set)
+          {
+            if (iwr->u.param.value & (IW_AUTH_WPA_VERSION_WPA |
+                                      IW_AUTH_WPA_VERSION_WPA3))
+              {
+                return -ENOTSUP;        /* WPA2-PSK only */
+              }
+
+            g_iw_wpa_version = iwr->u.param.value;
+          }
+        else
+          {
+            iwr->u.param.value = g_iw_wpa_version;
+          }
+
+        return OK;
+
+      case IW_AUTH_CIPHER_PAIRWISE:
+        if (set)
+          {
+            if (iwr->u.param.value != IW_AUTH_CIPHER_CCMP &&
+                iwr->u.param.value != IW_AUTH_CIPHER_NONE)
+              {
+                return -ENOTSUP;
+              }
+
+            g_iw_cipher = iwr->u.param.value;
+          }
+        else
+          {
+            iwr->u.param.value = g_iw_cipher;
+          }
+
+        return OK;
+
+      default:
+        return set ? OK : -ENOTSUP;
+    }
+}
+
+static int wlan_iw_freq(FAR struct netdev_lowerhalf_s *dev,
+                        FAR struct iwreq *iwr, bool set)
+{
+  if (set)
+    {
+      return -ENOTSUP;
+    }
+
+  if (!g_connected)
+    {
+      return -ENOTCONN;
+    }
+
+  iwr->u.freq.flags = IW_FREQ_FIXED;
+  iwr->u.freq.e = -1;
+  iwr->u.freq.m = wifi_chan_mhz(g_target.bss.chan, g_target.bss.band) * 10;
+  return OK;
+}
+
+/* One BSS as wireless-extension events, laid out like wifi_sim.c */
+
+static int wlan_iw_put_bss(FAR char *buf, size_t size, size_t *off,
+                           FAR const struct skw_bss_s *b)
+{
+  FAR struct iw_event *iwe;
+  FAR char *p = buf + *off;
+  size_t need;
+  size_t slen = b->ssid_len < 32 ? b->ssid_len : 32;
+
+  need = IW_EV_LEN(ap_addr) + IW_EV_LEN(essid) + ((slen + 3) & ~3) +
+         IW_EV_LEN(qual) + IW_EV_LEN(freq) + IW_EV_LEN(data);
+  *off += need;
+  if (*off > size)
+    {
+      return -E2BIG;
+    }
+
+  iwe = (FAR struct iw_event *)p;
+  iwe->cmd = SIOCGIWAP;
+  iwe->u.ap_addr.sa_family = ARPHRD_ETHER;
+  memcpy(iwe->u.ap_addr.sa_data, b->bssid, 6);
+  iwe->len = IW_EV_LEN(ap_addr);
+  p += iwe->len;
+
+  iwe = (FAR struct iw_event *)p;
+  iwe->cmd = SIOCGIWESSID;
+  iwe->u.essid.flags = 0;
+  iwe->u.essid.length = slen;
+  iwe->u.essid.pointer = (FAR void *)sizeof(iwe->u.essid);
+  memcpy(&iwe->u.essid + 1, b->ssid, slen);
+  iwe->len = IW_EV_LEN(essid) + ((slen + 3) & ~3);
+  p += iwe->len;
+
+  iwe = (FAR struct iw_event *)p;
+  iwe->cmd = IWEVQUAL;
+  iwe->u.qual.qual = 0;
+  iwe->u.qual.level = (uint8_t)b->signal;
+  iwe->u.qual.noise = 0;
+  iwe->u.qual.updated = IW_QUAL_DBM | IW_QUAL_ALL_UPDATED;
+  iwe->len = IW_EV_LEN(qual);
+  p += iwe->len;
+
+  iwe = (FAR struct iw_event *)p;
+  iwe->cmd = SIOCGIWFREQ;
+  iwe->u.freq.e = -1;
+  iwe->u.freq.m = wifi_chan_mhz(b->chan, b->band) * 10;
+  iwe->len = IW_EV_LEN(freq);
+  p += iwe->len;
+
+  iwe = (FAR struct iw_event *)p;
+  iwe->cmd = SIOCGIWENCODE;
+  iwe->u.data.flags = (b->capability & 0x0010) ?
+                      IW_ENCODE_ENABLED | IW_ENCODE_NOKEY :
+                      IW_ENCODE_DISABLED;
+  iwe->u.data.length = 0;
+  iwe->u.data.pointer = NULL;
+  iwe->len = IW_EV_LEN(data);
+  return OK;
+}
+
+/* set: scan now (blocks, up to SKW_SCAN_TIMEOUT_MS).  get: the last
+ * finished scan, -EAGAIN while one is running or none has finished,
+ * -E2BIG with the needed length in u.data.length if the buffer is short.
+ */
+
+static int wlan_iw_scan(FAR struct netdev_lowerhalf_s *dev,
+                        FAR struct iwreq *iwr, bool set)
+{
+  size_t off = 0;
+  unsigned int i;
+  int ret = OK;
+
+  if (set)
+    {
+      if (g_connected)
+        {
+          /* Scanning off-channel while joined is not something this
+           * driver has been tested with; the joined BSS is enough.
+           */
+
+          return -EBUSY;
+        }
+
+      nxmutex_lock(&g_op_lock);
+      ret = wifi_scan_run();
+      nxmutex_unlock(&g_op_lock);
+      return ret;
+    }
+
+  if (nxmutex_trylock(&g_op_lock) < 0)
+    {
+      return -EAGAIN;
+    }
+
+  if (!g_scan_valid)
+    {
+      nxmutex_unlock(&g_op_lock);
+      return -EAGAIN;
+    }
+
+  for (i = 0; i < g_nbss; i++)
+    {
+      if (wlan_iw_put_bss(iwr->u.data.pointer, iwr->u.data.length, &off,
+                          &g_bss[i]) < 0)
+        {
+          ret = -E2BIG;
+        }
+    }
+
+  nxmutex_unlock(&g_op_lock);
+  if (ret == -E2BIG)
+    {
+      iwr->u.data.length = off;
+      return ret;
+    }
+
+  iwr->u.data.length = off;
+  return OK;
+}
+
+static const struct wireless_ops_s g_wlan_iw_ops =
+{
+  .connect    = wlan_iw_connect,
+  .disconnect = wlan_iw_disconnect,
+  .essid      = wlan_iw_essid,
+  .bssid      = wlan_iw_bssid,
+  .passwd     = wlan_iw_passwd,
+  .mode       = wlan_iw_mode,
+  .auth       = wlan_iw_auth,
+  .freq       = wlan_iw_freq,
+  .scan       = wlan_iw_scan,
+};
+
+#endif /* CONFIG_MM_IOB && CONFIG_NETDEV_WIRELESS_HANDLER */

@@ -11,7 +11,11 @@
 #include <nuttx/config.h>
 
 #include <errno.h>
+#include <string.h>
 #include <syslog.h>
+
+#include <arch/board/board.h>
+#include <nuttx/kmalloc.h>
 
 #include <nuttx/sdio.h>
 
@@ -130,4 +134,38 @@ int kickpi_k7_wifi_connect(FAR const char *ssid, FAR const char *psk)
 int kickpi_k7_wifi_disconnect(void)
 {
   return skw6621s_wifi_disconnect();
+}
+
+int kickpi_k7_wifi_results(FAR struct kickpi_k7_wifi_ap_s *ap, int max)
+{
+  FAR struct skw6621s_ap_s *tmp;
+  int n;
+  int i;
+
+  /* Same fields, copied over so board.h stays free of chip headers */
+
+  tmp = kmm_malloc(sizeof(*tmp) * (max > 0 ? max : 1));
+  if (tmp == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  n = skw6621s_wifi_results(tmp, max);
+  for (i = 0; i < n; i++)
+    {
+      memcpy(ap[i].bssid, tmp[i].bssid, 6);
+      strlcpy(ap[i].ssid, tmp[i].ssid, sizeof(ap[i].ssid));
+      ap[i].signal = tmp[i].signal;
+      ap[i].chan = tmp[i].chan;
+      ap[i].band = tmp[i].band;
+      ap[i].secure = tmp[i].secure;
+    }
+
+  kmm_free(tmp);
+  return n;
+}
+
+bool kickpi_k7_wifi_status(FAR char *ssid, size_t len)
+{
+  return skw6621s_wifi_status(ssid, len);
 }

@@ -71,6 +71,10 @@
 #include <velaclaw/client.h>
 
 #ifdef CONFIG_NETUTILS_NTPCLIENT
+/* jmorecfg.h（jpeglib）定义了 EXTERN(type)，ntpclient.h 又不先 undef 就
+ * 重定义，-Werror 下报错。后面不再用 jpeglib 的那个宏。
+ */
+#  undef EXTERN
 #  include <netutils/ntpclient.h>
 #endif
 
@@ -81,6 +85,11 @@
 #include "k7_home.h"
 #include "k7_studio.h"
 #include "k7_memo.h"
+#include "k7_wireless.h"
+
+#ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_423_K7OTA
+#  include "k7ab.h"
+#endif
 
 #include <arch/board/board.h>
 
@@ -157,6 +166,8 @@
 #define ICON_WIFI         "\xEF\x87\xAB"
 #define ICON_VIDEO        "\xEF\x80\xBD"
 #define ICON_NOTE         "\xEF\x89\x89"
+#define ICON_BLUETOOTH    "\xEF\x8A\x94"
+#define ICON_LOCK         "\xEF\x80\xA3"
 
 #define CHART_POINTS 60          /* 60 x 250ms = 15 秒窗口 */
 #define TICK_MS      250
@@ -3344,7 +3355,8 @@ static void *agent_boot_thread(void *arg)
 #ifdef K7_AGENT_LLM_KEY
   {
     /* Token Plan 的 Key 只认它自己的地址（token-plan-cn.xiaomimimo.com），
-     * 打到预设的 api.xiaomimimo.com 一律 401；模型也只有 mimo-v2.5 系列。
+     * 打到预设的 api.xiaomimimo.com 一律 401；模型也只有它列出的那几个
+     * （2026-11 起是 mimo-v2.6-pro / flash，v2.5 已下线）。
      * 所以地址和模型都跟着 Key 放在本地头文件里。
      */
 
@@ -5247,6 +5259,702 @@ static void dev_close_cb(lv_event_t *e)
   lv_obj_add_flag(g_dev_panel, LV_OBJ_FLAG_HIDDEN);
 }
 
+/* ---- 设置 → WLAN / 蓝牙 ----
+ *
+ * 一个全屏浮层（和开发者工具同一种做法），里面两块内容按入口切换。
+ * 后台的启动 / 扫描 / 连接都在 k7_wireless.c 的线程里；这里只发请求、
+ * 每个 tick 取一次状态快照，gen 变了才重画列表。
+ *
+ * 网络名、设备名是任意字符，用 lv_font_k7_ui_28（ASCII）退回全集的
+ * lv_font_k7_cjk_20 显示。键盘按键要 LVGL 的几个符号，那几个字形放在
+ * 图标字库里（scripts/gen-icon-font.sh），键盘用"图标字库 → 28px 界面
+ * 字库"这一串。
+ */
+
+static lv_obj_t *g_wl_panel;
+static lv_obj_t *g_wl_title;
+static lv_obj_t *g_wl_wifi_box;
+static lv_obj_t *g_wl_bt_box;
+static lv_obj_t *g_wifi_sw;
+static lv_obj_t *g_wifi_info;
+static lv_obj_t *g_wifi_disc_btn;
+static lv_obj_t *g_wifi_list;
+static lv_obj_t *g_bt_sw;
+static lv_obj_t *g_bt_info;
+static lv_obj_t *g_bt_list;
+static lv_obj_t *g_wifi_row_info;       /* 设置页那一行右边的状态字 */
+static lv_obj_t *g_bt_row_info;
+static lv_obj_t *g_pw_layer;
+static lv_obj_t *g_pw_ta;
+static char      g_pw_ssid[33];
+static lv_font_t g_kb_font;
+static bool      g_wifi_want;
+static bool      g_bt_want;
+static uint32_t  g_wifi_gen = UINT32_MAX;
+static uint32_t  g_bt_gen = UINT32_MAX;
+static struct k7_wifi_status_s g_wifi_st;
+static struct k7_bt_status_s   g_bt_st;
+
+static void wl_open(bool bt)
+{
+  lv_label_set_text(g_wl_title, bt ? "蓝牙" : "WLAN");
+  if (bt)
+    {
+      lv_obj_add_flag(g_wl_wifi_box, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_remove_flag(g_wl_bt_box, LV_OBJ_FLAG_HIDDEN);
+    }
+  else
+    {
+      lv_obj_remove_flag(g_wl_wifi_box, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(g_wl_bt_box, LV_OBJ_FLAG_HIDDEN);
+    }
+
+  lv_obj_remove_flag(g_wl_panel, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void wl_open_cb(lv_event_t *e)
+{
+  wl_open((bool)(intptr_t)lv_event_get_user_data(e));
+}
+
+static void wl_close_cb(lv_event_t *e)
+{
+  (void)e;
+  lv_obj_add_flag(g_wl_panel, LV_OBJ_FLAG_HIDDEN);
+}
+
+/* 信号强弱的颜色：-60 dBm 以上算好，-75 以下算弱 */
+
+static uint32_t wl_signal_color(int dbm)
+{
+  return dbm >= -60 ? UI_OK : dbm >= -75 ? UI_ACCENT : UI_DIM;
+}
+
+static const char *wl_signal_text(int dbm)
+{
+  return dbm >= -60 ? "信号强" : dbm >= -75 ? "信号中" : "信号弱";
+}
+
+/* 列表的一行：图标 + 名字（占满）+ 右侧若干小字。返回行对象。 */
+
+static lv_obj_t *wl_list_row(lv_obj_t *list, const char *icon,
+                             uint32_t color, const char *name)
+{
+  lv_obj_t *row = settings_row(list, icon, color, name);
+  lv_obj_t *lbl = lv_obj_get_child(row, 1);
+
+  lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+  lv_obj_set_height(row, 76);
+  return row;
+}
+
+static lv_obj_t *wl_tag(lv_obj_t *row, const char *text, uint32_t color)
+{
+  lv_obj_t *lbl = lv_label_create(row);
+
+  lv_label_set_text(lbl, text);
+  lv_obj_set_style_text_color(lbl, lv_color_hex(color), 0);
+  return lbl;
+}
+
+/* ---- 密码输入 ---- */
+
+static void pw_close(void)
+{
+  if (g_pw_layer != NULL)
+    {
+      lv_obj_delete(g_pw_layer);
+      g_pw_layer = NULL;
+      g_pw_ta = NULL;
+    }
+}
+
+static void pw_connect(void)
+{
+  const char *psk = lv_textarea_get_text(g_pw_ta);
+
+  if (strlen(psk) < 8)
+    {
+      lv_textarea_set_placeholder_text(g_pw_ta, "密码至少 8 位");
+      lv_textarea_set_text(g_pw_ta, "");
+      return;
+    }
+
+  k7_wifi_connect(g_pw_ssid, psk);
+  pw_close();
+}
+
+static void pw_btn_cb(lv_event_t *e)
+{
+  if ((bool)(intptr_t)lv_event_get_user_data(e))
+    {
+      pw_connect();
+    }
+  else
+    {
+      pw_close();
+    }
+}
+
+static void pw_kb_cb(lv_event_t *e)
+{
+  if (lv_event_get_code(e) == LV_EVENT_READY)
+    {
+      pw_connect();
+    }
+  else if (lv_event_get_code(e) == LV_EVENT_CANCEL)
+    {
+      pw_close();
+    }
+}
+
+static void pw_show_cb(lv_event_t *e)
+{
+  lv_obj_t *cb = lv_event_get_target(e);
+
+  lv_textarea_set_password_mode(g_pw_ta,
+                                !lv_obj_has_state(cb, LV_STATE_CHECKED));
+}
+
+/* 顶层图层上：上半是卡片（网络名、输入框、按钮），下半是键盘 */
+
+static void pw_open(const char *ssid)
+{
+  lv_obj_t *card;
+  lv_obj_t *row;
+  lv_obj_t *lbl;
+  lv_obj_t *cb;
+  lv_obj_t *kb;
+  lv_obj_t *btn;
+
+  pw_close();
+  strlcpy(g_pw_ssid, ssid, sizeof(g_pw_ssid));
+
+  g_pw_layer = lv_obj_create(lv_layer_top());
+  lv_obj_remove_style_all(g_pw_layer);
+  lv_obj_set_size(g_pw_layer, LV_PCT(100), LV_PCT(100));
+  lv_obj_set_style_bg_color(g_pw_layer, lv_color_hex(UI_BG), 0);
+  lv_obj_set_style_bg_opa(g_pw_layer, LV_OPA_COVER, 0);
+  lv_obj_add_flag(g_pw_layer, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_flex_flow(g_pw_layer, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_all(g_pw_layer, 24, 0);
+  lv_obj_set_style_pad_row(g_pw_layer, 16, 0);
+
+  card = panel_create(g_pw_layer);
+  lv_obj_set_style_pad_all(card, 20, 0);
+  lv_obj_set_style_pad_row(card, 14, 0);
+
+  lbl = lv_label_create(card);
+  lv_label_set_text_fmt(lbl, "输入「%s」的密码", ssid);
+  lv_obj_set_style_text_font(lbl, &lv_font_k7_ui_28, 0);
+  lv_obj_set_style_text_color(lbl, lv_color_hex(UI_TEXT), 0);
+
+  row = flex_box(card, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_column(row, 16, 0);
+
+  g_pw_ta = lv_textarea_create(row);
+  lv_textarea_set_one_line(g_pw_ta, true);
+  lv_textarea_set_password_mode(g_pw_ta, true);
+  lv_textarea_set_max_length(g_pw_ta, 63);
+  lv_textarea_set_placeholder_text(g_pw_ta, "WLAN 密码");
+  lv_obj_set_flex_grow(g_pw_ta, 1);
+  lv_obj_set_style_text_font(g_pw_ta, &lv_font_k7_ui_28, 0);
+  lv_obj_set_style_bg_color(g_pw_ta, lv_color_hex(UI_SURFACE2), 0);
+  lv_obj_set_style_text_color(g_pw_ta, lv_color_hex(UI_TEXT), 0);
+  lv_obj_set_style_border_width(g_pw_ta, 0, 0);
+  lv_obj_add_state(g_pw_ta, LV_STATE_FOCUSED);
+
+  cb = lv_checkbox_create(row);
+  lv_checkbox_set_text(cb, "显示");
+  lv_obj_set_style_text_color(cb, lv_color_hex(UI_TEXT), 0);
+  lv_obj_add_event_cb(cb, pw_show_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+  btn = lv_button_create(row);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_SURFACE2), 0);
+  lv_label_set_text(lv_label_create(btn), "取消");
+  lv_obj_add_event_cb(btn, pw_btn_cb, LV_EVENT_CLICKED, (void *)0);
+
+  btn = lv_button_create(row);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_ACCENT), 0);
+  lv_obj_set_style_text_color(btn, lv_color_hex(UI_ON_COLOR), 0);
+  lv_label_set_text(lv_label_create(btn), "连接");
+  lv_obj_add_event_cb(btn, pw_btn_cb, LV_EVENT_CLICKED, (void *)1);
+
+  kb = lv_keyboard_create(g_pw_layer);
+  lv_obj_set_width(kb, LV_PCT(100));
+  lv_obj_set_flex_grow(kb, 1);
+  lv_obj_set_style_text_font(kb, &g_kb_font, LV_PART_ITEMS);
+  lv_keyboard_set_textarea(kb, g_pw_ta);
+  lv_obj_add_event_cb(kb, pw_kb_cb, LV_EVENT_READY, NULL);
+  lv_obj_add_event_cb(kb, pw_kb_cb, LV_EVENT_CANCEL, NULL);
+}
+
+/* ---- WLAN ---- */
+
+static void wifi_sw_cb(lv_event_t *e)
+{
+  g_wifi_want = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  k7_wifi_enable(g_wifi_want);
+}
+
+static void wifi_scan_cb(lv_event_t *e)
+{
+  (void)e;
+  if (g_wifi_want)
+    {
+      k7_wifi_scan();
+    }
+}
+
+static void wifi_disc_cb(lv_event_t *e)
+{
+  (void)e;
+  k7_wifi_disconnect();
+}
+
+static void wifi_forget_cb(lv_event_t *e)
+{
+  int i = (int)(intptr_t)lv_event_get_user_data(e);
+
+  if (i < g_wifi_st.nap)
+    {
+      if (g_wifi_st.state == K7_WL_CONNECTED &&
+          strcmp(g_wifi_st.ssid, g_wifi_st.ap[i].ssid) == 0)
+        {
+          k7_wifi_disconnect();
+        }
+
+      k7_wifi_forget(g_wifi_st.ap[i].ssid);
+    }
+}
+
+static void wifi_ap_cb(lv_event_t *e)
+{
+  int i = (int)(intptr_t)lv_event_get_user_data(e);
+  const struct k7_wifi_ap_s *ap;
+  char psk[65];
+
+  if (i >= g_wifi_st.nap)
+    {
+      return;
+    }
+
+  ap = &g_wifi_st.ap[i];
+  if (g_wifi_st.state == K7_WL_CONNECTED &&
+      strcmp(g_wifi_st.ssid, ap->ssid) == 0)
+    {
+      return;
+    }
+
+  if (!ap->secure)
+    {
+      k7_wifi_connect(ap->ssid, NULL);
+    }
+  else if (ap->saved && k7_wifi_saved_psk(ap->ssid, psk, sizeof(psk)))
+    {
+      k7_wifi_connect(ap->ssid, psk);
+    }
+  else
+    {
+      pw_open(ap->ssid);
+    }
+}
+
+static void wifi_info_text(const struct k7_wifi_status_s *st, char *buf,
+                           size_t len)
+{
+  static const char *const fail[] =
+    {
+      "", "无线模组启动失败（错误 %d）", "扫描失败（错误 %d）",
+      "没找到「%s」，可能信号太弱", "连不上「%s」，请检查密码",
+      "连上了但没拿到地址", "连接断开了"
+    };
+
+  switch (st->state)
+    {
+      case K7_WL_OFF:
+        strlcpy(buf, "已关闭", len);
+        break;
+
+      case K7_WL_STARTING:
+        strlcpy(buf, "正在启动无线模组，大约需要 40 秒…", len);
+        break;
+
+      case K7_WL_SCANNING:
+        strlcpy(buf, "正在扫描附近的网络…", len);
+        break;
+
+      case K7_WL_CONNECTING:
+        snprintf(buf, len, "正在连接「%s」…", st->ssid);
+        break;
+
+      case K7_WL_DHCP:
+        snprintf(buf, len, "正在从「%s」获取地址…", st->ssid);
+        break;
+
+      case K7_WL_CONNECTED:
+        snprintf(buf, len, "已连接「%s」  地址 %s", st->ssid, st->ip);
+        break;
+
+      default:
+        if (st->fail == K7_FAIL_NOTFOUND || st->fail == K7_FAIL_AUTH)
+          {
+            snprintf(buf, len, fail[st->fail], st->ssid);
+          }
+        else if (st->fail != K7_FAIL_NONE && st->fail < 7)
+          {
+            snprintf(buf, len, fail[st->fail], st->err);
+          }
+        else
+          {
+            strlcpy(buf, "未连接，点一个网络连接", len);
+          }
+        break;
+    }
+}
+
+static void wifi_list_fill(void)
+{
+  const struct k7_wifi_status_s *st = &g_wifi_st;
+  int i;
+
+  lv_obj_clean(g_wifi_list);
+
+  for (i = 0; i < st->nap; i++)
+    {
+      const struct k7_wifi_ap_s *ap = &st->ap[i];
+      bool cur = (st->state == K7_WL_CONNECTED ||
+                  st->state == K7_WL_CONNECTING ||
+                  st->state == K7_WL_DHCP) &&
+                 strcmp(st->ssid, ap->ssid) == 0;
+      lv_obj_t *row = wl_list_row(g_wifi_list, ICON_WIFI,
+                                  wl_signal_color(ap->signal), ap->ssid);
+
+      lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_add_event_cb(row, wifi_ap_cb, LV_EVENT_CLICKED,
+                          (void *)(intptr_t)i);
+
+      if (cur)
+        {
+          wl_tag(row, st->state == K7_WL_CONNECTED ? "已连接" : "连接中",
+                 UI_OK);
+        }
+
+      if (ap->saved)
+        {
+          lv_obj_t *btn = lv_button_create(row);
+
+          lv_obj_set_style_bg_color(btn, lv_color_hex(UI_SURFACE2), 0);
+          lv_obj_set_style_shadow_width(btn, 0, 0);
+          lv_label_set_text(lv_label_create(btn), "忘记");
+          lv_obj_add_event_cb(btn, wifi_forget_cb, LV_EVENT_CLICKED,
+                              (void *)(intptr_t)i);
+        }
+
+      wl_tag(row, ap->band ? "5G" : "2.4G", UI_DIM);
+      wl_tag(row, wl_signal_text(ap->signal), UI_DIM);
+      icon_label(row, ap->secure ? ICON_LOCK : " ", &lv_font_k7_icons_32,
+                 UI_DIM);
+    }
+
+  if (st->nap == 0 && st->state == K7_WL_IDLE)
+    {
+      wl_tag(g_wifi_list, "没有扫到网络", UI_DIM);
+    }
+
+  settings_group_end(g_wifi_list);
+}
+
+/* ---- 蓝牙 ---- */
+
+static void bt_sw_cb(lv_event_t *e)
+{
+  g_bt_want = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  k7_bt_enable(g_bt_want);
+}
+
+static void bt_scan_cb(lv_event_t *e)
+{
+  (void)e;
+  if (g_bt_want)
+    {
+      k7_bt_scan();
+    }
+}
+
+static void bt_info_text(const struct k7_bt_status_s *st, char *buf,
+                         size_t len)
+{
+  switch (st->state)
+    {
+      case K7_WL_OFF:
+        strlcpy(buf, "已关闭", len);
+        break;
+
+      case K7_WL_STARTING:
+        strlcpy(buf, "正在启动蓝牙…", len);
+        break;
+
+      case K7_WL_SCANNING:
+        snprintf(buf, len, "正在扫描（15 秒），已发现 %d 个设备", st->ndev);
+        break;
+
+      case K7_WL_FAILED:
+        snprintf(buf, len, "蓝牙启动失败（错误 %d）", st->err);
+        break;
+
+      default:
+        snprintf(buf, len, "扫描完成，发现 %d 个设备", st->ndev);
+        break;
+    }
+}
+
+static void bt_list_fill(void)
+{
+  const struct k7_bt_status_s *st = &g_bt_st;
+  int i;
+
+  lv_obj_clean(g_bt_list);
+
+  for (i = 0; i < st->ndev; i++)
+    {
+      const struct k7_bt_dev_s *d = &st->dev[i];
+      char addr[24];
+      lv_obj_t *row;
+
+      snprintf(addr, sizeof(addr), "%02X:%02X:%02X:%02X:%02X:%02X",
+               d->addr[5], d->addr[4], d->addr[3], d->addr[2], d->addr[1],
+               d->addr[0]);
+      row = wl_list_row(g_bt_list, ICON_BLUETOOTH, wl_signal_color(d->rssi),
+                        d->name[0] ? d->name : "未命名设备");
+      wl_tag(row, addr, UI_DIM);
+      wl_tag(row, wl_signal_text(d->rssi), UI_DIM);
+    }
+
+  if (st->ndev == 0 && st->state == K7_WL_IDLE)
+    {
+      wl_tag(g_bt_list, "附近没有发现设备", UI_DIM);
+    }
+
+  settings_group_end(g_bt_list);
+}
+
+/* 每个 tick：取快照，变了才重画；设置页那两行的状态字也在这里更新 */
+
+static void wl_poll(void)
+{
+  char buf[128];
+
+  k7_wifi_status(&g_wifi_st);
+  if (g_wifi_st.gen != g_wifi_gen)
+    {
+      g_wifi_gen = g_wifi_st.gen;
+      wifi_info_text(&g_wifi_st, buf, sizeof(buf));
+      lv_label_set_text(g_wifi_info, buf);
+      lv_label_set_text(g_wifi_row_info,
+                        g_wifi_st.state == K7_WL_CONNECTED ? g_wifi_st.ssid :
+                        g_wifi_st.state == K7_WL_OFF ? "关闭" :
+                        g_wifi_st.state == K7_WL_STARTING ? "启动中" :
+                        "未连接");
+      if (g_wifi_st.state == K7_WL_CONNECTED)
+        {
+          lv_obj_remove_flag(g_wifi_disc_btn, LV_OBJ_FLAG_HIDDEN);
+        }
+      else
+        {
+          lv_obj_add_flag(g_wifi_disc_btn, LV_OBJ_FLAG_HIDDEN);
+        }
+
+      wifi_list_fill();
+    }
+
+  k7_bt_status(&g_bt_st);
+  if (g_bt_st.gen != g_bt_gen)
+    {
+      g_bt_gen = g_bt_st.gen;
+      bt_info_text(&g_bt_st, buf, sizeof(buf));
+      lv_label_set_text(g_bt_info, buf);
+      lv_label_set_text(g_bt_row_info,
+                        g_bt_st.state == K7_WL_OFF ? "关闭" :
+                        g_bt_st.state == K7_WL_FAILED ? "启动失败" : "开启");
+      bt_list_fill();
+    }
+}
+
+/* 一块内容：状态卡片（开关 + 状态字 + 按钮）+ 列表 */
+
+static lv_obj_t *wl_box(lv_obj_t *body, const char *icon, uint32_t color,
+                        const char *name, lv_event_cb_t sw_cb,
+                        lv_obj_t **sw, lv_obj_t **info)
+{
+  lv_obj_t *box = flex_box(body, LV_FLEX_FLOW_COLUMN);
+  lv_obj_t *group;
+  lv_obj_t *row;
+
+  lv_obj_set_style_pad_row(box, 12, 0);
+
+  group = panel_create(box);
+  lv_obj_set_style_pad_ver(group, 8, 0);
+  lv_obj_set_style_pad_row(group, 4, 0);
+  row = settings_row(group, icon, color, name);
+  lv_obj_set_style_border_width(row, 0, 0);
+
+  *sw = lv_switch_create(row);
+  lv_obj_set_size(*sw, 84, 46);
+  lv_obj_set_style_bg_color(*sw, lv_color_hex(UI_SURFACE2), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(*sw, lv_color_hex(color),
+                            LV_PART_INDICATOR | LV_STATE_CHECKED);
+  lv_obj_add_event_cb(*sw, sw_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+  *info = lv_label_create(group);
+  lv_obj_set_width(*info, LV_PCT(100));
+  lv_label_set_long_mode(*info, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_color(*info, lv_color_hex(UI_DIM), 0);
+  lv_obj_set_style_pad_left(*info, 58, 0);
+  lv_obj_set_style_pad_bottom(*info, 12, 0);
+  return box;
+}
+
+static lv_obj_t *wl_small_button(lv_obj_t *parent, const char *text,
+                                 lv_event_cb_t cb)
+{
+  lv_obj_t *btn = lv_button_create(parent);
+  lv_obj_t *lbl;
+
+  lv_obj_set_height(btn, 56);
+  lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_shadow_width(btn, 0, 0);
+  lv_obj_set_style_pad_hor(btn, 28, 0);
+  pill_set(btn, UI_ACCENT, false);
+  lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
+
+  lbl = lv_label_create(btn);
+  lv_label_set_text(lbl, text);
+  lv_obj_set_style_text_font(lbl, &lv_font_k7_ui_28, 0);
+  lv_obj_center(lbl);
+  return btn;
+}
+
+static void wl_panel_build(lv_obj_t *scr)
+{
+  lv_obj_t *bar;
+  lv_obj_t *btn;
+  lv_obj_t *body;
+  lv_obj_t *row;
+  lv_obj_t *lbl;
+
+  /* 键盘字体：先找图标字库里的按键符号，没有再退回 28px 界面字库 */
+
+  g_kb_font = lv_font_k7_icons_32;
+  g_kb_font.fallback = &lv_font_k7_ui_28;
+
+  g_wl_panel = lv_obj_create(scr);
+  lv_obj_remove_style_all(g_wl_panel);
+  lv_obj_set_size(g_wl_panel, LV_PCT(100), LV_PCT(100));
+  lv_obj_set_style_bg_color(g_wl_panel, lv_color_hex(UI_BG), 0);
+  lv_obj_set_style_bg_opa(g_wl_panel, LV_OPA_COVER, 0);
+  lv_obj_set_flex_flow(g_wl_panel, LV_FLEX_FLOW_COLUMN);
+
+  bar = flex_box(g_wl_panel, LV_FLEX_FLOW_ROW);
+  lv_obj_set_height(bar, 80);
+  lv_obj_set_style_pad_hor(bar, 24, 0);
+  lv_obj_set_style_pad_column(bar, 16, 0);
+
+  btn = lv_button_create(bar);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_SURFACE2), 0);
+  lv_obj_set_style_shadow_width(btn, 0, 0);
+  lv_obj_add_event_cb(btn, wl_close_cb, LV_EVENT_CLICKED, NULL);
+  lbl = icon_label(btn, ICON_BACK, &lv_font_k7_icons_32, UI_TEXT);
+
+  g_wl_title = lv_label_create(bar);
+  lv_obj_set_style_text_font(g_wl_title, &lv_font_k7_ui_28, 0);
+  lv_obj_set_style_text_color(g_wl_title, lv_color_hex(UI_TEXT), 0);
+
+  body = lv_obj_create(g_wl_panel);
+  lv_obj_remove_style_all(body);
+  lv_obj_set_width(body, LV_PCT(100));
+  lv_obj_set_flex_grow(body, 1);
+  lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_hor(body, 24, 0);
+  lv_obj_set_style_pad_bottom(body, 24, 0);
+  lv_obj_add_flag(body, LV_OBJ_FLAG_SCROLLABLE);
+
+  /* WLAN */
+
+  g_wl_wifi_box = wl_box(body, ICON_WIFI, UI_ACCENT, "WLAN", wifi_sw_cb,
+                         &g_wifi_sw, &g_wifi_info);
+  row = flex_box(g_wl_wifi_box, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_column(row, 16, 0);
+  lbl = lv_label_create(row);
+  lv_label_set_text(lbl, "附近的网络");
+  lv_obj_set_style_text_color(lbl, lv_color_hex(UI_DIM), 0);
+  lv_obj_set_style_pad_left(lbl, 12, 0);
+  lv_obj_set_flex_grow(lbl, 1);
+  g_wifi_disc_btn = wl_small_button(row, "断开", wifi_disc_cb);
+  wl_small_button(row, "重新扫描", wifi_scan_cb);
+  g_wifi_list = panel_create(g_wl_wifi_box);
+  lv_obj_set_style_pad_ver(g_wifi_list, 4, 0);
+  lv_obj_set_style_pad_row(g_wifi_list, 0, 0);
+
+  lbl = lv_label_create(g_wl_wifi_box);
+  lv_obj_set_width(lbl, LV_PCT(100));
+  lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_hor(lbl, 12, 0);
+  lv_obj_set_style_text_color(lbl, lv_color_hex(UI_DIM), 0);
+  lv_obj_set_style_text_opa(lbl, LV_OPA_70, 0);
+  lv_label_set_text(lbl, "支持不加密和 WPA2 个人版网络。连上过的网络会记住"
+                    "密码，下次点一下就连；开机不会自动打开 WLAN。"
+                    "网线和 WLAN 在同一网段时，数据仍优先走网线。");
+
+  /* 蓝牙 */
+
+  g_wl_bt_box = wl_box(body, ICON_BLUETOOTH, UI_WATER, "蓝牙", bt_sw_cb,
+                       &g_bt_sw, &g_bt_info);
+  row = flex_box(g_wl_bt_box, LV_FLEX_FLOW_ROW);
+  lbl = lv_label_create(row);
+  lv_label_set_text(lbl, "附近的设备");
+  lv_obj_set_style_text_color(lbl, lv_color_hex(UI_DIM), 0);
+  lv_obj_set_style_pad_left(lbl, 12, 0);
+  lv_obj_set_flex_grow(lbl, 1);
+  wl_small_button(row, "重新扫描", bt_scan_cb);
+  g_bt_list = panel_create(g_wl_bt_box);
+  lv_obj_set_style_pad_ver(g_bt_list, 4, 0);
+  lv_obj_set_style_pad_row(g_bt_list, 0, 0);
+
+  lbl = lv_label_create(g_wl_bt_box);
+  lv_obj_set_width(lbl, LV_PCT(100));
+  lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_pad_hor(lbl, 12, 0);
+  lv_obj_set_style_text_color(lbl, lv_color_hex(UI_DIM), 0);
+  lv_obj_set_style_text_opa(lbl, LV_OPA_70, 0);
+  lv_label_set_text(lbl, "目前能发现附近的低功耗蓝牙（BLE）设备；配对和连接"
+                    "还没有做。WLAN 和蓝牙在同一颗模组上，关掉开关只是"
+                    "停止扫描，模组不断电。");
+
+  lv_obj_add_flag(g_wl_panel, LV_OBJ_FLAG_HIDDEN);
+}
+
+/* 设置页"网络与连接"那一组 */
+
+static void wl_settings_group(lv_obj_t *tab)
+{
+  lv_obj_t *group = settings_group(tab, "网络与连接");
+  lv_obj_t *row;
+
+  row = settings_row(group, ICON_WIFI, UI_ACCENT, "WLAN");
+  lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(row, wl_open_cb, LV_EVENT_CLICKED, (void *)0);
+  g_wifi_row_info = wl_tag(row, "关闭", UI_DIM);
+  icon_label(row, ICON_RIGHT, &lv_font_k7_icons_32, UI_DIM);
+
+  row = settings_row(group, ICON_BLUETOOTH, UI_WATER, "蓝牙");
+  lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_event_cb(row, wl_open_cb, LV_EVENT_CLICKED, (void *)1);
+  g_bt_row_info = wl_tag(row, "关闭", UI_DIM);
+  icon_label(row, ICON_RIGHT, &lv_font_k7_icons_32, UI_DIM);
+  settings_group_end(group);
+}
+
 static void settings_build(lv_obj_t *tab)
 {
   lv_obj_t *group;
@@ -5256,6 +5964,8 @@ static void settings_build(lv_obj_t *tab)
   lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_all(tab, 24, 0);
   lv_obj_set_style_pad_row(tab, 12, 0);
+
+  wl_settings_group(tab);
 
   group = settings_group(tab, "健康提醒");
   setting_row(group, ICON_CHAIR, UI_SIT, "久坐", REMIND_SIT,
@@ -5560,6 +6270,35 @@ static void frame_view_show(void)
 }
 #endif
 
+#ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_423_K7OTA
+/* OTA 的启动确认（app/k7ota，等同 `bootctl`）。
+ *
+ * 界面建好并连续跑过 OTA_CONFIRM_MS 才算这次启动成功：新镜像要是在显示、
+ * 触摸或界面初始化里挂住，就走不到这里，下次进 U-Boot 会回到原来的槽。
+ * 从救援 FIT 启动、或已确认过，k7ab_success() 什么都不写。
+ */
+
+#define OTA_CONFIRM_MS 15000
+
+static void ota_confirm_cb(lv_timer_t *t)
+{
+  int ret;
+
+  (void)t;
+
+  ret = k7ab_success();
+  if (ret == 1)
+    {
+      syslog(LOG_INFO, "OTA: 本次启动已确认（界面运行 %d s）\n",
+             OTA_CONFIRM_MS / 1000);
+    }
+  else if (ret < 0)
+    {
+      syslog(LOG_ERR, "OTA: 启动确认失败: %d\n", ret);
+    }
+}
+#endif
+
 static void tick_cb(lv_timer_t *t)
 {
   (void)t;
@@ -5579,6 +6318,7 @@ static void tick_cb(lv_timer_t *t)
   rec_poll();
   home_poll();
   work_poll();
+  wl_poll();
 
   /* 串口调试入口：echo 1 > /tmp/k7-open-camera 等同于点 Open camera */
 
@@ -5610,6 +6350,7 @@ static void tick_cb(lv_timer_t *t)
   /* echo N > /tmp/k7-shot：截屏到 /tmp/k7-shot.jpg。先切页：
    *   N = 0~3    主界面的 今日 / 家居 / 助手 / 设置
    *   N = 10~14  开发者工具的 双核 / 设备 / 曲线 / 音视频 / 关于
+   *   N = 20 / 21 设置里的 WLAN / 蓝牙 页
    */
 
   {
@@ -5624,12 +6365,18 @@ static void tick_cb(lv_timer_t *t)
             if (tab >= 0 && tab < 5)
               {
                 lv_obj_add_flag(g_dev_panel, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(g_wl_panel, LV_OBJ_FLAG_HIDDEN);
                 lv_tabview_set_active(g_main_tabview, tab, LV_ANIM_OFF);
               }
             else if (tab >= 10 && tab < 15)
               {
                 lv_obj_remove_flag(g_dev_panel, LV_OBJ_FLAG_HIDDEN);
                 lv_tabview_set_active(g_tabview, tab - 10, LV_ANIM_OFF);
+              }
+            else if (tab == 20 || tab == 21)
+              {
+                lv_obj_add_flag(g_dev_panel, LV_OBJ_FLAG_HIDDEN);
+                wl_open(tab == 21);
               }
 
             lv_refr_now(NULL);
@@ -5990,6 +6737,7 @@ static void build_ui(void)
   /* 后建的在上层：开发者工具打开时盖住主界面 */
 
   dev_panel_build(scr);
+  wl_panel_build(scr);
 
   /* 调试注入用的第二个指针设备，见 tap_read_cb。显示此时已建好，
    * lv_indev_create() 会绑到它上面。
@@ -6000,6 +6748,11 @@ static void build_ui(void)
   lv_indev_set_read_cb(tap, tap_read_cb);
 
   lv_timer_create(tick_cb, TICK_MS, NULL);
+
+#ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_423_K7OTA
+  lv_timer_set_repeat_count(lv_timer_create(ota_confirm_cb, OTA_CONFIRM_MS,
+                                            NULL), 1);
+#endif
 
   splash_show();
 }

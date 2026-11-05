@@ -9,6 +9,8 @@ CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/../packages/ai_agent/include
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/netutils/cjson/cJSON
 # 与 Linux 共用的帧共享区布局
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/../contest2026_423_nanshannan/amp/include
+# OTA 启动确认（k7ab_success），在 app/k7ota
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/../contest2026_423_nanshannan/app/k7ota
 
 PROGNAME  = kickpi_ui
 PRIORITY  = $(CONFIG_LVX_DEMO_CONTEST2026_423_KICKPI_UI_PRIORITY)
@@ -32,5 +34,6 @@ CSRCS += k7_wake.c
 CSRCS += k7_home.c
 CSRCS += k7_studio.c
 CSRCS += k7_memo.c
+CSRCS += k7_wireless.c
 
 include $(APPDIR)/Application.mk

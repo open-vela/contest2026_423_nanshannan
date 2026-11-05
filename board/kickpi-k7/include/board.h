@@ -1,5 +1,5 @@
 /****************************************************************************
- * vendor/rockchip/boards/rk3576/kickpi-k7/include/board.h
+ * board/kickpi-k7/include/board.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -21,8 +21,6 @@
  ****************************************************************************/
 
 #ifndef __VENDOR_ROCKCHIP_BOARDS_RK3576_KICKPI_K7_INCLUDE_BOARD_H
-#include <stdbool.h>
-
 #define __VENDOR_ROCKCHIP_BOARDS_RK3576_KICKPI_K7_INCLUDE_BOARD_H
 
 /****************************************************************************
@@ -30,6 +28,10 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -42,11 +44,13 @@
  * eMMC    : 16/32/64 GB
  * 网络    : 双千兆以太网
  * 按键    : RESET / POWER / RECOVERY / MASKROM
- * 扩展    : GPIO x22, UART x5, PWM x8, ADC x3, I2C x1, PDM x1, CAN x1, I3C x1
+ * 扩展    : GPIO x22, UART x5, PWM x8, ADC x3, I2C x1, PDM x1, CAN x1,
+ *           I3C x1
  *
  * 调试串口：★ 已确认为 UART0 @ 0x2ad40000，波特率 1500000，时钟 24 MHz
  * （依据 KICKPI 官方 Armbian 源码的 U-Boot defconfig
- *  kickpi-k7-rk3576_defconfig 中的 CONFIG_DEBUG_UART_* 与 CONFIG_BAUDRATE）。
+ *  kickpi-k7-rk3576_defconfig 中的 CONFIG_DEBUG_UART_* 与
+ *  CONFIG_BAUDRATE）。
  */
 
 /* 板级 GPIO 分配
@@ -276,6 +280,23 @@ int kickpi_k7_wifi_initialize(void);
 int kickpi_k7_wifi_scan(void);
 int kickpi_k7_wifi_connect(FAR const char *ssid, FAR const char *psk);
 int kickpi_k7_wifi_disconnect(void);
+
+/* 设置页用：上一次扫描的结果、当前连接状态。扫描和取结果要在同一个线程里
+ * 先后调用（下一次扫描会覆盖结果）。
+ */
+
+struct kickpi_k7_wifi_ap_s
+{
+  uint8_t bssid[6];
+  char ssid[33];                /* 隐藏网络为 "" */
+  int16_t signal;               /* dBm */
+  uint8_t chan;
+  uint8_t band;                 /* 0 = 2.4 GHz，1 = 5 GHz */
+  bool secure;                  /* 能力字段 privacy 位：要密码 */
+};
+
+int kickpi_k7_wifi_results(FAR struct kickpi_k7_wifi_ap_s *ap, int max);
+bool kickpi_k7_wifi_status(FAR char *ssid, size_t len);
 
 /* USB host（DRD1 + 板载 GL3510 hub），手动触发：k7diag usb */
 

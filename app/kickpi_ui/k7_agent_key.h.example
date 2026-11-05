@@ -1,12 +1,15 @@
 /* 复制为 k7_agent_key.h 并填入真实 Key。k7_agent_key.h 已被 .gitignore 忽略，
  * 不要提交。没有这个文件时界面只启动 ai_agent，不配置 LLM 后端。
  *
- * 大赛发的是 MiMo Token Plan：Key 只能打它自己的地址，模型只有
- * mimo-v2.5 系列（可用 GET <URL>/models 查）。
+ * 大赛发的是 MiMo Token Plan：Key 只能打它自己的地址。支持的模型：
+ * mimo-v2.6-pro、mimo-v2.6-flash、mimo-v2.5-asr、mimo-v2.5-tts、
+ * mimo-v2.5-tts-voiceclone、mimo-v2.5-tts-voicedesign（可用
+ * GET <URL>/models 查）。2026-11-04 起 mimo-v2.5 已下线（400 Unsupported
+ * model）。文字和看图都用 pro：实测同样的问题 pro 5.6~5.8s，flash 7.7~9.3s。
  */
 
 #define K7_AGENT_LLM_URL      "https://token-plan-cn.xiaomimimo.com/v1"
 #define K7_AGENT_LLM_HOST     "token-plan-cn.xiaomimimo.com"
-#define K7_AGENT_LLM_MODEL    "mimo-v2.5"
-#define K7_AGENT_VISION_MODEL "mimo-v2.5"
+#define K7_AGENT_LLM_MODEL    "mimo-v2.6-pro"
+#define K7_AGENT_VISION_MODEL "mimo-v2.6-pro"
 #define K7_AGENT_LLM_KEY      "在这里填 Key"
