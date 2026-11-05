@@ -151,7 +151,8 @@ cd ../contest2026_423_nanshannan && bash scripts/flash.sh          # 双系统�
   openvela 采集 48k→FIR→16k、环形缓冲 12s、经 rpmsg 送 PCM；**A72 的 k7d 做端点检测（VAD）**，回发整句区间；
   openvela 取段 → mimo-v2.5-asr（约 0.9s）→ 匹配唤醒词。识别器会把 openvela 写成"OpenAI / Open Wheel / OPPO VELA / 薇拉"，
   匹配规则靠"你好 + open/vela/维拉…"兜住（说"你好 OpenAI"也会唤醒）。用户 09-19 实测"都识别到了"。
-- Token Plan：`https://token-plan-cn.xiaomimimo.com/v1`；文本/视觉 `mimo-v2.5`，TTS `mimo-v2.5-tts`（voice 冰糖，pcm16 24k），
+- Token Plan：`https://token-plan-cn.xiaomimimo.com/v1`；文本/视觉 `mimo-v2.6-pro`（**11-04 起 `mimo-v2.5` 已下线**，返回 400 Unsupported model；
+  现在支持 v2.6-pro / v2.6-flash / v2.5-asr / v2.5-tts / v2.5-tts-voiceclone / v2.5-tts-voicedesign，同一问题实测 pro 5.6s、flash 7.7s），TTS `mimo-v2.5-tts`（voice 冰糖，pcm16 24k），
   ASR `mimo-v2.5-asr`（input_audio base64 WAV，asr_options.language=zh）。深度思考用 `"thinking":{"type":"disabled"}` 关。
 
 ## 6. 上段会话修过的关键缺陷（别再踩）
