@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_dsi2.c
+ * chip/rk3576/rk3576_dsi2.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -97,6 +97,103 @@
 #define DSI_CMD_TIMEOUT_US  50000
 
 /****************************************************************************
+ * Private Types
+ ****************************************************************************/
+
+/* 寄存器 dump 用的名字表 */
+
+struct dsi2_regname_s
+{
+  const char *name;
+  uint32_t    off;
+};
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+/* rk3576_dsi2_dump_uboot_state()：U-Boot 留下的 DSI 寄存器 */
+
+static const struct dsi2_regname_s g_dsi2_uboot_regs[] =
+{
+  {
+    "PWR_UP",           0x0000
+  },
+  {
+    "SOFT_RESET",       0x0010
+  },
+  {
+    "MODE_CTRL",        0x0018
+  },
+  {
+    "MODE_STATUS",      0x001c
+  },
+  {
+    "CORE_STATUS",      0x0020
+  },
+  {
+    "MANUAL_MODE_CFG",  0x0024
+  },
+  {
+    "PHY_MODE_CFG",     0x0100
+  },
+  {
+    "PHY_CLK_CFG",      0x0104
+  },
+  {
+    "PHY_LP2HS",        0x010c
+  },
+  {
+    "PHY_HS2LP",        0x0114
+  },
+  {
+    "PHY_IPI_RATIO",    0x0134
+  },
+  {
+    "PHY_SYS_RATIO",    0x013c
+  },
+  {
+    "DSI_GENERAL_CFG",  0x0200
+  },
+  {
+    "DSI_VCID_CFG",     0x0204
+  },
+  {
+    "DSI_VID_TX_CFG",   0x020c
+  },
+  {
+    "IPI_COLOR_MAN",    0x0300
+  },
+  {
+    "IPI_VID_HSA",      0x0304
+  },
+  {
+    "IPI_VID_HBP",      0x030c
+  },
+  {
+    "IPI_VID_HACT",     0x0314
+  },
+  {
+    "IPI_VID_HLINE",    0x031c
+  },
+  {
+    "IPI_VID_VSA",      0x0324
+  },
+  {
+    "IPI_VID_VBP",      0x032c
+  },
+  {
+    "IPI_VID_VACT",     0x0334
+  },
+  {
+    "IPI_VID_VFP",      0x033c
+  },
+  {
+    "IPI_PIX_PKT_CFG",  0x0344
+  },
+};
+
+/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -145,6 +242,7 @@ int rk3576_dsi2_probe(void)
 {
   uint32_t status;
   int ret;
+  uint32_t sel;
 
   ret = rk3576_power_on(RK3576_PD_VO0);
   if (ret < 0)
@@ -175,15 +273,13 @@ int rk3576_dsi2_probe(void)
   rk3576_clk_setmux(DSI_SEL_CON, DSI_SEL_MUX_SHIFT, 3, DSI_SEL_MUX_SPLL);
   rk3576_clk_setmux(DSI_SEL_CON, 0, 7, DSI_SYS_CLK_DIV - 1);
 
-  {
-    uint32_t sel = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(151));
+  sel = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(151));
 
-    syslog(LOG_INFO,
-           "DSI2: CLKSEL_CON(151)=0x%08" PRIx32 " 选源=%" PRIu32
-           " 分频=%" PRIu32 " -> sys_clk=%" PRIu32 "Hz\n",
-           sel, (sel >> 7) & 0x7, (sel & 0x7f) + 1,
-           (uint32_t)DSI_SYS_CLK_HZ);
-  }
+  syslog(LOG_INFO,
+         "DSI2: CLKSEL_CON(151)=0x%08" PRIx32 " 选源=%" PRIu32
+         " 分频=%" PRIu32 " -> sys_clk=%" PRIu32 "Hz\n",
+         sel, (sel >> 7) & 0x7, (sel & 0x7f) + 1,
+         (uint32_t)DSI_SYS_CLK_HZ);
 
   /* 自检：DSI2 没有版本寄存器，改用"写一个可写位再读回"。
    * SOFT_RESET 的三个复位位可读可写，适合做这个判断。
@@ -218,6 +314,18 @@ int rk3576_dsi2_probe(void)
 int rk3576_dsi2_configure(const struct rk3576_vop2_timing_s *t, int lanes,
                           uint32_t lane_mbps)
 {
+  uint64_t phy_hs_clk;
+  uint64_t pixel_clk;
+  uint32_t hline;
+  uint64_t ipi_clk;
+  uint32_t ipi_ratio;
+  uint32_t sys_ratio;
+  uint64_t ui_ps;
+  uint64_t tick_ps;
+  uint64_t lp2hs;
+  uint64_t trail;
+  uint64_t hs2lp;
+
   if (t == NULL || lanes < 1 || lanes > 4 || lane_mbps == 0)
     {
       return -EINVAL;
@@ -267,25 +375,23 @@ int rk3576_dsi2_configure(const struct rk3576_vop2_timing_s *t, int lanes,
    * 用 64 位算：hline(828) * phy_hs_clk(24.375e6) << 16 会溢出 32 位。
    */
 
-  {
-    uint64_t phy_hs_clk = ((uint64_t)lane_mbps * 1000000ull + 8) / 16;
-    uint64_t pixel_clk  = t->pixclk_hz;
-    uint32_t hline      = t->hactive + t->hfront_porch +
-                          t->hsync_len + t->hback_porch;
+  phy_hs_clk = ((uint64_t)lane_mbps * 1000000ull + 8) / 16;
+  pixel_clk = t->pixclk_hz;
+  hline = t->hactive + t->hfront_porch +
+               t->hsync_len + t->hback_porch;
 
-    dsi_putreg(RK3576_DSI2_IPI_VID_HSA_MAN_CFG,
-               (uint32_t)(((uint64_t)t->hsync_len * phy_hs_clk << 16) /
-                          pixel_clk) & 0x3fffffff);
-    dsi_putreg(RK3576_DSI2_IPI_VID_HBP_MAN_CFG,
-               (uint32_t)(((uint64_t)t->hback_porch * phy_hs_clk << 16) /
-                          pixel_clk) & 0x3fffffff);
-    dsi_putreg(RK3576_DSI2_IPI_VID_HACT_MAN_CFG,
-               (uint32_t)(((uint64_t)t->hactive * phy_hs_clk << 16) /
-                          pixel_clk) & 0x3fffffff);
-    dsi_putreg(RK3576_DSI2_IPI_VID_HLINE_MAN_CFG,
-               (uint32_t)(((uint64_t)hline * phy_hs_clk << 16) /
-                          pixel_clk) & 0x3fffffff);
-  }
+  dsi_putreg(RK3576_DSI2_IPI_VID_HSA_MAN_CFG,
+             (uint32_t)(((uint64_t)t->hsync_len * phy_hs_clk << 16) /
+                        pixel_clk) & 0x3fffffff);
+  dsi_putreg(RK3576_DSI2_IPI_VID_HBP_MAN_CFG,
+             (uint32_t)(((uint64_t)t->hback_porch * phy_hs_clk << 16) /
+                        pixel_clk) & 0x3fffffff);
+  dsi_putreg(RK3576_DSI2_IPI_VID_HACT_MAN_CFG,
+             (uint32_t)(((uint64_t)t->hactive * phy_hs_clk << 16) /
+                        pixel_clk) & 0x3fffffff);
+  dsi_putreg(RK3576_DSI2_IPI_VID_HLINE_MAN_CFG,
+             (uint32_t)(((uint64_t)hline * phy_hs_clk << 16) /
+                        pixel_clk) & 0x3fffffff);
 
   /* 垂直时序的单位是行，直接写。
    * ★ 此前只写了 VSA，缺 VBP/VACT/VFP —— DSI 不知道一帧有多少行。
@@ -310,46 +416,39 @@ int rk3576_dsi2_configure(const struct rk3576_vop2_timing_s *t, int lanes,
    * 出处 dw_mipi_dsi2_phy_ratio_cfg()。
    */
 
-  {
-    uint64_t phy_hs_clk = ((uint64_t)lane_mbps * 1000000ull + 8) / 16;
-    uint64_t ipi_clk    = (uint64_t)t->pixclk_hz / 4;
-    uint32_t ipi_ratio;
-    uint32_t sys_ratio;
+  phy_hs_clk = ((uint64_t)lane_mbps * 1000000ull + 8) / 16;
+  ipi_clk = (uint64_t)t->pixclk_hz / 4;
 
-    ipi_ratio = (uint32_t)((phy_hs_clk << 16) / ipi_clk) & 0x3fffff;
-    sys_ratio = (uint32_t)((phy_hs_clk << 16) / DSI_SYS_CLK_HZ) & 0x1ffff;
+  ipi_ratio = (uint32_t)((phy_hs_clk << 16) / ipi_clk) & 0x3fffff;
+  sys_ratio = (uint32_t)((phy_hs_clk << 16) / DSI_SYS_CLK_HZ) & 0x1ffff;
 
-    dsi_putreg(RK3576_DSI2_PHY_IPI_RATIO_MAN_CFG, ipi_ratio);
-    dsi_putreg(RK3576_DSI2_PHY_SYS_RATIO_MAN_CFG, sys_ratio);
+  dsi_putreg(RK3576_DSI2_PHY_IPI_RATIO_MAN_CFG, ipi_ratio);
+  dsi_putreg(RK3576_DSI2_PHY_SYS_RATIO_MAN_CFG, sys_ratio);
 
-    /* LP<->HS 转换时间，单位同样是 PHY 高速时钟周期的 16 位定点。
-     * 括号里是 MIPI D-PHY 规范的默认参数（单位 ps，UI = 1e12/lane_bps）：
-     *   LP2HS = TLPX + THS_PREPARE + THS_ZERO
-     *         = 50000 + (40000 + 4*UI) + (105000 + 6*UI)
-     *   HS2LP = THS_TRAIL + THS_EXIT
-     *         = max(8*UI, 60000 + 4*UI) + 100000
-     */
+  /* LP<->HS 转换时间，单位同样是 PHY 高速时钟周期的 16 位定点。
+   * 括号里是 MIPI D-PHY 规范的默认参数（单位 ps，UI = 1e12/lane_bps）：
+   *   LP2HS = TLPX + THS_PREPARE + THS_ZERO
+   *         = 50000 + (40000 + 4*UI) + (105000 + 6*UI)
+   *   HS2LP = THS_TRAIL + THS_EXIT
+   *         = max(8*UI, 60000 + 4*UI) + 100000
+   */
 
+  ui_ps = 1000000000000ull / ((uint64_t)lane_mbps * 1000000ull);
+  tick_ps = 1000000000000ull / phy_hs_clk;
+  lp2hs = 50000 + (40000 + 4 * ui_ps) + (105000 + 6 * ui_ps);
+  trail = 8 * ui_ps;
+
+  if (trail < 60000 + 4 * ui_ps)
     {
-      uint64_t ui_ps   = 1000000000000ull / ((uint64_t)lane_mbps * 1000000ull);
-      uint64_t tick_ps = 1000000000000ull / phy_hs_clk;
-      uint64_t lp2hs   = 50000 + (40000 + 4 * ui_ps) + (105000 + 6 * ui_ps);
-      uint64_t trail   = 8 * ui_ps;
-      uint64_t hs2lp;
-
-      if (trail < 60000 + 4 * ui_ps)
-        {
-          trail = 60000 + 4 * ui_ps;
-        }
-
-      hs2lp = trail + 100000;
-
-      dsi_putreg(RK3576_DSI2_PHY_LP2HS_MAN_CFG,
-                 (uint32_t)((lp2hs << 16) / tick_ps) & 0x1fffffff);
-      dsi_putreg(RK3576_DSI2_PHY_HS2LP_MAN_CFG,
-                 (uint32_t)((hs2lp << 16) / tick_ps) & 0x1fffffff);
+      trail = 60000 + 4 * ui_ps;
     }
-  }
+
+  hs2lp = trail + 100000;
+
+  dsi_putreg(RK3576_DSI2_PHY_LP2HS_MAN_CFG,
+             (uint32_t)((lp2hs << 16) / tick_ps) & 0x1fffffff);
+  dsi_putreg(RK3576_DSI2_PHY_HS2LP_MAN_CFG,
+             (uint32_t)((hs2lp << 16) / tick_ps) & 0x1fffffff);
 
   /* 视频模式类型。非突发 + 同步事件是最通用的一档；消隐段走高速
    * （BLK_*_HS_EN）以避免每行都进出低功耗态。
@@ -493,7 +592,6 @@ int rk3576_dsi2_set_video_mode(void)
   return -ETIMEDOUT;
 }
 
-
 /****************************************************************************
  * Name: rk3576_dsi2_dump_uboot_state
  *
@@ -505,48 +603,17 @@ int rk3576_dsi2_set_video_mode(void)
 
 void rk3576_dsi2_dump_uboot_state(void)
 {
-  static const struct
-  {
-    const char *name;
-    uint32_t    off;
-  }
-  regs[] =
-  {
-    { "PWR_UP",           0x0000 },
-    { "SOFT_RESET",       0x0010 },
-    { "MODE_CTRL",        0x0018 },
-    { "MODE_STATUS",      0x001c },
-    { "CORE_STATUS",      0x0020 },
-    { "MANUAL_MODE_CFG",  0x0024 },
-    { "PHY_MODE_CFG",     0x0100 },
-    { "PHY_CLK_CFG",      0x0104 },
-    { "PHY_LP2HS",        0x010c },
-    { "PHY_HS2LP",        0x0114 },
-    { "PHY_IPI_RATIO",    0x0134 },
-    { "PHY_SYS_RATIO",    0x013c },
-    { "DSI_GENERAL_CFG",  0x0200 },
-    { "DSI_VCID_CFG",     0x0204 },
-    { "DSI_VID_TX_CFG",   0x020c },
-    { "IPI_COLOR_MAN",    0x0300 },
-    { "IPI_VID_HSA",      0x0304 },
-    { "IPI_VID_HBP",      0x030c },
-    { "IPI_VID_HACT",     0x0314 },
-    { "IPI_VID_HLINE",    0x031c },
-    { "IPI_VID_VSA",      0x0324 },
-    { "IPI_VID_VBP",      0x032c },
-    { "IPI_VID_VACT",     0x0334 },
-    { "IPI_VID_VFP",      0x033c },
-    { "IPI_PIX_PKT_CFG",  0x0344 },
-  };
-
   int i;
 
   syslog(LOG_INFO, "==== U-Boot 留下的 DSI 状态（未改动）====\n");
 
-  for (i = 0; i < (int)(sizeof(regs) / sizeof(regs[0])); i++)
+  for (i = 0;
+       i < (int)(sizeof(g_dsi2_uboot_regs) / sizeof(g_dsi2_uboot_regs[0]));
+       i++)
     {
       syslog(LOG_INFO, "  %-18s 0x%08" PRIx32 "\n",
-             regs[i].name, dsi_getreg(regs[i].off));
+             g_dsi2_uboot_regs[i].name,
+             dsi_getreg(g_dsi2_uboot_regs[i].off));
       up_mdelay(3);
     }
 }

@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_sdhci.h
+ * chip/rk3576/rk3576_sdhci.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -22,6 +22,10 @@
 
 #ifndef __ARCH_ARM64_SRC_RK3576_RK3576_SDHCI_H
 #define __ARCH_ARM64_SRC_RK3576_RK3576_SDHCI_H
+
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 #include <nuttx/sdio.h>

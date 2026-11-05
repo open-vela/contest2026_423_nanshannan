@@ -2,7 +2,7 @@
  * app/kickpi_ui/k7_vision.c
  * SPDX-License-Identifier: Apache-2.0
  *
- * 桌面问答：拍一张照片，连同问题一次发给 mimo-v2.5，拿回答。
+ * 桌面问答：拍一张照片，连同问题一次发给 MiMo（K7_AGENT_VISION_MODEL），拿回答。
  *
  * ★ 为什么不走 ai_agent 的循环
  *

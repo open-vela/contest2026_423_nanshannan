@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_sdhci.c
+ * chip/rk3576/rk3576_sdhci.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -477,7 +477,8 @@ static sdio_capset_t rk3576_sdio_capabilities(struct sdio_dev_s *dev)
    *     用 SDIO_WIDEBUS 把【主机】设成 4 位 —— 只要求 IS_MMC()
    *
    *   而对 MMC 卡，priv->buswidth 的 4BIT 标志只在
-   *   (caps & SDIO_CAPS_4BIT_ONLY) 成立时才被置上（mmcsd_sdio.c 约 3938 行）。
+   *   (caps & SDIO_CAPS_4BIT_ONLY) 成立时才被置上
+   *   （mmcsd_sdio.c 约 3938 行）。
    *
    *   所以 capabilities() 返回 0 时：CMD6 被跳过、卡仍是 1 位，
    *   而主机被设成 4 位 —— 命令线照常工作（命令走 CMD 线，与位宽无关），
@@ -682,7 +683,8 @@ static int rk3576_sdio_sendcmd(struct sdio_dev_s *dev, uint32_t cmd,
 
 #ifdef CONFIG_SDIO_BLOCKSETUP
 static void rk3576_sdio_blocksetup(struct sdio_dev_s *dev,
-                                   unsigned int blocklen, unsigned int nblocks)
+                                   unsigned int blocklen,
+                                   unsigned int nblocks)
 {
   struct rk3576_sdio_dev_s *priv = (struct rk3576_sdio_dev_s *)dev;
 
@@ -878,7 +880,8 @@ static sdio_eventset_t rk3576_sdio_eventwait(struct sdio_dev_s *dev)
 
   while (priv->remaining > 0)
     {
-      uint32_t rdy = priv->is_write ? SDHCI_INT_BUFWRRDY : SDHCI_INT_BUFRDRDY;
+      uint32_t rdy = priv->is_write ? SDHCI_INT_BUFWRRDY :
+                                      SDHCI_INT_BUFRDRDY;
 
       for (us = 0; us < limit; us++)
         {
@@ -1078,6 +1081,7 @@ int rk3576_sdhci_probe(void)
   uint32_t ocr = 0;
   int ret;
   int i;
+  static uint8_t blk[512];
 
   syslog(LOG_INFO, "SDHCI: HOSTVER=0x%04" PRIx32 " CAP0=0x%08" PRIx32 "\n",
          (sdhci_getreg(RK3576_SDHCI_HOSTVER) >> 16) & 0xffff,
@@ -1219,27 +1223,23 @@ int rk3576_sdhci_probe(void)
    * 读到这些说明数据通路真的通了，而不是读回一片零。
    */
 
+  ret = sdhci_readblock(0, blk);
+  if (ret < 0)
     {
-      static uint8_t blk[512];
-
-      ret = sdhci_readblock(0, blk);
-      if (ret < 0)
-        {
-          return ret;
-        }
-
-      syslog(LOG_INFO,
-             "SDHCI: 块0 前16字节 %02x %02x %02x %02x %02x %02x %02x %02x "
-             "%02x %02x %02x %02x %02x %02x %02x %02x\n",
-             blk[0], blk[1], blk[2], blk[3], blk[4], blk[5], blk[6], blk[7],
-             blk[8], blk[9], blk[10], blk[11], blk[12], blk[13], blk[14],
-             blk[15]);
-
-      syslog(LOG_INFO, "SDHCI: 块0 末2字节 %02x %02x  %s\n",
-             blk[510], blk[511],
-             (blk[510] == 0x55 && blk[511] == 0xaa)
-               ? "← MBR 签名，数据通路验证通过" : "← 非 MBR，请核对内容");
+      return ret;
     }
+
+  syslog(LOG_INFO,
+         "SDHCI: 块0 前16字节 %02x %02x %02x %02x %02x %02x %02x %02x "
+         "%02x %02x %02x %02x %02x %02x %02x %02x\n",
+         blk[0], blk[1], blk[2], blk[3], blk[4], blk[5], blk[6], blk[7],
+         blk[8], blk[9], blk[10], blk[11], blk[12], blk[13], blk[14],
+         blk[15]);
+
+  syslog(LOG_INFO, "SDHCI: 块0 末2字节 %02x %02x  %s\n",
+         blk[510], blk[511],
+         (blk[510] == 0x55 && blk[511] == 0xaa)
+           ? "← MBR 签名，数据通路验证通过" : "← 非 MBR，请核对内容");
 
   return OK;
 }

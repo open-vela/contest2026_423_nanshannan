@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_cif.c
+ * chip/rk3576/rk3576_cif.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -304,6 +304,7 @@ int rk3576_cif_start(int host, uintptr_t buf0, uintptr_t buf1,
   uint32_t off;
   uint32_t ctrl0;
   uint32_t stride;
+  uint32_t before;
 
   if (host < 0 || host > 4 || width <= 0 || height <= 0 ||
       buf0 == 0 || buf1 == 0)
@@ -327,7 +328,8 @@ int rk3576_cif_start(int host, uintptr_t buf0, uintptr_t buf1,
    *   ACLK_VICAP 只是 aclk_vi_root 上的一个门控，频率由 aclk_vi_root 决定：
    *
    *     clk-rk3576.c:
-   *       COMPOSITE(ACLK_VI_ROOT, "aclk_vi_root", gpll_spll_isppvtpll_bpll_lpll_p,
+   *       COMPOSITE(ACLK_VI_ROOT, "aclk_vi_root",
+   *                 gpll_spll_isppvtpll_bpll_lpll_p,
    *                 CLK_IS_CRITICAL,
    *                 RK3576_CLKSEL_CON(128), 5, 3, MFLAGS, 0, 5, DFLAGS,
    *                 RK3576_CLKGATE_CON(53), 0, GFLAGS)
@@ -347,23 +349,21 @@ int rk3576_cif_start(int host, uintptr_t buf0, uintptr_t buf1,
    *   免得下次又把"默认值"当成"配置过了"。
    */
 
-  {
-    uint32_t before = getreg32(RK3576_CRU_ADDR +
-                               RK3576_CRU_CLKSEL_CON(CIF_ACLK_SEL_CON));
+  before = getreg32(RK3576_CRU_ADDR +
+                    RK3576_CRU_CLKSEL_CON(CIF_ACLK_SEL_CON));
 
-    rk3576_clk_setmux(CIF_ACLK_SEL_CON, CIF_ACLK_MUX_SHIFT,
-                      CIF_ACLK_MUX_WIDTH, CIF_ACLK_MUX_GPLL);
-    rk3576_clk_setmux(CIF_ACLK_SEL_CON, CIF_ACLK_DIV_SHIFT,
-                      CIF_ACLK_DIV_WIDTH, CIF_ACLK_DIV_2 - 1);
+  rk3576_clk_setmux(CIF_ACLK_SEL_CON, CIF_ACLK_MUX_SHIFT,
+                    CIF_ACLK_MUX_WIDTH, CIF_ACLK_MUX_GPLL);
+  rk3576_clk_setmux(CIF_ACLK_SEL_CON, CIF_ACLK_DIV_SHIFT,
+                    CIF_ACLK_DIV_WIDTH, CIF_ACLK_DIV_2 - 1);
 
-    syslog(LOG_INFO,
-           "CIF: aclk_vi_root CLKSEL_CON(%d) 0x%08" PRIx32 " -> 0x%08" PRIx32
-           "（选 gpll/%d）\n",
-           CIF_ACLK_SEL_CON, before,
-           getreg32(RK3576_CRU_ADDR +
-                    RK3576_CRU_CLKSEL_CON(CIF_ACLK_SEL_CON)),
-           CIF_ACLK_DIV_2);
-  }
+  syslog(LOG_INFO,
+         "CIF: aclk_vi_root CLKSEL_CON(%d) 0x%08" PRIx32 " -> 0x%08" PRIx32
+         "（选 gpll/%d）\n",
+         CIF_ACLK_SEL_CON, before,
+         getreg32(RK3576_CRU_ADDR +
+                  RK3576_CRU_CLKSEL_CON(CIF_ACLK_SEL_CON)),
+         CIF_ACLK_DIV_2);
 
   /* ★ dclk_vicap —— CIF 的数据时钟，与 aclk 是两回事。
    *
@@ -378,31 +378,30 @@ int rk3576_cif_start(int host, uintptr_t buf0, uintptr_t buf1,
    *     确认过、不是这里"这个结论留在代码里，下次不必重查。
    */
 
-  {
-    uint32_t before = getreg32(RK3576_CRU_ADDR +
-                               RK3576_CRU_CLKSEL_CON(CIF_DCLK_SEL_CON));
+  before = getreg32(RK3576_CRU_ADDR +
+                    RK3576_CRU_CLKSEL_CON(CIF_DCLK_SEL_CON));
 
-    rk3576_clk_gate(CIF_BUS_GATE_CON, CIF_DCLK_GATE_BIT, true);
-    rk3576_clk_setmux(CIF_DCLK_SEL_CON, CIF_DCLK_MUX_SHIFT,
-                      CIF_DCLK_MUX_WIDTH, CIF_DCLK_MUX_GPLL);
-    rk3576_clk_setmux(CIF_DCLK_SEL_CON, CIF_DCLK_DIV_SHIFT,
-                      CIF_DCLK_DIV_WIDTH, CIF_DCLK_DIV - 1);
+  rk3576_clk_gate(CIF_BUS_GATE_CON, CIF_DCLK_GATE_BIT, true);
+  rk3576_clk_setmux(CIF_DCLK_SEL_CON, CIF_DCLK_MUX_SHIFT,
+                    CIF_DCLK_MUX_WIDTH, CIF_DCLK_MUX_GPLL);
+  rk3576_clk_setmux(CIF_DCLK_SEL_CON, CIF_DCLK_DIV_SHIFT,
+                    CIF_DCLK_DIV_WIDTH, CIF_DCLK_DIV - 1);
 
-    syslog(LOG_INFO,
-           "CIF: dclk_vicap CLKSEL_CON(%d) 0x%08" PRIx32 " -> 0x%08" PRIx32
-           "（选 gpll/%d = %dMHz）\n",
-           CIF_DCLK_SEL_CON, before,
-           getreg32(RK3576_CRU_ADDR +
-                    RK3576_CRU_CLKSEL_CON(CIF_DCLK_SEL_CON)),
-           CIF_DCLK_DIV, 1188 / CIF_DCLK_DIV);
-  }
+  syslog(LOG_INFO,
+         "CIF: dclk_vicap CLKSEL_CON(%d) 0x%08" PRIx32 " -> 0x%08" PRIx32
+         "（选 gpll/%d = %dMHz）\n",
+         CIF_DCLK_SEL_CON, before,
+         getreg32(RK3576_CRU_ADDR +
+                  RK3576_CRU_CLKSEL_CON(CIF_DCLK_SEL_CON)),
+         CIF_DCLK_DIV, 1188 / CIF_DCLK_DIV);
 
   /* 2) 非压缩 RAW12：每像素 16 位，行跨距 width*2。 */
 
   /* ★ 行跨距要对齐到 256 字节。
    *
    *   出处 kernel-6.1 .../cif/capture.c：
-   *     channel->virtual_width = ALIGN(channel->width * fmt->raw_bpp / 8, 256);
+   *     channel->virtual_width =
+   *       ALIGN(channel->width * fmt->raw_bpp / 8, 256);
    *
    *   我们原来直接写 width * 2 = 3864。3864 / 256 = 15.09 —— 每一行的
    *   起始地址都落在 256 边界之外，DMA 的每笔突发都跨边界，效率大约
@@ -471,7 +470,8 @@ int rk3576_cif_start(int host, uintptr_t buf0, uintptr_t buf1,
    *    而 id0 的格式还没配好，头几帧会按错误格式落盘。
    */
 
-  ctrl0 = CIF_ID_CAP_EN | CIF_ID_DMA_EN | CIF_ID_CROP_EN | CIF_ID_ALIGN_HIGH |
+  ctrl0 = CIF_ID_CAP_EN | CIF_ID_DMA_EN | CIF_ID_CROP_EN |
+          CIF_ID_ALIGN_HIGH |
           ((uint32_t)CIF_ID_PARSE_RAW12     << CIF_ID_PARSE_SHIFT) |
           ((uint32_t)CIF_ID_WRDDR_UNCOMPACT << CIF_ID_WRDDR_SHIFT);
 
@@ -573,7 +573,8 @@ uint32_t rk3576_cif_status(int host)
 
   if ((stat & CSI_ALL_ERROR_INTEN) != 0)
     {
-      syslog(LOG_WARNING, "CIF: host%d INTSTAT=0x%08" PRIx32 "（含错误位）\n",
+      syslog(LOG_WARNING,
+             "CIF: host%d INTSTAT=0x%08" PRIx32 "（含错误位）\n",
              host, stat);
     }
 

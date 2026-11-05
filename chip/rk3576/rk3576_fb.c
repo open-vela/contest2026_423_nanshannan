@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_fb.c
+ * chip/rk3576/rk3576_fb.c
  *
  * RK3576 VOP2 帧缓冲，接到 NuttX 的 fb 框架上（/dev/fb0）。
  *
@@ -113,6 +113,8 @@ static int rk3576_updatearea(struct fb_vtable_s *vtable,
 {
   uintptr_t start;
   uintptr_t end;
+  uintptr_t base;
+  size_t half;
 
   UNUSED(vtable);
 
@@ -142,23 +144,21 @@ static int rk3576_updatearea(struct fb_vtable_s *vtable,
    *   所以整半刷不是偷懒，是这一层能做的最窄的正确范围。
    */
 
-  {
-    uintptr_t base = (uintptr_t)g_fbmem;
-    size_t    half = (size_t)g_fbstride * g_fbheight;
+  base = (uintptr_t)g_fbmem;
+  half = (size_t)g_fbstride * g_fbheight;
 
-    if (g_fbstride == 0 || half == 0)
-      {
-        return -EINVAL;
-      }
+  if (g_fbstride == 0 || half == 0)
+    {
+      return -EINVAL;
+    }
 
-    if (area->y >= g_fbheight * FB_NBUF)
-      {
-        return -EINVAL;
-      }
+  if (area->y >= g_fbheight * FB_NBUF)
+    {
+      return -EINVAL;
+    }
 
-    start = base + half * (area->y / g_fbheight);
-    end = start + half;
-  }
+  start = base + half * (area->y / g_fbheight);
+  end = start + half;
 
   up_flush_dcache(start, end);
   return OK;
@@ -215,7 +215,6 @@ static int rk3576_pandisplay(struct fb_vtable_s *vtable,
 
   return rk3576_vop2_fb_pan(addr);
 }
-
 
 /****************************************************************************
  * Public Functions

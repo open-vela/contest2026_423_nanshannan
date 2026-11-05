@@ -1,5 +1,5 @@
 /****************************************************************************
- * vendor/rockchip/boards/rk3576/kickpi-k7/src/kickpi_k7_i2c.c
+ * board/kickpi-k7/src/kickpi_k7_i2c.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -51,7 +51,17 @@
 #ifdef CONFIG_RK3576_I2C
 
 /****************************************************************************
- * Pre-processor Definitions
+ * Private Types
+ ****************************************************************************/
+
+struct kickpi_i2c_bus_s
+{
+  int         port;
+  const char *devices;
+};
+
+/****************************************************************************
+ * Private Data
  ****************************************************************************/
 
 /* 板上要注册的 I2C 总线。
@@ -62,32 +72,47 @@
  * 没问题，缺的是 I2C2 的时钟使能。
  */
 
-static const struct
+static const struct kickpi_i2c_bus_s g_kickpi_i2c[] =
 {
-  int         port;
-  const char *devices;
-}
-g_kickpi_i2c[] =
-{
-  { 0, "触摸 GT9xx@0x5d（5 寸屏 FPC Pin23/24，时钟在 PMU 域）" },
-  { 1, "PMIC RK806@0x23" },
-  { 2, "RTC HYM8563@0x51、PD HUSB311@0x4e" },
-  { 3, "音频 codec ES8388@0x10" },
+  {
+    0, "触摸 GT9xx@0x5d（5 寸屏 FPC Pin23/24，时钟在 PMU 域）"
+  },
+  {
+    1, "PMIC RK806@0x23"
+  },
+  {
+    2, "RTC HYM8563@0x51、PD HUSB311@0x4e"
+  },
+  {
+    3, "音频 codec ES8388@0x10"
+  },
 
   /* 以下四条加入是为了定位触摸控制器：屏接上后 I2C1/2/3 均未扫到
    * GT9xx（0x5d 或 0x14）。原厂 dtb 中这四条状态为 okay。
    */
 
-  { 4, "（探测用）dtb 记载 imx415_0@0x37" },
-  { 5, "（探测用）dtb 记载 imx415_1@0x37" },
-  { 7, "（探测用）" },
-  { 6, "（探测用）dtb 标 disabled" },
+  {
+    4, "（探测用）dtb 记载 imx415_0@0x37"
+  },
+  {
+    5, "（探测用）dtb 记载 imx415_1@0x37"
+  },
+  {
+    7, "（探测用）"
+  },
+  {
+    6, "（探测用）dtb 标 disabled"
+  },
 #ifndef CONFIG_KICKPI_K7_CAMERA_LINUX
   /* 摄像头归 Linux 时 I2C8 是 Linux 的：在这边初始化就是把它的控制器复位 */
 
-  { 8, "（探测用）dtb 记载 imx415_3@0x37" },
+  {
+    8, "（探测用）dtb 记载 imx415_3@0x37"
+  },
 #endif
-  { 9, "（探测用）dtb 标 disabled" },
+  {
+    9, "（探测用）dtb 标 disabled"
+  },
 };
 
 #define KICKPI_NI2C (sizeof(g_kickpi_i2c) / sizeof(g_kickpi_i2c[0]))
@@ -157,6 +182,9 @@ int kickpi_k7_i2c_initialize(void)
 int kickpi_k7_rtc_initialize(void)
 {
   struct i2c_master_s *i2c;
+  struct i2c_msg_s msg;
+  uint8_t buf[2];
+  int ret;
 
   i2c = rk3576_i2cbus_initialize(BOARD_RTC_I2C_BUS);
   if (i2c == NULL)
@@ -183,31 +211,25 @@ int kickpi_k7_rtc_initialize(void)
    *     时钟框架，不代表模组不需要。**电路连接看原理图，不看设备树。**
    */
 
-  {
-    struct i2c_msg_s msg;
-    uint8_t buf[2];
-    int ret;
+  buf[0] = 0x0d;          /* CLKOUT 控制寄存器 */
+  buf[1] = 0x80;          /* FE=1 使能，FD=00 -> 32.768kHz */
 
-    buf[0] = 0x0d;          /* CLKOUT 控制寄存器 */
-    buf[1] = 0x80;          /* FE=1 使能，FD=00 -> 32.768kHz */
+  msg.frequency = 400000;
+  msg.addr      = BOARD_RTC_I2C_ADDR;
+  msg.flags     = 0;
+  msg.buffer    = buf;
+  msg.length    = 2;
 
-    msg.frequency = 400000;
-    msg.addr      = BOARD_RTC_I2C_ADDR;
-    msg.flags     = 0;
-    msg.buffer    = buf;
-    msg.length    = 2;
-
-    ret = I2C_TRANSFER(i2c, &msg, 1);
-    if (ret < 0)
-      {
-        syslog(LOG_ERR, "ERROR: 使能 RTC 32.768kHz 输出失败: %d\n", ret);
-      }
-    else
-      {
-        syslog(LOG_INFO,
-               "RTC: CLKOUT 32.768kHz 已使能（供 WiFi/蓝牙模组）\n");
-      }
-  }
+  ret = I2C_TRANSFER(i2c, &msg, 1);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: 使能 RTC 32.768kHz 输出失败: %d\n", ret);
+    }
+  else
+    {
+      syslog(LOG_INFO,
+             "RTC: CLKOUT 32.768kHz 已使能（供 WiFi/蓝牙模组）\n");
+    }
 
   return hym8563_rtc_initialize(0, i2c, BOARD_RTC_I2C_ADDR, 400000);
 }

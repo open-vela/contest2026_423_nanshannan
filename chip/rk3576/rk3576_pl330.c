@@ -484,11 +484,11 @@ static uint32_t pl330_build_ccr(const struct dma_config_s *cfg,
     {
       case DMA_MEM_TO_DEV:
         ccr |= PL330_CC_SRCINC;          /* 源是内存 */
-        break;                            /* 目的是 FIFO，不递增 */
+        break;                           /* 目的是 FIFO，不递增 */
 
       case DMA_DEV_TO_MEM:
         ccr |= PL330_CC_DSTINC;          /* 目的是内存 */
-        break;                            /* 源是 FIFO，不递增 */
+        break;                           /* 源是 FIFO，不递增 */
 
       default:                            /* MEM_TO_MEM / DEV_TO_DEV */
         if (cfg->src_step > 0)
@@ -597,7 +597,8 @@ static ssize_t pl330_build_program(struct rk3576_pl330_chan_s *ch,
 
   if (nburst == 0 || nper > 256)
     {
-      syslog(LOG_ERR, "PL330: 无法拆分循环 nburst=%u nper=%u\n", nburst, nper);
+      syslog(LOG_ERR, "PL330: 无法拆分循环 nburst=%u nper=%u\n",
+             nburst, nper);
       return -EINVAL;
     }
 
@@ -1135,12 +1136,10 @@ static void pl330_put_chan(struct dma_dev_s *dev, struct dma_chan_s *chan)
  * Public Functions
  ****************************************************************************/
 
-
-/* =========================================================================
- * MEM_TO_MEM 自检：隔离"PL330 DDR 数据通路"与"外设口访问"。
+/* MEM_TO_MEM 自检：隔离"PL330 DDR 数据通路"与"外设口访问"。
  *   如果这里能搬通，说明 CCR(NS)/LD/ST/中断全链路 OK，
  *   问题就只剩 LDP 读外设口这一环（SAI RX）。
- * ========================================================================= */
+ */
 
 static volatile int g_m2m_done = 0;
 
@@ -1275,7 +1274,6 @@ static void pl330_mem2mem_selftest(struct rk3576_pl330_s *dmac)
   ch->ops->stop(ch);
   dmac->dev.put_chan(&dmac->dev, ch);
 }
-
 
 struct dma_dev_s *rk3576_pl330_initialize(int ctrl)
 {

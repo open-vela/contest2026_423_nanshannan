@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/s32k3xx/hardware/s32k3xx_emac.h
+ * chip/rk3576/hardware/rk3576_emac.h
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -20,8 +20,8 @@
 
 /* Copyright 2022 NXP */
 
-#ifndef __ARCH_ARM_SRC_S32K3XX_HARDWARE_RK3576_EMAC_H
-#define __ARCH_ARM_SRC_S32K3XX_HARDWARE_RK3576_EMAC_H
+#ifndef __ARCH_ARM64_SRC_RK3576_HARDWARE_RK3576_EMAC_H
+#define __ARCH_ARM64_SRC_RK3576_HARDWARE_RK3576_EMAC_H
 
 /****************************************************************************
  * Included Files
@@ -3124,4 +3124,4 @@ struct eth_desc_s
     uint32_t des3;      /* Data length */
 };
 
-#endif /* __ARCH_ARM_SRC_S32K3XX_HARDWARE_RK3576_EMAC_H */
+#endif /* __ARCH_ARM64_SRC_RK3576_HARDWARE_RK3576_EMAC_H */

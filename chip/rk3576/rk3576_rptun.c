@@ -246,7 +246,8 @@ static int rk3576_rptun_notify(struct rptun_dev_s *dev, uint32_t notifyid)
  *
  ****************************************************************************/
 
-static void rk3576_rptun_mbox_callback(void *arg, uint32_t cmd, uint32_t data)
+static void rk3576_rptun_mbox_callback(void *arg, uint32_t cmd,
+                                       uint32_t data)
 {
   struct rk3576_rptun_dev_s *priv = arg;
 

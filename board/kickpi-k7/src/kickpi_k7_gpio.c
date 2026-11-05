@@ -1,5 +1,5 @@
 /****************************************************************************
- * vendor/rockchip/boards/rk3576/kickpi-k7/src/kickpi_k7_gpio.c
+ * board/kickpi-k7/src/kickpi_k7_gpio.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -245,16 +245,16 @@ static struct kickpi_gpout_s g_gpouts[] =
     .pin  = BOARD_FAN_PWR_PIN,
     .name = "fan-pwr",
   },
-  {
-    /* 与 testpin 配对的输出脚，供 cmocka_driver_gpio 的中断子项使用。
-     *
-     * ★ 放在最后一个，让它拿到 /dev/gpio2
-     *
-     *   那个用例会往输出脚写 0。之前把 /dev/gpio1（风扇电源）当输出脚，
-     *   跑一次测试就把风扇断掉了 —— 用例并不知道它拉的是什么，
-     *   所以能被它拉动的脚必须是拉了也无所谓的脚。
-     */
+  /* 与 testpin 配对的输出脚，供 cmocka_driver_gpio 的中断子项使用。
+   *
+   * ★ 放在最后一个，让它拿到 /dev/gpio2
+   *
+   *   那个用例会往输出脚写 0。之前把 /dev/gpio1（风扇电源）当输出脚，
+   *   跑一次测试就把风扇断掉了 —— 用例并不知道它拉的是什么，
+   *   所以能被它拉动的脚必须是拉了也无所谓的脚。
+   */
 
+  {
     .bank = BOARD_TESTPIN_OUT_BANK,   /* GPIO4_A4，排针第 5 脚 */
     .pin  = BOARD_TESTPIN_OUT_PIN,
     .name = "testpin-out",
@@ -430,7 +430,8 @@ int kickpi_k7_gpio_initialize(void)
 }
 
 /* TODO(M3)：GPIO 中断。需要在 SoC 层补 INT_EN/INT_TYPE/INT_POLARITY 的
- * 配置和 GIC 中断挂接，五个 bank 各占一个 SPI。届时可支持 GPIO_INTERRUPT_PIN。
+ * 配置和 GIC 中断挂接，五个 bank 各占一个 SPI。届时可支持
+ * GPIO_INTERRUPT_PIN。
  */
 
 #endif /* CONFIG_DEV_GPIO */

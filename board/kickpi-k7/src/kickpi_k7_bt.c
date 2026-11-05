@@ -26,6 +26,10 @@
  *
  ****************************************************************************/
 
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
 #include <nuttx/config.h>
 
 #include <stdio.h>
@@ -371,12 +375,27 @@ int kickpi_k7_bt_probe(void)
       0x01, 0x03, 0x0c, 0x00        /* HCI_COMMAND_PKT + OCF 0x0c03 + plen 0 */
     };
 
+  static const uint8_t burst[64] =
+    {
+      0
+    };
+
   uint8_t rsp[16];
   struct termios tio;
+  uint32_t tfl_before;
+  uint32_t lcr;
+  uint32_t dll;
+  uint32_t dlm;
   int total = 0;
   int fd;
   int n;
   int i;
+  int cts;
+  int wake_host;
+  int k;
+  int lowseen;
+  int busy;
+  int guard;
 
   bt_hw_reset();
 
@@ -387,7 +406,8 @@ int kickpi_k7_bt_probe(void)
    *   但信号根本没接到引脚上 —— 现象与"模组不应答"一模一样。
    */
 
-  printf("引脚复用回读(期望 %d): TX(C4)=%d RX(C5)=%d CTS(C3)=%d RTS(C2)=%d\n",
+  printf("引脚复用回读(期望 %d): "
+         "TX(C4)=%d RX(C5)=%d CTS(C3)=%d RTS(C2)=%d\n",
          UART4_PIN_FUNC,
          rk3576_pinmux_get(UART4_PIN_BANK, UART4_PIN_TX),
          rk3576_pinmux_get(UART4_PIN_BANK, UART4_PIN_RX),
@@ -406,69 +426,62 @@ int kickpi_k7_bt_probe(void)
    *   要在发命令之前先把它们分开。
    */
 
-  {
-    int cts;
-    int wake_host;
+  lowseen = -1;
+  rk3576_pinmux_set(UART4_PIN_BANK, UART4_PIN_CTS, 0);   /* 暂当 GPIO */
+  rk3576_gpio_setdir(UART4_PIN_BANK, UART4_PIN_CTS, false);
 
-    int k;
-    int lowseen = -1;
+  /* ★ 连续采样 3 秒，而不是读一次。
+   *
+   *   模组从释放复位到把 CTS 拉低要多久，我们并不知道 —— 读一次读到高，
+   *   分不清"永远不会来"和"还没到"。采样到第一次变低的时刻，这两者
+   *   就分开了，而且顺带量出了真实的就绪时间。
+   */
 
-    rk3576_pinmux_set(UART4_PIN_BANK, UART4_PIN_CTS, 0);   /* 暂当 GPIO */
-    rk3576_gpio_setdir(UART4_PIN_BANK, UART4_PIN_CTS, false);
+  for (k = 0; k < 60; k++)
+    {
+      if (rk3576_gpio_read(UART4_PIN_BANK, UART4_PIN_CTS) == 0)
+        {
+          lowseen = k * 50;
+          break;
+        }
 
-    /* ★ 连续采样 3 秒，而不是读一次。
-     *
-     *   模组从释放复位到把 CTS 拉低要多久，我们并不知道 —— 读一次读到高，
-     *   分不清"永远不会来"和"还没到"。采样到第一次变低的时刻，这两者
-     *   就分开了，而且顺带量出了真实的就绪时间。
-     */
+      up_mdelay(50);
+    }
 
-    for (k = 0; k < 60; k++)
-      {
-        if (rk3576_gpio_read(UART4_PIN_BANK, UART4_PIN_CTS) == 0)
-          {
-            lowseen = k * 50;
-            break;
-          }
+  cts = (lowseen >= 0) ? 0 : 1;
+  if (lowseen >= 0)
+    {
+      printf("CTS 在释放复位后约 %d ms 变低\n", lowseen);
+    }
+  else
+    {
+      printf("CTS 3 秒内始终为高\n");
+    }
 
-        up_mdelay(50);
-      }
+  /* BT,wake_host_irq = GPIO0_B1(9)，也是模组驱动的 */
 
-    cts = (lowseen >= 0) ? 0 : 1;
-    if (lowseen >= 0)
-      {
-        printf("CTS 在释放复位后约 %d ms 变低\n", lowseen);
-      }
-    else
-      {
-        printf("CTS 3 秒内始终为高\n");
-      }
+  rk3576_pinmux_set(0, 9, 0);
+  rk3576_gpio_setdir(0, 9, false);
+  up_udelay(100);
+  wake_host = rk3576_gpio_read(0, 9);
 
-    /* BT,wake_host_irq = GPIO0_B1(9)，也是模组驱动的 */
+  /* ★ 把我们自己驱动的脚回读一遍。
+   *
+   *   写下去不等于生效：复用没切成 GPIO、方向没设成输出，写操作都不会
+   *   报错，但电平根本没变 —— 现象与"模组坏了"完全一样。这个项目里
+   *   已经栽过一次（把命名当判据而不是回读），这里不重犯。
+   */
 
-    rk3576_pinmux_set(0, 9, 0);
-    rk3576_gpio_setdir(0, 9, false);
-    up_udelay(100);
-    wake_host = rk3576_gpio_read(0, 9);
+  printf("线状态: CTS(GPIO1_C3)=%d  wake_host(GPIO0_B1)=%d\n",
+         cts, wake_host);
+  printf("自驱回读: BT_RST(GPIO1_C7)=%d 期望1  "
+         "BT_WAKE(GPIO1_D4)=%d 期望1  WIFI_EN(GPIO1_C6)=%d 期望1\n",
+         rk3576_gpio_read(BT_RST_BANK, BT_RST_PIN),
+         rk3576_gpio_read(BT_RST_BANK, BT_WAKE_PIN),
+         rk3576_gpio_read(1, 22));
+  printf("        CTS 为 0 说明模组已就绪；为 1 说明模组没起来\n");
 
-    /* ★ 把我们自己驱动的脚回读一遍。
-     *
-     *   写下去不等于生效：复用没切成 GPIO、方向没设成输出，写操作都不会
-     *   报错，但电平根本没变 —— 现象与"模组坏了"完全一样。这个项目里
-     *   已经栽过一次（把命名当判据而不是回读），这里不重犯。
-     */
-
-    printf("线状态: CTS(GPIO1_C3)=%d  wake_host(GPIO0_B1)=%d\n",
-           cts, wake_host);
-    printf("自驱回读: BT_RST(GPIO1_C7)=%d 期望1  "
-           "BT_WAKE(GPIO1_D4)=%d 期望1  WIFI_EN(GPIO1_C6)=%d 期望1\n",
-           rk3576_gpio_read(BT_RST_BANK, BT_RST_PIN),
-           rk3576_gpio_read(BT_RST_BANK, BT_WAKE_PIN),
-           rk3576_gpio_read(1, 22));
-    printf("        CTS 为 0 说明模组已就绪；为 1 说明模组没起来\n");
-
-    rk3576_pinmux_set(UART4_PIN_BANK, UART4_PIN_CTS, UART4_PIN_FUNC);
-  }
+  rk3576_pinmux_set(UART4_PIN_BANK, UART4_PIN_CTS, UART4_PIN_FUNC);
 
   fd = open(BT_UART_DEV, O_RDWR | O_NONBLOCK);
   if (fd < 0)
@@ -494,26 +507,19 @@ int kickpi_k7_bt_probe(void)
    *   非零就说明字节确实排在 UART4 的发送队列里。
    */
 
-  {
-    static const uint8_t burst[64] =
-      {
-        0
-      };
+  tfl_before = getreg32(UART4_BASE + 0x80);
 
-    uint32_t tfl_before = getreg32(UART4_BASE + 0x80);
+  write(fd, burst, sizeof(burst));
 
-    write(fd, burst, sizeof(burst));
+  printf("TX 通路: TFL 写前=%u 写后=%u LSR=%02x —— %s\n",
+         (unsigned)tfl_before,
+         (unsigned)getreg32(UART4_BASE + 0x80),
+         (unsigned)getreg32(UART4_BASE + U16550_LSR),
+         getreg32(UART4_BASE + 0x80) > 0 ?
+           "字节进了 UART4 的发送 FIFO" :
+           "FIFO 里没东西（可能已发完，或 ttyS1 不是 UART4）");
 
-    printf("TX 通路: TFL 写前=%u 写后=%u LSR=%02x —— %s\n",
-           (unsigned)tfl_before,
-           (unsigned)getreg32(UART4_BASE + 0x80),
-           (unsigned)getreg32(UART4_BASE + U16550_LSR),
-           getreg32(UART4_BASE + 0x80) > 0 ?
-             "字节进了 UART4 的发送 FIFO" :
-             "FIFO 里没东西（可能已发完，或 ttyS1 不是 UART4）");
-
-    usleep(20000);
-  }
+  usleep(20000);
 
   /* ★ 最后一个没验证过的候选：真实波特率。
    *
@@ -525,67 +531,62 @@ int kickpi_k7_bt_probe(void)
    *   读完立刻恢复。24MHz/115200 期望 divisor = 24e6/(16*115200) = 13。
    */
 
-  {
-    uint32_t lcr;
-    uint32_t dll = 0;
-    uint32_t dlm = 0;
-    int      busy;
-    int      guard;
+  dll = 0;
+  dlm = 0;
 
-    /* ★ 读分频器**不能背着驱动硬来**。
-     *
-     *   这段原来直接 putreg32(LCR|DLAB) 再读 0x00/0x04，而 UART4 此刻
-     *   正被 16550 驱动占着（就是我们刚写过字节的 /dev/ttyS1）。两个后果：
-     *
-     *     1) Synopsys DW UART 在 BUSY 期间写 LCR 会触发 busy-detect
-     *        （IIR=0x07），NuttX 的 16550 驱动不认这个中断号，会一直空转；
-     *     2) DLAB=1 时寄存器 0x00 既是 DLL 也是 THR —— 驱动的发送中断
-     *        只要在这个窗口里发一个字节，写进去的就不是数据而是**分频器**。
-     *
-     *   板上的现象是 `bt` 命令每次都停在上一条 printf 之后，再没有输出 ——
-     *   也就是这个"仪器"把它要测的东西弄挂了。
-     *
-     *   正确做法照 DW 的手册：先等 USR(0x7c) 的 BUSY 位清零再动 LCR；
-     *   一直 busy 就放弃这次测量，宁可没有读数，也不要一个把系统搞挂、
-     *   顺带还可能改坏分频器的读数。
-     */
+  /* ★ 读分频器**不能背着驱动硬来**。
+   *
+   *   这段原来直接 putreg32(LCR|DLAB) 再读 0x00/0x04，而 UART4 此刻
+   *   正被 16550 驱动占着（就是我们刚写过字节的 /dev/ttyS1）。两个后果：
+   *
+   *     1) Synopsys DW UART 在 BUSY 期间写 LCR 会触发 busy-detect
+   *        （IIR=0x07），NuttX 的 16550 驱动不认这个中断号，会一直空转；
+   *     2) DLAB=1 时寄存器 0x00 既是 DLL 也是 THR —— 驱动的发送中断
+   *        只要在这个窗口里发一个字节，写进去的就不是数据而是**分频器**。
+   *
+   *   板上的现象是 `bt` 命令每次都停在上一条 printf 之后，再没有输出 ——
+   *   也就是这个"仪器"把它要测的东西弄挂了。
+   *
+   *   正确做法照 DW 的手册：先等 USR(0x7c) 的 BUSY 位清零再动 LCR；
+   *   一直 busy 就放弃这次测量，宁可没有读数，也不要一个把系统搞挂、
+   *   顺带还可能改坏分频器的读数。
+   */
 
-    for (guard = 0; guard < 1000; guard++)
-      {
-        if ((getreg32(UART4_BASE + 0x7c) & 0x01) == 0)
-          {
-            break;
-          }
+  for (guard = 0; guard < 1000; guard++)
+    {
+      if ((getreg32(UART4_BASE + 0x7c) & 0x01) == 0)
+        {
+          break;
+        }
 
-        up_udelay(10);
-      }
+      up_udelay(10);
+    }
 
-    busy = (getreg32(UART4_BASE + 0x7c) & 0x01) != 0;
-    lcr  = getreg32(UART4_BASE + 0x0c);
+  busy = (getreg32(UART4_BASE + 0x7c) & 0x01) != 0;
+  lcr  = getreg32(UART4_BASE + 0x0c);
 
-    if (!busy)
-      {
-        putreg32(lcr | 0x80, UART4_BASE + 0x0c);   /* DLAB = 1 */
-        dll = getreg32(UART4_BASE + 0x00) & 0xff;
-        dlm = getreg32(UART4_BASE + 0x04) & 0xff;
-        putreg32(lcr, UART4_BASE + 0x0c);          /* 恢复 */
-      }
-    else
-      {
-        BTLOG("波特率: UART4 一直 BUSY，跳过分频器回读"
-              "（不硬读，以免改坏 DLL/触发 busy-detect）\n");
-      }
+  if (!busy)
+    {
+      putreg32(lcr | 0x80, UART4_BASE + 0x0c);   /* DLAB = 1 */
+      dll = getreg32(UART4_BASE + 0x00) & 0xff;
+      dlm = getreg32(UART4_BASE + 0x04) & 0xff;
+      putreg32(lcr, UART4_BASE + 0x0c);          /* 恢复 */
+    }
+  else
+    {
+      BTLOG("波特率: UART4 一直 BUSY，跳过分频器回读"
+            "（不硬读，以免改坏 DLL/触发 busy-detect）\n");
+    }
 
-    if (!busy)
-      {
-        uint32_t div = (dlm << 8) | dll;
+  if (!busy)
+    {
+      uint32_t div = (dlm << 8) | dll;
 
-        BTLOG("波特率: divisor=%u LCR=%02x -> 若源为 24MHz 则实际 %u bps"
-              "（期望 divisor=13 / 115200）\n",
-              (unsigned)div, (unsigned)lcr,
-              (unsigned)(div ? 24000000u / (16u * div) : 0));
-      }
-  }
+      BTLOG("波特率: divisor=%u LCR=%02x -> 若源为 24MHz 则实际 %u bps"
+            "（期望 divisor=13 / 115200）\n",
+            (unsigned)div, (unsigned)lcr,
+            (unsigned)(div ? 24000000u / (16u * div) : 0));
+    }
 
   n = write(fd, hci_reset, sizeof(hci_reset));
   BTLOG("已发 HCI Reset (%d 字节)，等应答…\n", n);

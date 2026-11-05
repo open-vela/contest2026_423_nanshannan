@@ -4,7 +4,7 @@
  *
  * ★ 请求
  *
- *   POST /v1/chat/completions，"thinking":{"type":"disabled"}（mimo-v2.5
+ *   POST /v1/chat/completions，"thinking":{"type":"disabled"}（当时的 mimo-v2.5
  *   默认开深度思考，板上实测一次 196s，关掉后降到 20s 上下）。
  *   带图时 user content = [image_url, text]，纯文字时 content 就是字符串。
  *   回答在 choices[0].message.content。

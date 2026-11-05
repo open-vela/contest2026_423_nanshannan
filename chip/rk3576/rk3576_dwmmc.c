@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_dwmmc.c
+ * chip/rk3576/rk3576_dwmmc.c
  *
  * RK3576 的 SD 卡控制器（Synopsys DesignWare MSHC，mmc@2a310000）。
  *
@@ -349,7 +349,8 @@ static void dw_la_send(uint32_t base, uint32_t arg, uint32_t cmd,
 
   syslog(LOG_INFO, "LA: 采样结束时 EXT_PORT=%08" PRIx32
          " (C4=%d C6=%d C7=%d)\n", getreg32(port),
-         (int)((getreg32(port) >> 20) & 1), (int)((getreg32(port) >> 22) & 1),
+         (int)((getreg32(port) >> 20) & 1),
+         (int)((getreg32(port) >> 22) & 1),
          (int)((getreg32(port) >> 23) & 1));
   up_mdelay(10);
   up_irq_restore(flags);
@@ -416,6 +417,10 @@ int rk3576_dwmmc_probe(uint32_t base)
   bool     sdio_ready = false;
   int      ret;
   int      i;
+  uint32_t sts;
+  uint32_t resp;
+  int      us;
+  int started;
 
   if (hw == NULL)
     {
@@ -448,6 +453,7 @@ int rk3576_dwmmc_probe(uint32_t base)
     {
       rk3576_clk_setmux(hw->sel_con, hw->sel_div_shift, 6, 0);
     }
+
   rk3576_clk_gate(hw->gate_con, hw->gate_cclk, true);
   rk3576_clk_gate(hw->gate_con, hw->gate_hclk, true);
 
@@ -650,444 +656,441 @@ int rk3576_dwmmc_probe(uint32_t base)
    *      回显不对 -> 采样时序有问题。三种结果互不相同。
    */
 
-  {
-    uint32_t sts;
-    uint32_t resp;
-    int      us;
+  /* Match the Rockchip host command path, which enables the HOLD
+   * register for SDIO as well as SD. Keep the probe consistent with
+   * rk3576_dwmmc_sendcmd(). Response errors remain fatal.
+   */
 
-    /* Match the Rockchip host command path, which enables the HOLD
-     * register for SDIO as well as SD. Keep the probe consistent with
-     * rk3576_dwmmc_sendcmd(). Response errors remain fatal.
-     */
+  uint32_t holdbit = DWMMC_CMD_USE_HOLD_REG;
 
-    uint32_t holdbit = DWMMC_CMD_USE_HOLD_REG;
+  /* 先给足初始化时钟：400kHz 下 80 个时钟约 200us。 */
 
-    /* 先给足初始化时钟：400kHz 下 80 个时钟约 200us。 */
+  /* SDIO uses an 800 kHz CIU source and CLKGEN / 2, with CLKDIV=0.
+   * Keep the established TF divider unchanged.
+   */
 
-    /* SDIO uses an 800 kHz CIU source and CLKGEN / 2, with CLKDIV=0.
-     * Keep the established TF divider unchanged.
-     */
+  /* ★ 严格按原厂 dw_mmc.c 的顺序设时钟，每一步都要"通知 CIU"。
+   *
+   *   出处：kernel-6.1/drivers/mmc/host/dw_mmc.c 的 dw_mci_setup_bus()
+   *     CLKENA = 0        -> 通知 CIU     （先停，避免改分频时出毛刺）
+   *     CLKSRC = 0        -> 通知 CIU     （选分频器 0）
+   *     CLKDIV = div      -> 通知 CIU
+   *     CLKENA = ENABLE   -> 通知 CIU
+   *
+   *   我们原来少了前两步。CLKSRC 若残留非零值，控制器会去用另一个
+   *   未配置的分频器；而"通知 CIU"是 DW MMC 的硬性要求 —— 不发这条
+   *   命令，写进 CLKDIV/CLKENA 的值不会真正生效。
+   *
+   *   ★ CLKENA 只置 bit0(ENABLE)，**绝不能置 bit16(LOW_PWR)**：那会让
+   *     控制器在总线空闲时停掉时钟，而 SDIO 卡靠持续时钟应答与报中断。
+   *     原厂对 SDIO 也是特意不置这一位的。
+   */
 
-    /* ★ 严格按原厂 dw_mmc.c 的顺序设时钟，每一步都要"通知 CIU"。
-     *
-     *   出处：kernel-6.1/drivers/mmc/host/dw_mmc.c 的 dw_mci_setup_bus()
-     *     CLKENA = 0        -> 通知 CIU     （先停，避免改分频时出毛刺）
-     *     CLKSRC = 0        -> 通知 CIU     （选分频器 0）
-     *     CLKDIV = div      -> 通知 CIU
-     *     CLKENA = ENABLE   -> 通知 CIU
-     *
-     *   我们原来少了前两步。CLKSRC 若残留非零值，控制器会去用另一个
-     *   未配置的分频器；而"通知 CIU"是 DW MMC 的硬性要求 —— 不发这条
-     *   命令，写进 CLKDIV/CLKENA 的值不会真正生效。
-     *
-     *   ★ CLKENA 只置 bit0(ENABLE)，**绝不能置 bit16(LOW_PWR)**：那会让
-     *     控制器在总线空闲时停掉时钟，而 SDIO 卡靠持续时钟应答与报中断。
-     *     原厂对 SDIO 也是特意不置这一位的。
-     */
+  dw_putreg(base, DWMMC_CLKENA, 0);
+  dw_update_clk(base);
+  dw_putreg(base, DWMMC_CLKSRC, 0);
+  dw_update_clk(base);
+  dw_putreg(base, DWMMC_CLKDIV, hw->is_sdio ? 0 : 30);
+  dw_update_clk(base);
+  /* Release reset while the card clock is disabled, then wait for
+   * the module before enabling the initialization clock.
+   */
 
-    dw_putreg(base, DWMMC_CLKENA, 0);
-    dw_update_clk(base);
-    dw_putreg(base, DWMMC_CLKSRC, 0);
-    dw_update_clk(base);
-    dw_putreg(base, DWMMC_CLKDIV, hw->is_sdio ? 0 : 30);
-    dw_update_clk(base);
-    /* Release reset while the card clock is disabled, then wait for
-     * the module before enabling the initialization clock.
-     */
+  if (hw->is_sdio)
+    {
+      rk3576_gpio_write(WIFI_RST_BANK, WIFI_RST_PIN, true);
 
-    if (hw->is_sdio)
-      {
-        rk3576_gpio_write(WIFI_RST_BANK, WIFI_RST_PIN, true);
-        /* BT_REG_ON 保持低：与 Linux 枚举 SDIO 时一致 */
+      /* BT_REG_ON 保持低：与 Linux 枚举 SDIO 时一致 */
 
-        up_mdelay(WIFI_PWRON_DELAY_MS);
-        syslog(LOG_INFO,
-               "DWMMC: 模组释放复位 WIFI_REG_ON(GPIO%d_%d)=1 "
-               "BT_REG_ON(GPIO%d_%d)=0，等 %d ms\n",
-               WIFI_RST_BANK, WIFI_RST_PIN, BT_RST_BANK, BT_RST_PIN,
-               WIFI_PWRON_DELAY_MS);
-      }
+      up_mdelay(WIFI_PWRON_DELAY_MS);
+      syslog(LOG_INFO,
+             "DWMMC: 模组释放复位 WIFI_REG_ON(GPIO%d_%d)=1 "
+             "BT_REG_ON(GPIO%d_%d)=0，等 %d ms\n",
+             WIFI_RST_BANK, WIFI_RST_PIN, BT_RST_BANK, BT_RST_PIN,
+             WIFI_PWRON_DELAY_MS);
+    }
 
-    dw_putreg(base, DWMMC_CLKENA, DWMMC_CLKENA_ENABLE);
-    dw_update_clk(base);
-    up_mdelay(2);
+  dw_putreg(base, DWMMC_CLKENA, DWMMC_CLKENA_ENABLE);
+  dw_update_clk(base);
+  up_mdelay(2);
 
-    if (hw->is_sdio)
-      {
-        syslog(LOG_INFO, "SDIO PWREN=%08" PRIx32 " CTYPE=%08" PRIx32 "\n",
-               dw_getreg(base, DWMMC_PWREN), dw_getreg(base, DWMMC_CTYPE));
-        syslog(LOG_INFO, "SDIO CLKENA=%08" PRIx32 " DIV=%08" PRIx32
-               " SRC=%08" PRIx32 "\n", dw_getreg(base, DWMMC_CLKENA),
-               dw_getreg(base, DWMMC_CLKDIV), dw_getreg(base, DWMMC_CLKSRC));
-      }
+  if (hw->is_sdio)
+    {
+      syslog(LOG_INFO, "SDIO PWREN=%08" PRIx32 " CTYPE=%08" PRIx32 "\n",
+             dw_getreg(base, DWMMC_PWREN), dw_getreg(base, DWMMC_CTYPE));
+      syslog(LOG_INFO, "SDIO CLKENA=%08" PRIx32 " DIV=%08" PRIx32
+             " SRC=%08" PRIx32 "\n", dw_getreg(base, DWMMC_CLKENA),
+             dw_getreg(base, DWMMC_CLKDIV), dw_getreg(base, DWMMC_CLKSRC));
+    }
 
-    /* RK3576 internal phase registers, as selected by the Rockchip
-     * host USRID check. Legacy enumeration uses drive=90, sample=0.
-     * TRM 39.6.6 requires init_state while changing phase. Bit 10 is
-     * reserved; mask only phase, delay and delay-select fields.
-     */
+  /* RK3576 internal phase registers, as selected by the Rockchip
+   * host USRID check. Legacy enumeration uses drive=90, sample=0.
+   * TRM 39.6.6 requires init_state while changing phase. Bit 10 is
+   * reserved; mask only phase, delay and delay-select fields.
+   */
 
-    if (hw->is_sdio)
-      {
-        uint32_t usrid = dw_getreg(base, DWMMC_USRID);
+  if (hw->is_sdio)
+    {
+      uint32_t usrid = dw_getreg(base, DWMMC_USRID);
 
-        up_mdelay(10);
-        syslog(LOG_INFO, "SDIO USRID=%08" PRIx32 "\n", usrid);
-        up_mdelay(10);
-        if (usrid == 0x20230001u)
-          {
-            syslog(LOG_INFO, "SDIO phase before drv=%08" PRIx32
-                   " sample=%08" PRIx32 "\n", dw_getreg(base, 0x130),
-                   dw_getreg(base, 0x134));
-            up_mdelay(10);
-            dw_putreg(base, 0x130, 0x00010001u);
-            dw_putreg(base, 0x130, 0x0bfe0002u);
-            dw_putreg(base, 0x134, 0x0bfe0000u);
-            dw_putreg(base, 0x130, 0x00010000u);
-            syslog(LOG_INFO, "SDIO phase after drv=%08" PRIx32
-                   " sample=%08" PRIx32 "\n", dw_getreg(base, 0x130),
-                   dw_getreg(base, 0x134));
-            up_mdelay(10);
-          }
-      }
+      up_mdelay(10);
+      syslog(LOG_INFO, "SDIO USRID=%08" PRIx32 "\n", usrid);
+      up_mdelay(10);
+      if (usrid == 0x20230001u)
+        {
+          syslog(LOG_INFO, "SDIO phase before drv=%08" PRIx32
+                 " sample=%08" PRIx32 "\n", dw_getreg(base, 0x130),
+                 dw_getreg(base, 0x134));
+          up_mdelay(10);
+          dw_putreg(base, 0x130, 0x00010001u);
+          dw_putreg(base, 0x130, 0x0bfe0002u);
+          dw_putreg(base, 0x134, 0x0bfe0000u);
+          dw_putreg(base, 0x130, 0x00010000u);
+          syslog(LOG_INFO, "SDIO phase after drv=%08" PRIx32
+                 " sample=%08" PRIx32 "\n", dw_getreg(base, 0x130),
+                 dw_getreg(base, 0x134));
+          up_mdelay(10);
+        }
+    }
 
-    /* Observe idle pads without changing their mux or pull settings. */
+  /* Observe idle pads without changing their mux or pull settings. */
 
-    if (hw->is_sdio)
-      {
-        unsigned int cmd_high = 0;
-        unsigned int data_high = 0;
-        int sample;
+  if (hw->is_sdio)
+    {
+      unsigned int cmd_high = 0;
+      unsigned int data_high = 0;
+      int sample;
 
-        for (sample = 0; sample < 64; sample++)
-          {
-            cmd_high += rk3576_gpio_read(hw->cmd_bank, hw->cmd_pin) > 0;
-            data_high += rk3576_gpio_read(hw->bus_bank, hw->bus_first) > 0;
-            up_udelay(10);
-          }
+      for (sample = 0; sample < 64; sample++)
+        {
+          cmd_high += rk3576_gpio_read(hw->cmd_bank, hw->cmd_pin) > 0;
+          data_high += rk3576_gpio_read(hw->bus_bank, hw->bus_first) > 0;
+          up_udelay(10);
+        }
 
-        syslog(LOG_INFO, "SDIO idle CMD high=%u/64 D0 high=%u/64\n",
-               cmd_high, data_high);
-        up_mdelay(10);
-        syslog(LOG_INFO, "SDIO idle STATUS=%08" PRIx32 " UHS=%08" PRIx32
-               "\n", dw_getreg(base, DWMMC_STATUS), dw_getreg(base, 0x74));
-        up_mdelay(10);
-      }
+      syslog(LOG_INFO, "SDIO idle CMD high=%u/64 D0 high=%u/64\n",
+             cmd_high, data_high);
+      up_mdelay(10);
+      syslog(LOG_INFO, "SDIO idle STATUS=%08" PRIx32 " UHS=%08" PRIx32
+             "\n", dw_getreg(base, DWMMC_STATUS), dw_getreg(base, 0x74));
+      up_mdelay(10);
+    }
 
-    /* Match the vendor MMC rescan's pre-enumeration CCCR reset.
-     * A failed read uses the reset bit alone. A reset response failure
-     * is logged but does not replace the subsequent CMD5 acceptance gate.
-     */
+  /* Match the vendor MMC rescan's pre-enumeration CCCR reset.
+   * A failed read uses the reset bit alone. A reset response failure
+   * is logged but does not replace the subsequent CMD5 acceptance gate.
+   */
 
-    if (hw->is_sdio)
-      {
-        uint32_t abort_value = 8;
-        int step;
+  if (hw->is_sdio)
+    {
+      uint32_t abort_value = 8;
+      int step;
 
-        for (step = 0; step < 2; step++)
-          {
-            uint32_t arg = (6u << 9);
-            uint32_t command = DWMMC_CMD_START | holdbit |
-                               DWMMC_CMD_RESP_EXP | DWMMC_CMD_RESP_CRC |
-                               DWMMC_CMD_STOP | DWMMC_CMD_INDX(52);
+      for (step = 0; step < 2; step++)
+        {
+          uint32_t arg = (6u << 9);
+          uint32_t command = DWMMC_CMD_START | holdbit |
+                             DWMMC_CMD_RESP_EXP | DWMMC_CMD_RESP_CRC |
+                             DWMMC_CMD_STOP | DWMMC_CMD_INDX(52);
 
-            if (step == 0)
-              {
-                command |= DWMMC_CMD_INIT;
-              }
-            else
-              {
-                arg |= 0x80000000u | abort_value;
-              }
-
-            dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
-            dw_putreg(base, DWMMC_CMDARG, arg);
-            dw_putreg(base, DWMMC_CMD, command);
-            for (us = 0; us < 200000; us++)
-              {
-                if ((dw_getreg(base, DWMMC_CMD) & DWMMC_CMD_START) == 0)
-                  {
-                    break;
-                  }
-
-                up_udelay(1);
-              }
-
-            if (us == 200000)
-              {
-                syslog(LOG_ERR, "SDIO CMD52 START timeout\n");
-                return -ETIMEDOUT;
-              }
-
-            for (us = 0; us < 200000; us++)
-              {
-                sts = dw_getreg(base, DWMMC_RINTSTS);
-                if (sts & (DWMMC_INT_CMD_DONE | DWMMC_INT_CMD_ERROR))
-                  {
-                    break;
-                  }
-
-                up_udelay(1);
-              }
-
-            resp = dw_getreg(base, DWMMC_RESP0);
-            syslog(LOG_INFO, "SDIO CMD52 %s sts=%08" PRIx32
-                   " resp=%08" PRIx32 "\n", step ? "reset" : "read",
-                   sts, resp);
-            if (step == 0 && (sts & DWMMC_INT_CMD_DONE) != 0 &&
-                (sts & DWMMC_INT_CMD_ERROR) == 0 &&
-                (resp & ((1u << 11) | (1u << 9) | (1u << 8))) == 0)
-              {
-                abort_value = (resp & 0xffu) | 8u;
-              }
-
-            up_mdelay(10);
-          }
-      }
-
-    /* CMD0 GO_IDLE_STATE，无响应，带初始化序列 */
-
-    dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
-    dw_putreg(base, DWMMC_CMDARG, 0);
-    dw_putreg(base, DWMMC_CMD, DWMMC_CMD_START | holdbit |
-                         DWMMC_CMD_INIT | DWMMC_CMD_INDX(0));
-
-    for (us = 0; us < 200000; us++)
-      {
-        if ((dw_getreg(base, DWMMC_CMD) & DWMMC_CMD_START) == 0)
-          {
-            break;
-          }
-
-        up_udelay(1);
-      }
-
-    for (us = 0; us < 200000; us++)
-      {
-        if (dw_getreg(base, DWMMC_RINTSTS) & DWMMC_INT_CMD_DONE)
-          {
-            break;
-          }
-
-        up_udelay(1);
-      }
-
-    syslog(LOG_INFO, "DWMMC: CMD0 后 RINTSTS=0x%08" PRIx32 "\n",
-           dw_getreg(base, DWMMC_RINTSTS));
-
-    up_mdelay(2);
-
-    /* CMD8 SEND_IF_COND，参数 0x1aa（2.7-3.6V + 校验图案 0xaa），
-     * 短响应带 CRC。
-     */
-
-    dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
-
-    /* ★ SD 用 CMD8，SDIO 用 CMD5。
-     *
-     *   SDIO 卡不认 CMD8，对它发 CMD8 必然超时 —— 而超时同时也是
-     *   "线没通"的表现，两者分不开，判据就失效了。CMD5
-     *   (IO_SEND_OP_COND, arg=0) 才是 SDIO 的对应命令：SDIO 设备回
-     *   OCR（R4 短响应，**无 CRC**），非 SDIO 设备完全不应答。
-     */
-
-    if (hw->is_sdio)
-      {
-        /* SDIO enumeration repeats CMD5 until the card reports ready.
-         *
-         *   第一次 arg=0 是询问，卡回它支持的 OCR 电压窗口；之后带着
-         *   OCR 重发，直到卡把 bit31(C, 上电完成) 置起来。发一次就判定
-         *   等于要求卡在第一条命令上就完成上电，多数卡做不到。
-         *
-         * R4 has no valid CRC or normal command-index field. Disable response
-         * CRC checking; an RE bit still means the response is invalid.
-         */
-
-        int try;
-        uint32_t ocr = 0;
-
-        for (try = 0; try < 20; try++)
-          {
-            if (try == 0 && g_dw_la_enable)
-              {
-                dw_la_send(base, ocr, DWMMC_CMD_START | holdbit |
-                           DWMMC_CMD_RESP_EXP | DWMMC_CMD_INDX(5), hw);
-              }
-            else
-              {
-                dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
-                dw_putreg(base, DWMMC_CMDARG, ocr);
-                dw_putreg(base, DWMMC_CMD,
-                          DWMMC_CMD_START | holdbit |
-                          DWMMC_CMD_RESP_EXP | DWMMC_CMD_INDX(5));
-              }
-
-            /* ★ 先看控制器有没有**接受**这条命令。
-             *
-             *   CMD 寄存器的 START 位是自清的：控制器把命令收进命令队列
-             *   后才清零。若它一直不清，说明控制器压根没受理 —— 那么
-             *   RINTSTS 里的任何位都不是这条命令的结果，据此判断响应
-             *   就完全跑偏了。
-             *
-             *   SD 卡成功时 RINTSTS=0x04(CMD_DONE)，而 SDIO 这边是
-             *   0x02(RESP_ERR) 且**没有 CMD_DONE** —— 正是这个反常促使
-             *   加上这一项。
-             */
-
+          if (step == 0)
             {
-              int started = 0;
-
-              for (us = 0; us < 200000; us++)
-                {
-                  if ((dw_getreg(base, DWMMC_CMD) & DWMMC_CMD_START) == 0)
-                    {
-                      started = 1;
-                      break;
-                    }
-
-                  up_udelay(1);
-                }
-
-              if (!started && try == 0)
-                {
-                  syslog(LOG_ERR,
-                         "DWMMC: CMD5 的 START 位不自清 —— 控制器未受理命令，"
-                         "STATUS=0x%08" PRIx32 " CTRL=0x%08" PRIx32 "\n",
-                         dw_getreg(base, DWMMC_STATUS),
-                         dw_getreg(base, DWMMC_CTRL));
-                }
+              command |= DWMMC_CMD_INIT;
+            }
+          else
+            {
+              arg |= 0x80000000u | abort_value;
             }
 
-            for (us = 0; us < 200000; us++)
-              {
-                sts = dw_getreg(base, DWMMC_RINTSTS);
-                if (sts & (DWMMC_INT_CMD_DONE | DWMMC_INT_CMD_ERROR))
-                  {
-                    break;
-                  }
+          dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
+          dw_putreg(base, DWMMC_CMDARG, arg);
+          dw_putreg(base, DWMMC_CMD, command);
+          for (us = 0; us < 200000; us++)
+            {
+              if ((dw_getreg(base, DWMMC_CMD) & DWMMC_CMD_START) == 0)
+                {
+                  break;
+                }
 
-                up_udelay(1);
-              }
+              up_udelay(1);
+            }
 
-            resp = dw_getreg(base, DWMMC_RESP0);
+          if (us == 200000)
+            {
+              syslog(LOG_ERR, "SDIO CMD52 START timeout\n");
+              return -ETIMEDOUT;
+            }
 
-            if (try < 3 || (resp & 0x80000000) != 0)
-              {
-                syslog(LOG_INFO,
-                       "DWMMC: CMD5 第%d次 RINTSTS=0x%08" PRIx32
-                       " RESP0=0x%08" PRIx32 "\n", try, sts, resp);
-              }
+          for (us = 0; us < 200000; us++)
+            {
+              sts = dw_getreg(base, DWMMC_RINTSTS);
+              if (sts & (DWMMC_INT_CMD_DONE | DWMMC_INT_CMD_ERROR))
+                {
+                  break;
+                }
 
-            if (sts & DWMMC_INT_CMD_ERROR)
-              {
-                up_mdelay(1);
-                syslog(LOG_INFO, "SDIO failed CMD=%08" PRIx32
-                       " STATUS=%08" PRIx32 "\n",
-                       dw_getreg(base, DWMMC_CMD), dw_getreg(base, DWMMC_STATUS));
-                up_mdelay(10);
-                syslog(LOG_INFO, "SDIO settled STS=%08" PRIx32
-                       " RESP=%08" PRIx32 " PAD=%d\n",
-                       dw_getreg(base, DWMMC_RINTSTS), dw_getreg(base, DWMMC_RESP0),
-                       rk3576_gpio_read(hw->cmd_bank, hw->cmd_pin));
-                up_mdelay(10);
-                syslog(LOG_ERR,
-                       "DWMMC: CMD5 response invalid RINTSTS=0x%08" PRIx32
-                       " RESP0=0x%08" PRIx32 "\n", sts, resp);
-                break;
-              }
+              up_udelay(1);
+            }
 
-            if ((sts & DWMMC_INT_CMD_DONE) == 0 ||
-                ((resp >> 28) & 0x7) == 0 ||
-                (resp & 0x00ffffff) == 0)
-              {
-                syslog(LOG_ERR,
-                       "DWMMC: CMD5 invalid R4 RINTSTS=0x%08" PRIx32
-                       " RESP0=0x%08" PRIx32 "\n", sts, resp);
-                break;
-              }
+          resp = dw_getreg(base, DWMMC_RESP0);
+          syslog(LOG_INFO, "SDIO CMD52 %s sts=%08" PRIx32
+                 " resp=%08" PRIx32 "\n", step ? "reset" : "read",
+                 sts, resp);
+          if (step == 0 && (sts & DWMMC_INT_CMD_DONE) != 0 &&
+              (sts & DWMMC_INT_CMD_ERROR) == 0 &&
+              (resp & ((1u << 11) | (1u << 9) | (1u << 8))) == 0)
+            {
+              abort_value = (resp & 0xffu) | 8u;
+            }
 
-            if (resp & 0x80000000)
-              {
-                sdio_ready = true;
-                break;                 /* C 位置起，上电完成 */
-              }
+          up_mdelay(10);
+        }
+    }
 
-            ocr = resp & 0x00ffffff;
+  /* CMD0 GO_IDLE_STATE，无响应，带初始化序列 */
 
-            up_mdelay(10);
-          }
+  dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
+  dw_putreg(base, DWMMC_CMDARG, 0);
+  dw_putreg(base, DWMMC_CMD, DWMMC_CMD_START | holdbit |
+                       DWMMC_CMD_INIT | DWMMC_CMD_INDX(0));
 
-        /* Normal CCCR access follows RCA assignment and selection in
-         * sdio_probe(). The reset operation above is the exception.
-         */
+  for (us = 0; us < 200000; us++)
+    {
+      if ((dw_getreg(base, DWMMC_CMD) & DWMMC_CMD_START) == 0)
+        {
+          break;
+        }
 
-        dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
-        return sdio_ready ? OK : -EIO;
-      }
-    else
-      {
-        dw_putreg(base, DWMMC_CMDARG, 0x1aa);
-        dw_putreg(base, DWMMC_CMD, DWMMC_CMD_START | DWMMC_CMD_USE_HOLD_REG |
-                             DWMMC_CMD_RESP_EXP | DWMMC_CMD_RESP_CRC |
-                             DWMMC_CMD_INDX(8));
-      }
+      up_udelay(1);
+    }
 
-    for (us = 0; us < 200000; us++)
-      {
-        if ((dw_getreg(base, DWMMC_CMD) & DWMMC_CMD_START) == 0)
-          {
-            break;
-          }
+  for (us = 0; us < 200000; us++)
+    {
+      if (dw_getreg(base, DWMMC_RINTSTS) & DWMMC_INT_CMD_DONE)
+        {
+          break;
+        }
 
-        up_udelay(1);
-      }
+      up_udelay(1);
+    }
 
-    sts = 0;
-    for (us = 0; us < 500000; us++)
-      {
-        sts = dw_getreg(base, DWMMC_RINTSTS);
-        if (sts & (DWMMC_INT_CMD_DONE | DWMMC_INT_CMD_ERROR))
-          {
-            break;
-          }
+  syslog(LOG_INFO, "DWMMC: CMD0 后 RINTSTS=0x%08" PRIx32 "\n",
+         dw_getreg(base, DWMMC_RINTSTS));
 
-        up_udelay(1);
-      }
+  up_mdelay(2);
 
-    resp = dw_getreg(base, DWMMC_RESP0);
+  /* CMD8 SEND_IF_COND，参数 0x1aa（2.7-3.6V + 校验图案 0xaa），
+   * 短响应带 CRC。
+   */
 
-    if (hw->is_sdio)
-      {
-        /* R4 的 bit31 是 C（初始化完成），bit[30:28] 是功能单元个数，
-         * bit[23:0] 是 OCR 电压窗口。功能单元 >0 就证明对面是 SDIO。
-         */
+  dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
 
-        syslog(LOG_INFO,
-               "DWMMC: CMD5 RINTSTS=0x%08" PRIx32 " RESP0=0x%08" PRIx32
-               " 功能单元=%" PRIu32 " OCR=0x%06" PRIx32 " —— %s\n",
-               sts, resp, (resp >> 28) & 0x7, resp & 0xffffff,
-               (sts & DWMMC_INT_RTO)      ? "无应答：模组未上电、时钟或命令线不通" :
-               (((resp >> 28) & 0x7) != 0) ? "检测到 SDIO 设备" :
-                                             "有响应但功能单元为 0，不像 SDIO");
-      }
-    else
-      {
-        syslog(LOG_INFO,
-               "DWMMC: CMD8 RINTSTS=0x%08" PRIx32 " RESP0=0x%08" PRIx32
-               " —— %s\n",
-               sts, resp,
-               (sts & DWMMC_INT_RTO)      ? "响应超时：卡没被时钟驱动或命令线不通" :
-               (sts & DWMMC_INT_RCRC)     ? "CRC 错：采样时序有问题" :
-               ((resp & 0xfff) == 0x1aa)  ? "回显正确，命令通路正常" :
-                                            "回显不符，采样时序有问题");
-      }
+  /* ★ SD 用 CMD8，SDIO 用 CMD5。
+   *
+   *   SDIO 卡不认 CMD8，对它发 CMD8 必然超时 —— 而超时同时也是
+   *   "线没通"的表现，两者分不开，判据就失效了。CMD5
+   *   (IO_SEND_OP_COND, arg=0) 才是 SDIO 的对应命令：SDIO 设备回
+   *   OCR（R4 短响应，**无 CRC**），非 SDIO 设备完全不应答。
+   */
 
-    dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
-  }
+  if (hw->is_sdio)
+    {
+      /* SDIO enumeration repeats CMD5 until the card reports ready.
+       *
+       *   第一次 arg=0 是询问，卡回它支持的 OCR 电压窗口；之后带着
+       *   OCR 重发，直到卡把 bit31(C, 上电完成) 置起来。发一次就判定
+       *   等于要求卡在第一条命令上就完成上电，多数卡做不到。
+       *
+       * R4 has no valid CRC or normal command-index field. Disable response
+       * CRC checking; an RE bit still means the response is invalid.
+       */
+
+      int try;
+      uint32_t ocr = 0;
+
+      for (try = 0; try < 20; try++)
+        {
+          if (try == 0 && g_dw_la_enable)
+            {
+              dw_la_send(base, ocr, DWMMC_CMD_START | holdbit |
+                         DWMMC_CMD_RESP_EXP | DWMMC_CMD_INDX(5), hw);
+            }
+          else
+            {
+              dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
+              dw_putreg(base, DWMMC_CMDARG, ocr);
+              dw_putreg(base, DWMMC_CMD,
+                        DWMMC_CMD_START | holdbit |
+                        DWMMC_CMD_RESP_EXP | DWMMC_CMD_INDX(5));
+            }
+
+          /* ★ 先看控制器有没有**接受**这条命令。
+           *
+           *   CMD 寄存器的 START 位是自清的：控制器把命令收进命令队列
+           *   后才清零。若它一直不清，说明控制器压根没受理 —— 那么
+           *   RINTSTS 里的任何位都不是这条命令的结果，据此判断响应
+           *   就完全跑偏了。
+           *
+           *   SD 卡成功时 RINTSTS=0x04(CMD_DONE)，而 SDIO 这边是
+           *   0x02(RESP_ERR) 且**没有 CMD_DONE** —— 正是这个反常促使
+           *   加上这一项。
+           */
+
+          started = 0;
+
+          for (us = 0; us < 200000; us++)
+            {
+              if ((dw_getreg(base, DWMMC_CMD) & DWMMC_CMD_START) == 0)
+                {
+                  started = 1;
+                  break;
+                }
+
+              up_udelay(1);
+            }
+
+          if (!started && try == 0)
+            {
+              syslog(LOG_ERR,
+                     "DWMMC: CMD5 的 START 位不自清 —— 控制器未受理命令，"
+                     "STATUS=0x%08" PRIx32 " CTRL=0x%08" PRIx32 "\n",
+                     dw_getreg(base, DWMMC_STATUS),
+                     dw_getreg(base, DWMMC_CTRL));
+            }
+
+          for (us = 0; us < 200000; us++)
+            {
+              sts = dw_getreg(base, DWMMC_RINTSTS);
+              if (sts & (DWMMC_INT_CMD_DONE | DWMMC_INT_CMD_ERROR))
+                {
+                  break;
+                }
+
+              up_udelay(1);
+            }
+
+          resp = dw_getreg(base, DWMMC_RESP0);
+
+          if (try < 3 || (resp & 0x80000000) != 0)
+            {
+              syslog(LOG_INFO,
+                     "DWMMC: CMD5 第%d次 RINTSTS=0x%08" PRIx32
+                     " RESP0=0x%08" PRIx32 "\n", try, sts, resp);
+            }
+
+          if (sts & DWMMC_INT_CMD_ERROR)
+            {
+              up_mdelay(1);
+              syslog(LOG_INFO, "SDIO failed CMD=%08" PRIx32
+                     " STATUS=%08" PRIx32 "\n",
+                     dw_getreg(base, DWMMC_CMD),
+                     dw_getreg(base, DWMMC_STATUS));
+              up_mdelay(10);
+              syslog(LOG_INFO, "SDIO settled STS=%08" PRIx32
+                     " RESP=%08" PRIx32 " PAD=%d\n",
+                     dw_getreg(base, DWMMC_RINTSTS),
+                     dw_getreg(base, DWMMC_RESP0),
+                     rk3576_gpio_read(hw->cmd_bank, hw->cmd_pin));
+              up_mdelay(10);
+              syslog(LOG_ERR,
+                     "DWMMC: CMD5 response invalid RINTSTS=0x%08" PRIx32
+                     " RESP0=0x%08" PRIx32 "\n", sts, resp);
+              break;
+            }
+
+          if ((sts & DWMMC_INT_CMD_DONE) == 0 ||
+              ((resp >> 28) & 0x7) == 0 ||
+              (resp & 0x00ffffff) == 0)
+            {
+              syslog(LOG_ERR,
+                     "DWMMC: CMD5 invalid R4 RINTSTS=0x%08" PRIx32
+                     " RESP0=0x%08" PRIx32 "\n", sts, resp);
+              break;
+            }
+
+          if (resp & 0x80000000)
+            {
+              sdio_ready = true;
+              break;                 /* C 位置起，上电完成 */
+            }
+
+          ocr = resp & 0x00ffffff;
+
+          up_mdelay(10);
+        }
+
+      /* Normal CCCR access follows RCA assignment and selection in
+       * sdio_probe(). The reset operation above is the exception.
+       */
+
+      dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
+      return sdio_ready ? OK : -EIO;
+    }
+  else
+    {
+      dw_putreg(base, DWMMC_CMDARG, 0x1aa);
+      dw_putreg(base, DWMMC_CMD, DWMMC_CMD_START | DWMMC_CMD_USE_HOLD_REG |
+                           DWMMC_CMD_RESP_EXP | DWMMC_CMD_RESP_CRC |
+                           DWMMC_CMD_INDX(8));
+    }
+
+  for (us = 0; us < 200000; us++)
+    {
+      if ((dw_getreg(base, DWMMC_CMD) & DWMMC_CMD_START) == 0)
+        {
+          break;
+        }
+
+      up_udelay(1);
+    }
+
+  sts = 0;
+  for (us = 0; us < 500000; us++)
+    {
+      sts = dw_getreg(base, DWMMC_RINTSTS);
+      if (sts & (DWMMC_INT_CMD_DONE | DWMMC_INT_CMD_ERROR))
+        {
+          break;
+        }
+
+      up_udelay(1);
+    }
+
+  resp = dw_getreg(base, DWMMC_RESP0);
+
+  if (hw->is_sdio)
+    {
+      /* R4 的 bit31 是 C（初始化完成），bit[30:28] 是功能单元个数，
+       * bit[23:0] 是 OCR 电压窗口。功能单元 >0 就证明对面是 SDIO。
+       */
+
+      syslog(LOG_INFO,
+             "DWMMC: CMD5 RINTSTS=0x%08" PRIx32 " RESP0=0x%08" PRIx32
+             " 功能单元=%" PRIu32 " OCR=0x%06" PRIx32 " —— %s\n",
+             sts, resp, (resp >> 28) & 0x7, resp & 0xffffff,
+             (sts & DWMMC_INT_RTO) ?
+               "无应答：模组未上电、时钟或命令线不通" :
+             (((resp >> 28) & 0x7) != 0) ?
+               "检测到 SDIO 设备" :
+               "有响应但功能单元为 0，不像 SDIO");
+    }
+  else
+    {
+      syslog(LOG_INFO,
+             "DWMMC: CMD8 RINTSTS=0x%08" PRIx32 " RESP0=0x%08" PRIx32
+             " —— %s\n",
+             sts, resp,
+             (sts & DWMMC_INT_RTO) ?
+               "响应超时：卡没被时钟驱动或命令线不通" :
+             (sts & DWMMC_INT_RCRC)     ? "CRC 错：采样时序有问题" :
+             ((resp & 0xfff) == 0x1aa)  ? "回显正确，命令通路正常" :
+                                          "回显不符，采样时序有问题");
+    }
+
+  dw_putreg(base, DWMMC_RINTSTS, DWMMC_INT_ALL);
 
   return OK;
 }
-
 
 /****************************************************************************
  * Private Types
@@ -1410,10 +1413,12 @@ static void rk3576_dwmmc_widebus(struct sdio_dev_s *dev, bool wide)
   struct rk3576_dwmmc_dev_s *priv = (struct rk3576_dwmmc_dev_s *)dev;
 
   priv->widebus = wide;
-  dw_putreg(priv->base, DWMMC_CTYPE, wide ? DWMMC_CTYPE_4BIT : DWMMC_CTYPE_1BIT);
+  dw_putreg(priv->base, DWMMC_CTYPE,
+            wide ? DWMMC_CTYPE_4BIT : DWMMC_CTYPE_1BIT);
 }
 
-static void rk3576_dwmmc_clock(struct sdio_dev_s *dev, enum sdio_clock_e rate)
+static void rk3576_dwmmc_clock(struct sdio_dev_s *dev,
+                               enum sdio_clock_e rate)
 {
   struct rk3576_dwmmc_dev_s *priv = (struct rk3576_dwmmc_dev_s *)dev;
 
@@ -1572,6 +1577,7 @@ static int rk3576_dwmmc_sendcmd(struct sdio_dev_s *dev, uint32_t cmd,
           syslog(LOG_INFO, "DW >CMD%" PRIu32 " 已受理\n",
                  cmd & MMCSD_CMDIDX_MASK);
 #endif
+
           return OK;
         }
 
@@ -1589,7 +1595,8 @@ static int rk3576_dwmmc_sendcmd(struct sdio_dev_s *dev, uint32_t cmd,
          "DW >CMD%" PRIu32 " 未被受理 CMD=0x%08" PRIx32
          " STATUS=0x%08" PRIx32 " RINTSTS=0x%08" PRIx32 "\n",
          cmd & MMCSD_CMDIDX_MASK, dw_getreg(priv->base, DWMMC_CMD),
-         dw_getreg(priv->base, DWMMC_STATUS), dw_getreg(priv->base, DWMMC_RINTSTS));
+         dw_getreg(priv->base, DWMMC_STATUS),
+         dw_getreg(priv->base, DWMMC_RINTSTS));
 
   /* 命令根本没发出去，同样要记 —— 否则 recv_* 会返回上一条命令
    * 遗留的 OK，把"没发成功"报成"成功"。
@@ -1604,6 +1611,9 @@ static int rk3576_dwmmc_waitresponse(struct sdio_dev_s *dev, uint32_t cmd)
   struct rk3576_dwmmc_dev_s *priv = (struct rk3576_dwmmc_dev_s *)dev;
   uint32_t sts;
   int us;
+#ifndef CONFIG_RK3576_DWMMC_TRACE
+  static int rto_reported;
+#endif
 
   for (us = 0; us < 500000; us++)
     {
@@ -1626,22 +1636,18 @@ static int rk3576_dwmmc_waitresponse(struct sdio_dev_s *dev, uint32_t cmd)
            * 缺失无法补救。
            */
 
-          {
-            static int rto_reported;
+          if ((sts & DWMMC_INT_RTO) == 0 || rto_reported < 8)
+            {
+              if (sts & DWMMC_INT_RTO)
+                {
+                  rto_reported++;
+                }
 
-            if ((sts & DWMMC_INT_RTO) == 0 || rto_reported < 8)
-              {
-                if (sts & DWMMC_INT_RTO)
-                  {
-                    rto_reported++;
-                  }
-
-                syslog(LOG_ERR,
-                       "DWMMC CMD%" PRIu32 " %s RINTSTS=0x%08" PRIx32 "\n",
-                       cmd & MMCSD_CMDIDX_MASK,
-                       (sts & DWMMC_INT_RTO) ? "响应超时" : "响应错误", sts);
-              }
-          }
+              syslog(LOG_ERR,
+                     "DWMMC CMD%" PRIu32 " %s RINTSTS=0x%08" PRIx32 "\n",
+                     cmd & MMCSD_CMDIDX_MASK,
+                     (sts & DWMMC_INT_RTO) ? "响应超时" : "响应错误", sts);
+            }
 #endif
 
           dw_putreg(priv->base, DWMMC_RINTSTS, DWMMC_INT_CMD_ERROR);
@@ -1690,6 +1696,7 @@ static int rk3576_dwmmc_waitresponse(struct sdio_dev_s *dev, uint32_t cmd)
                      dw_getreg(priv->base, DWMMC_RESP0));
             }
 #endif
+
           return OK;
         }
 
@@ -2057,12 +2064,11 @@ struct sdio_dev_s *rk3576_dwmmc_initialize(uint32_t base)
   UNUSED(hcon);
 
   priv->fifo_off =
-      (DWMMC_GET_VERID(dw_getreg(priv->base, DWMMC_VERID)) >= DWMMC_VERID_240A) ?
+      (DWMMC_GET_VERID(dw_getreg(priv->base, DWMMC_VERID)) >=
+       DWMMC_VERID_240A) ?
       DWMMC_DATA_240A : DWMMC_DATA_OLD;
 
   /* 源时钟：上面把选源设成了 xin24m、不分频。 */
-
-
 
   /* FIFO 水位：msize=0（1 字突发），收发水位都取深度的一半。
    *
@@ -2077,6 +2083,7 @@ struct sdio_dev_s *rk3576_dwmmc_initialize(uint32_t base)
     {
       depth = 128;
     }
+
   /* ★ msize 取 2，不是 0。
    *
    *   厂商驱动 dw_mmc.c 的初始化：

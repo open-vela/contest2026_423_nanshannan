@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_wdt.c
+ * chip/rk3576/rk3576_wdt.c
  *
  * RK3576 看门狗（Synopsys DesignWare WDT，watchdog@2ace0000）。
  *
@@ -85,9 +85,9 @@
 
 struct rk3576_wdt_s
 {
-  struct watchdog_lowerhalf_s lower;   /* 必须是第一个成员 */
-  uint32_t                    timeout_ms;   /* 上层请求的值 */
-  uint32_t                    actual_ms;    /* 实际生效的档位 */
+  struct watchdog_lowerhalf_s lower;       /* 必须是第一个成员 */
+  uint32_t                    timeout_ms;  /* 上层请求的值 */
+  uint32_t                    actual_ms;   /* 实际生效的档位 */
   bool                        started;
 
   /* ★ stop() 之后由驱动自己接手喂狗用的定时器。见 rk3576_wdt_stop()。 */
@@ -472,6 +472,8 @@ int rk3576_wdt_initialize(FAR const char *devpath)
 {
   FAR struct rk3576_wdt_s *priv = &g_wdt;
   uint32_t torr;
+  uint32_t c0;
+  uint32_t c1;
 
   /* 两路时钟：pclk 供寄存器访问，tclk 驱动计数。只开 pclk 的话寄存器
    * 读写正常但计数不动 —— 这个坑在本端口的 I2C 与 SD 上都踩过。
@@ -508,17 +510,14 @@ int rk3576_wdt_initialize(FAR const char *devpath)
    * 相同则说明 tclk 没在跑。
    */
 
-  {
-    uint32_t c0 = wdt_getreg(WDT_CCVR);
-    uint32_t c1;
+  c0 = wdt_getreg(WDT_CCVR);
 
-    up_udelay(200);
-    c1 = wdt_getreg(WDT_CCVR);
+  up_udelay(200);
+  c1 = wdt_getreg(WDT_CCVR);
 
-    syslog(LOG_INFO,
-           "WDT: TORR 回读正常 CCVR %" PRIu32 " -> %" PRIu32 " —— %s\n",
-           c0, c1, (c0 != c1) ? "tclk 在跑" : "tclk 未动（使能后才计数）");
-  }
+  syslog(LOG_INFO,
+         "WDT: TORR 回读正常 CCVR %" PRIu32 " -> %" PRIu32 " —— %s\n",
+         c0, c1, (c0 != c1) ? "tclk 在跑" : "tclk 未动（使能后才计数）");
 
   rk3576_wdt_settimeout(&priv->lower, 10000);
 

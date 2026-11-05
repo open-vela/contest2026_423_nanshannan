@@ -306,7 +306,6 @@ static int skw_send(FAR struct sdio_dev_s *sdio, uint8_t channel,
                              false, pkt, SKW_BLK_SIZE, 0);
 }
 
-
 /* Driver state kept after boot: the RX buffer and flags are reused by the
  * Bluetooth transport.  All bus access goes through lock.
  */
@@ -383,7 +382,8 @@ static void skw_parse(FAR struct skw_ctx_s *ctx, unsigned int npac)
 
           if (strncmp(cmd, "BSPREADY", 8) == 0)
             {
-              int ret = skw_send(ctx->sdio, SKW_LOOPCHECK_CH, "RDVERSION", 9);
+              int ret = skw_send(ctx->sdio, SKW_LOOPCHECK_CH,
+                                 "RDVERSION", 9);
               syslog(LOG_INFO, "SKW6621S: sent RDVERSION: %d\n", ret);
             }
           else if (strncmp(cmd, "trunk_W", 7) == 0)

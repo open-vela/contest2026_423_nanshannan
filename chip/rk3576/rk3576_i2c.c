@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_i2c.c
+ * chip/rk3576/rk3576_i2c.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -187,28 +187,28 @@ static const struct i2c_ops_s g_rk3576_i2c_ops =
 
 static const struct rk3576_i2c_config_s g_i2c_config[] =
 {
-  {
-    /* I2C0 —— 5 寸 MIPI 屏（F050008M01）转接板上的触摸控制器。
-     *
-     * 出处是原理图 K7_V1.1 第 27 页 "Single-MIPI LCM"：30pin FPC 的
-     * Pin23/24 是 TP_I2C_SCL/SDA，对应网络 I2C0_SCL_M1_TP /
-     * I2C0_SDA_M1_TP。此前扫遍 I2C1~I2C9 都没找到触摸，就是因为它在
-     * I2C0 上，而 I2C0 被跳过了 —— 它的时钟不在主 CRU。
-     *
-     * ★ I2C0 基址 0x27300000 落在常开域，时钟归 PMU CRU 管：
-     *     GATE(PCLK_I2C0, ... RK3576_PMU_CLKGATE_CON(5), 1)
-     *     COMPOSITE_NODIV(CLK_I2C0, ... RK3576_PMU_CLKSEL_CON(6), 7, 2,
-     *                                  RK3576_PMU_CLKGATE_CON(5), 2)
-     *   用主 CRU 的偏移去开会写到别的寄存器，不报错但总线不动。
-     *   选源父时钟表与主域相同：{200M, 100M, 50M, 24M}。
-     *
-     * 引脚：原厂 dtb 的 i2c0m1-xfer = <0 17 9 ...>, <0 18 9 ...>
-     *   即 GPIO0_C1 / GPIO0_C2，功能号 9（与原理图一致）。
-     *
-     * ★ 触摸芯片由 VCC3V3_LCD_S0 供电，而该电源轨受 LCD_PWREN_H
-     *   (GPIO0_C6) 控制。不先把它拉高，扫描必然全空 —— 芯片没电。
-     */
+  /* I2C0 —— 5 寸 MIPI 屏（F050008M01）转接板上的触摸控制器。
+   *
+   * 出处是原理图 K7_V1.1 第 27 页 "Single-MIPI LCM"：30pin FPC 的
+   * Pin23/24 是 TP_I2C_SCL/SDA，对应网络 I2C0_SCL_M1_TP /
+   * I2C0_SDA_M1_TP。此前扫遍 I2C1~I2C9 都没找到触摸，就是因为它在
+   * I2C0 上，而 I2C0 被跳过了 —— 它的时钟不在主 CRU。
+   *
+   * ★ I2C0 基址 0x27300000 落在常开域，时钟归 PMU CRU 管：
+   *     GATE(PCLK_I2C0, ... RK3576_PMU_CLKGATE_CON(5), 1)
+   *     COMPOSITE_NODIV(CLK_I2C0, ... RK3576_PMU_CLKSEL_CON(6), 7, 2,
+   *                                  RK3576_PMU_CLKGATE_CON(5), 2)
+   *   用主 CRU 的偏移去开会写到别的寄存器，不报错但总线不动。
+   *   选源父时钟表与主域相同：{200M, 100M, 50M, 24M}。
+   *
+   * 引脚：原厂 dtb 的 i2c0m1-xfer = <0 17 9 ...>, <0 18 9 ...>
+   *   即 GPIO0_C1 / GPIO0_C2，功能号 9（与原理图一致）。
+   *
+   * ★ 触摸芯片由 VCC3V3_LCD_S0 供电，而该电源轨受 LCD_PWREN_H
+   *   (GPIO0_C6) 控制。不先把它拉高，扫描必然全空 —— 芯片没电。
+   */
 
+  {
     .port = 0, .base = RK3576_I2C0_ADDR,
     .gate_con = 5, .gate_pclk = 1, .gate_clk = 2,
     .sel_con = 6, .sel_shift = 7,
@@ -216,52 +216,59 @@ static const struct rk3576_i2c_config_s g_i2c_config[] =
     .pin_func = 9,
     .pmu = true,
   },
-  {
-    /* I2C1 —— PMIC RK806。U-Boot 启动时必然访问过，用作对照组。
-     * 时钟：clk-rk3576.c
-     *   GATE(PCLK_I2C1, ... CLKGATE_CON(12), 0)
-     *   COMPOSITE_NODIV(CLK_I2C1, ... CLKSEL_CON(57), 0, 2, ... CLKGATE_CON(12), 12)
-     * 引脚复用交给 U-Boot（bank/pin 填 -1）—— 这条总线它已经配好了，
-     * 我们不去动它，正好保留一个"未经我们改动"的对照。
-     */
 
+  /* I2C1 —— PMIC RK806。U-Boot 启动时必然访问过，用作对照组。
+   * 时钟：clk-rk3576.c
+   *   GATE(PCLK_I2C1, ... CLKGATE_CON(12), 0)
+   *   COMPOSITE_NODIV(CLK_I2C1, ... CLKSEL_CON(57), 0, 2, ...
+   *                   CLKGATE_CON(12), 12)
+   * 引脚复用交给 U-Boot（bank/pin 填 -1）—— 这条总线它已经配好了，
+   * 我们不去动它，正好保留一个"未经我们改动"的对照。
+   */
+
+  {
     .port = 1, .base = RK3576_I2C1_ADDR,
     .gate_con = 12, .gate_pclk = 0, .gate_clk = 12,
     .sel_con = 57, .sel_shift = 0,
     .scl_bank = -1, .scl_pin = -1, .sda_bank = -1, .sda_pin = -1,
     .pin_func = 0,
   },
-  {
-    /* I2C2 —— RTC HYM8563 @0x51、Type-C PD HUSB311 @0x4e。
-     * 时钟：clk-rk3576.c
-     *   GATE(PCLK_I2C2, ... CLKGATE_CON(12), 1)
-     *   COMPOSITE_NODIV(CLK_I2C2, ... CLKSEL_CON(57), 2, 2, ... CLKGATE_CON(12), 13)
-     * 引脚：原厂 dtb 的 i2c2m0-xfer = <0 15 9 &pcfg...>, <0 16 9 ...>
-     *   即 GPIO0_B7 / GPIO0_C0，功能号 9。
-     *   （用 scripts/dtb-query.py 从原厂 boot.img 查得）
-     */
 
+  /* I2C2 —— RTC HYM8563 @0x51、Type-C PD HUSB311 @0x4e。
+   * 时钟：clk-rk3576.c
+   *   GATE(PCLK_I2C2, ... CLKGATE_CON(12), 1)
+   *   COMPOSITE_NODIV(CLK_I2C2, ... CLKSEL_CON(57), 2, 2, ...
+   *                   CLKGATE_CON(12), 13)
+   * 引脚：原厂 dtb 的 i2c2m0-xfer = <0 15 9 &pcfg...>, <0 16 9 ...>
+   *   即 GPIO0_B7 / GPIO0_C0，功能号 9。
+   *   （用 scripts/dtb-query.py 从原厂 boot.img 查得）
+   */
+
+  {
     .port = 2, .base = RK3576_I2C2_ADDR,
     .gate_con = 12, .gate_pclk = 1, .gate_clk = 13,
     .sel_con = 57, .sel_shift = 2,
     .scl_bank = 0, .scl_pin = 15, .sda_bank = 0, .sda_pin = 16,
     .pin_func = 9,
   },
-  {
-    /* I2C3 —— 音频 codec ES8388 @0x10（喇叭与咪头走它）。
-     * 时钟：clk-rk3576.c
-     *   GATE(PCLK_I2C3, ... CLKGATE_CON(12), 2)
-     *   COMPOSITE_NODIV(CLK_I2C3, ... CLKSEL_CON(57), 4, 2, ... CLKGATE_CON(12), 14)
-     * 引脚：原厂 dtb 的 i2c3m0-xfer = <4 13 11 ...>, <4 12 11 ...>
-     *   即 GPIO4_B5 / GPIO4_B4，功能号 11。
-     */
 
+  /* I2C3 —— 音频 codec ES8388 @0x10（喇叭与咪头走它）。
+   * 时钟：clk-rk3576.c
+   *   GATE(PCLK_I2C3, ... CLKGATE_CON(12), 2)
+   *   COMPOSITE_NODIV(CLK_I2C3, ... CLKSEL_CON(57), 4, 2, ...
+   *                   CLKGATE_CON(12), 14)
+   * 引脚：原厂 dtb 的 i2c3m0-xfer = <4 13 11 ...>, <4 12 11 ...>
+   *   即 GPIO4_B5 / GPIO4_B4，功能号 11。
+   */
+
+  {
     .port = 3, .base = RK3576_I2C3_ADDR,
     .gate_con = 12, .gate_pclk = 2, .gate_clk = 14,
     .sel_con = 57, .sel_shift = 4,
     .scl_bank = 4, .scl_pin = 13, .sda_bank = 4, .sda_pin = 12,
     .pin_func = 11,
   },
+
   /* I2C4/5/7/8 —— 加入是为了找触摸控制器。
    *
    * 屏接上后扫描 I2C1/2/3 均未发现 GT9xx（0x5d 或 0x14），说明触摸
@@ -295,6 +302,7 @@ static const struct rk3576_i2c_config_s g_i2c_config[] =
     .scl_bank = 3, .scl_pin = 0, .sda_bank = 3, .sda_pin = 1,
     .pin_func = 11,
   },
+
   /* I2C6/I2C9 —— 原厂 dtb 里状态为 disabled，但触摸所在的总线本就
    * 应由 LCD overlay 启用，因此 disabled 不代表物理上没有器件。
    * 加入继续排除。
@@ -343,7 +351,6 @@ static struct rk3576_i2c_priv_s g_i2c_priv[RK3576_I2C_NBUSES] =
   { .ops = &g_rk3576_i2c_ops, .lock = NXMUTEX_INITIALIZER },
 };
 
-
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -383,7 +390,7 @@ static uint32_t rk3576_i2c_wait(struct rk3576_i2c_priv_s *priv,
       if ((ipd & mask) != 0)
         {
           i2c_putreg(priv, RK3576_I2C_IPD, ipd & mask);   /* 写 1 清 */
-          g_last_hit = ipd;             /* 留给 diag 用 */
+          g_last_hit = ipd;                               /* 留给 diag 用 */
           return ipd & mask;
         }
 
@@ -592,7 +599,8 @@ static int rk3576_i2c_read_msg(struct rk3576_i2c_priv_s *priv,
    *   MOD_RX 只用于读第二块及以后（本驱动单次不超过 32 字节，用不到）。
    *
    *   依据：Linux i2c-rk3x.c
-   *     rk3x_i2c_setup():        读操作设 i2c->mode = REG_CON_MOD_REGISTER_TX
+   *     rk3x_i2c_setup():        读操作设
+   *                              i2c->mode = REG_CON_MOD_REGISTER_TX
    *     rk3x_i2c_prepare_read(): 仅当 processed != 0 才切到 REG_CON_MOD_RX
    */
 

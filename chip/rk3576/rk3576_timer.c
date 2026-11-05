@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_timer.c
+ * chip/rk3576/rk3576_timer.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -329,6 +329,9 @@ struct oneshot_lowerhalf_s *rk3576_oneshot_initialize(void)
   struct oneshot_lowerhalf_s *lower = &g_rk3576_oneshot;
   uint64_t a;
   uint64_t b;
+  uint32_t hits0;
+  uint32_t st;
+  int i;
 
   /* 时钟：pclk、根时钟、两个通道各自的门控，以及把根时钟选到 24MHz */
 
@@ -391,37 +394,34 @@ struct oneshot_lowerhalf_s *rk3576_oneshot_initialize(void)
    *   而且是在启动日志里就分开 —— 不用等到跑 xTS 用例才发现。
    */
 
-  {
-    uint32_t hits0 = g_rk3576_timer_hits;
-    uint32_t st = 0;
-    int i;
+  hits0 = g_rk3576_timer_hits;
+  st = 0;
 
-    uint64_t c0;
+  uint64_t c0;
 
-    rk3576_oneshot_start(lower, TIMER_FREQ_HZ / 1000);   /* 1ms */
-    c0 = timer_read64(TIMER_CH_ALARM);
+  rk3576_oneshot_start(lower, TIMER_FREQ_HZ / 1000);   /* 1ms */
+  c0 = timer_read64(TIMER_CH_ALARM);
 
-    for (i = 0; i < 100; i++)
-      {
-        st = timer_getreg(TIMER_CH_ALARM, TIMER_INTSTATUS);
-        if (st != 0 || g_rk3576_timer_hits != hits0)
-          {
-            break;
-          }
+  for (i = 0; i < 100; i++)
+    {
+      st = timer_getreg(TIMER_CH_ALARM, TIMER_INTSTATUS);
+      if (st != 0 || g_rk3576_timer_hits != hits0)
+        {
+          break;
+        }
 
-        up_udelay(100);
-      }
+      up_udelay(100);
+    }
 
-    syslog(LOG_INFO,
-           "TIMER: 闹钟自检 INTSTATUS=0x%08" PRIx32 " ISR %" PRIu32
-           " 次 等了 %dx100us CTRL回读=0x%08" PRIx32
-           " CH0计数 %" PRIu64 "->%" PRIu64 "\n",
-           st, g_rk3576_timer_hits - hits0, i,
-           timer_getreg(TIMER_CH_ALARM, TIMER_CONTROL),
-           c0, timer_read64(TIMER_CH_ALARM));
+  syslog(LOG_INFO,
+         "TIMER: 闹钟自检 INTSTATUS=0x%08" PRIx32 " ISR %" PRIu32
+         " 次 等了 %dx100us CTRL回读=0x%08" PRIx32
+         " CH0计数 %" PRIu64 "->%" PRIu64 "\n",
+         st, g_rk3576_timer_hits - hits0, i,
+         timer_getreg(TIMER_CH_ALARM, TIMER_CONTROL),
+         c0, timer_read64(TIMER_CH_ALARM));
 
-    rk3576_oneshot_cancel(lower);
-  }
+  rk3576_oneshot_cancel(lower);
 
   syslog(LOG_INFO,
          "TIMER: /dev/oneshot 用 CH0(闹钟,IRQ %d)+CH1(计数) @%uHz，"

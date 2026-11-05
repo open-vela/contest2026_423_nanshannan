@@ -11,6 +11,10 @@
 #ifndef __CHIP_RK3576_RK3576_VIDEO_H
 #define __CHIP_RK3576_RK3576_VIDEO_H
 
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
 #include <nuttx/config.h>
 #include <nuttx/video/imgdata.h>
 

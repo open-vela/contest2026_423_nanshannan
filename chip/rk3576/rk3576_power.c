@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_power.c
+ * chip/rk3576/rk3576_power.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -134,73 +134,98 @@ static const struct rk3576_pd_info_s g_pd_info[] =
    *                    r_offset, req, idle, g_mask, delay, wakeup)
    */
 
+  /* DOMAIN_RK3576("npu", 0x0, BIT(0), BIT(0), 0, 0x0, 0, 0, 0, 0, false)
+   * 整个 VD_NPU 的总开关。电压 vdd_npu_s0 = RK806 DCDC2，要先有电。
+   */
+
   [RK3576_PD_NPU] =
   {
-    /* DOMAIN_RK3576("npu", 0x0, BIT(0), BIT(0), 0, 0x0, 0, 0, 0, 0, false)
-     * 整个 VD_NPU 的总开关。电压 vdd_npu_s0 = RK806 DCDC2，要先有电。
-     */
-
     "npu",    1u << 0,  0,        0x0, 0,        0,        0,
     0x0, 1u << 0, 0, false
   },
+
+  /* DOMAIN_RK3576("nputop", 0x4, BIT(6), 0, BIT(22), 0x0, 0x18, 0x18,
+   *   0x18, 15, false)
+   */
+
   [RK3576_PD_NPUTOP] =
   {
-    /* DOMAIN_RK3576("nputop", 0x4, BIT(6), 0, BIT(22), 0x0, 0x18, 0x18, 0x18, 15, false) */
-
     "nputop", 1u << 6,  1u << 22, 0x0, 0x18,     0x18,     0x18,
     0x4, 0, 15, true
   },
+
+  /* DOMAIN_RK3576("npu0", 0x4, BIT(7), 0, BIT(23), 0x0, BIT(1), BIT(1),
+   *   0x1a, 0, false)
+   */
+
   [RK3576_PD_NPU0] =
   {
-    /* DOMAIN_RK3576("npu0", 0x4, BIT(7), 0, BIT(23), 0x0, BIT(1), BIT(1), 0x1a, 0, false) */
-
     "npu0",   1u << 7,  1u << 23, 0x0, 1u << 1,  1u << 1,  0x1a,
     0x4, 0, 0, true
   },
+
+  /* DOMAIN_RK3576("npu1", 0x4, BIT(8), 0, BIT(24), 0x0, BIT(2), BIT(2),
+   *   0x1c, 0, false)
+   */
+
   [RK3576_PD_NPU1] =
   {
-    /* DOMAIN_RK3576("npu1", 0x4, BIT(8), 0, BIT(24), 0x0, BIT(2), BIT(2), 0x1c, 0, false) */
-
     "npu1",   1u << 8,  1u << 24, 0x0, 1u << 2,  1u << 2,  0x1c,
     0x4, 0, 0, true
   },
 
+  /* DOMAIN_RK3576("nvm", 0x0, BIT(6), 0, BIT(6), 0x4, BIT(2), BIT(18),
+   *   BIT(2))
+   */
+
   [RK3576_PD_NVM] =
   {
-    /* DOMAIN_RK3576("nvm", 0x0, BIT(6), 0, BIT(6), 0x4, BIT(2), BIT(18), BIT(2)) */
-
     "nvm",   1u << 6,  1u << 6,  0x4, 1u << 2,  1u << 18, 1u << 2
   },
+
+  /* DOMAIN_RK3576("sdgmac", 0x0, BIT(7), 0, BIT(7), 0x4, BIT(1), BIT(17),
+   *   0x6)
+   */
+
   [RK3576_PD_SDGMAC] =
   {
-    /* DOMAIN_RK3576("sdgmac", 0x0, BIT(7), 0, BIT(7), 0x4, BIT(1), BIT(17), 0x6) */
-
     "sdgmac", 1u << 7, 1u << 7, 0x4, 1u << 1,  1u << 17, 0x6
   },
+
+  /* DOMAIN_RK3576("php", 0x0, BIT(9), 0, BIT(9), 0x0, BIT(15), BIT(15),
+   *   BIT(15), 0, false)
+   * USB3OTG1（DRD1，板上 GL3510 hub 的上游）在这个域里。
+   */
+
   [RK3576_PD_PHP] =
   {
-    /* DOMAIN_RK3576("php", 0x0, BIT(9), 0, BIT(9), 0x0, BIT(15), BIT(15), BIT(15), 0, false)
-     * USB3OTG1（DRD1，板上 GL3510 hub 的上游）在这个域里。
-     */
-
     "php",   1u << 9,  1u << 9,  0x0, 1u << 15, 1u << 15, 1u << 15
   },
+
+  /* DOMAIN_RK3576("audio", 0x0, BIT(8), 0, BIT(8), 0x4, BIT(0), BIT(16),
+   *   BIT(0))
+   */
+
   [RK3576_PD_AUDIO] =
   {
-    /* DOMAIN_RK3576("audio", 0x0, BIT(8), 0, BIT(8), 0x4, BIT(0), BIT(16), BIT(0)) */
-
     "audio", 1u << 8,  1u << 8,  0x4, 1u << 0,  1u << 16, 1u << 0
   },
+
+  /* DOMAIN_RK3576("vo0", 0x0, BIT(15), 0, BIT(15), 0x0, BIT(11), BIT(11),
+   *   0x6800)
+   */
+
   [RK3576_PD_VO0] =
   {
-    /* DOMAIN_RK3576("vo0", 0x0, BIT(15), 0, BIT(15), 0x0, BIT(11), BIT(11), 0x6800) */
-
     "vo0",   1u << 15, 1u << 15, 0x0, 1u << 11, 1u << 11, 0x6800
   },
+
+  /* DOMAIN_RK3576("vop", 0x0, BIT(11), 0, BIT(11), 0x0, 0x6000, 0x6000,
+   *   0x6000)
+   */
+
   [RK3576_PD_VOP] =
   {
-    /* DOMAIN_RK3576("vop", 0x0, BIT(11), 0, BIT(11), 0x0, 0x6000, 0x6000, 0x6000) */
-
     "vop",   1u << 11, 1u << 11, 0x0, 0x6000,   0x6000,   0x6000
   },
 };

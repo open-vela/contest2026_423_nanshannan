@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/rk3576/kickpi-k7/src/imx415_regs.h
+ * board/kickpi-k7/src/imx415_regs.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -79,7 +79,7 @@ struct imx415_reg_s
  * Public Data
  ****************************************************************************/
 
-/* 与模式无关的基础配置（84 条）*/
+/* 与模式无关的基础配置（84 条） */
 
 static const struct imx415_reg_s g_imx415_global[] =
 {
@@ -169,7 +169,7 @@ static const struct imx415_reg_s g_imx415_global[] =
   { 0x4005, 0x09 },
 };
 
-/* 1932x1096 12bit 线性 594Mbps（35 条）*/
+/* 1932x1096 12bit 线性 594Mbps（35 条） */
 
 static const struct imx415_reg_s g_imx415_mode_1932x1096[] =
 {

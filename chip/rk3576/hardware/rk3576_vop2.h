@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/hardware/rk3576_vop2.h
+ * chip/rk3576/hardware/rk3576_vop2.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -30,7 +30,8 @@
 /* RK3576 VOP2 显示控制器。
  *
  * ★ 出处：Linux drivers/gpu/drm/rockchip/rockchip_drm_vop2.h 与
- *   rockchip_vop2_reg.c 的 rk3576_vop_video_ports[] / rk3576_vop_smart_regs[]。
+ *   rockchip_vop2_reg.c 的 rk3576_vop_video_ports[] /
+ *   rk3576_vop_smart_regs[]。
  *   基址取自主线 rk3576.dtsi 的 vop@27d00000。
  *
  * ★★ RK3576 与 RK3568 的显示接口寄存器完全不同，不能照抄。
@@ -157,15 +158,16 @@
  *     VPn_COLOR_BAR_CTRL 的 bit8 = POST_URGENCY_EN，
  *     bit[19:16] = 低水位、bit[23:20] = 高水位。
  *   该文件里的注释写着：
- *     "RK3576 VP0 has 8 lines post linebuffer, when full post line buffer is
- *      less 4, the urgency signal will be set to 1, when full post line buffer
- *      is over 6, the urgency signal will be set to 0."
+ *     "RK3576 VP0 has 8 lines post linebuffer, when full post line buffer
+ *      is less 4, the urgency signal will be set to 1, when full post line
+ *      buffer is over 6, the urgency signal will be set to 0."
  *
  *   ★ 为什么我们要自己开
  *
  *     U-Boot 的 rk3576_vp_data[] 里**只有 VP0 配了 urgency**，VP1/VP2 是空的
  *     —— 它单独跑时没人抢 DDR，不开也够。而 AMP 下四核 A72 上的 Linux 一起
- *     压 DDR，VP1 的读请求排不进去，行缓冲见底，屏上就是**几条黑色细横条纹**。
+ *     压 DDR，VP1 的读请求排不进去，行缓冲见底，屏上就是
+ *     **几条黑色细横条纹**。
  *
  *     这个故障的所有特征都指向"取数跟不上"而不是"内容不对"：
  *       - VOP2 内置彩条干净（彩条不走 DDR）

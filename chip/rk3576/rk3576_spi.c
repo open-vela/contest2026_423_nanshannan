@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_spi.c
+ * chip/rk3576/rk3576_spi.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -108,7 +108,7 @@ struct rk3576_spi_config_s
 {
   uint8_t   port;
   uintptr_t base;
-  uint8_t   gate_con;      /* CLKGATE_CON 序号（PCLK 与 CLK 同属一个）*/
+  uint8_t   gate_con;      /* CLKGATE_CON 序号（PCLK 与 CLK 同属一个） */
   uint8_t   gate_pclk;     /* PCLK_SPIn 的位号 */
   uint8_t   gate_clk;      /* CLK_SPIn 的位号  */
   uint8_t   sel_con;       /* CLKSEL_CON 序号  */
@@ -129,10 +129,10 @@ struct rk3576_spi_priv_s
   const struct spi_ops_s            *ops;   /* 必须是第一个成员 */
   const struct rk3576_spi_config_s  *cfg;
   uintptr_t                          base;
-  uint32_t                           src_hz;   /* 实测的输入时钟频率 */
-  uint32_t                           fifo_len; /* 由 VERSION 推出 */
-  uint32_t                           frequency;/* 当前请求的 SCLK */
-  uint32_t                           actual;   /* 实际得到的 SCLK */
+  uint32_t                           src_hz;    /* 实测的输入时钟频率 */
+  uint32_t                           fifo_len;  /* 由 VERSION 推出 */
+  uint32_t                           frequency; /* 当前请求的 SCLK */
+  uint32_t                           actual;    /* 实际得到的 SCLK */
   uint8_t                            nbits;
   uint8_t                            mode;
   mutex_t                            lock;
@@ -177,23 +177,23 @@ static const uint32_t g_spi_src_hz[4] =
 
 static const struct rk3576_spi_config_s g_spi_config[] =
 {
-  {
-    /* SPI4 —— 40 针扩展口。
-     *
-     * 出处 1（引脚）：RK3576 TRM 的 IOMUX 表，func 9 时
-     *   GPIO4_B0 = SPI4_CLK_M2    (bank4 pin 8)
-     *   GPIO4_B1 = SPI4_MOSI_M2   (bank4 pin 9)
-     *   GPIO4_B2 = SPI4_MISO_M2   (bank4 pin 10)
-     *   GPIO4_A5 = SPI4_CSN1_M2   (bank4 pin 5) —— 这里当 GPIO 用
-     * 与 dtb 里 spi4m2-pins 的 <4 8 9>,<4 10 9>,<4 9 9> 逐条对得上
-     * （dtsi 组内顺序是 clk/miso/mosi，不是 clk/mosi/miso，容易看反）。
-     *
-     * 出处 2（时钟）：clk-rk3576.c
-     *   GATE(PCLK_SPI4, "pclk_spi4", ... CLKGATE_CON(16), 1)
-     *   COMPOSITE_NODIV(CLK_SPI4, ... CLKSEL_CON(71), 6, 2,
-     *                                 CLKGATE_CON(16), 6)
-     */
+  /* SPI4 —— 40 针扩展口。
+   *
+   * 出处 1（引脚）：RK3576 TRM 的 IOMUX 表，func 9 时
+   *   GPIO4_B0 = SPI4_CLK_M2    (bank4 pin 8)
+   *   GPIO4_B1 = SPI4_MOSI_M2   (bank4 pin 9)
+   *   GPIO4_B2 = SPI4_MISO_M2   (bank4 pin 10)
+   *   GPIO4_A5 = SPI4_CSN1_M2   (bank4 pin 5) —— 这里当 GPIO 用
+   * 与 dtb 里 spi4m2-pins 的 <4 8 9>,<4 10 9>,<4 9 9> 逐条对得上
+   * （dtsi 组内顺序是 clk/miso/mosi，不是 clk/mosi/miso，容易看反）。
+   *
+   * 出处 2（时钟）：clk-rk3576.c
+   *   GATE(PCLK_SPI4, "pclk_spi4", ... CLKGATE_CON(16), 1)
+   *   COMPOSITE_NODIV(CLK_SPI4, ... CLKSEL_CON(71), 6, 2,
+   *                                 CLKGATE_CON(16), 6)
+   */
 
+  {
     .port       = 4,
     .base       = 0x2ad20000,
     .gate_con   = 16,
@@ -730,7 +730,6 @@ struct spi_dev_s *rk3576_spibus_initialize(int port)
    *
    *   要用复位，得先从厂商的 rk3576_rst_init() 拿到真正的映射表。
    */
-
 
   /* 2) 引脚复用。CS 那根走 GPIO：先拉高（不选中）再设成输出，
    *    顺序反了会在设成输出的一瞬间输出上一次的残留电平，

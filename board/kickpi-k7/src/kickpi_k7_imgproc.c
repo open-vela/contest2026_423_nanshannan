@@ -331,6 +331,7 @@ static void demosaic_row(FAR const uint16_t *raw, int stride_pix,
                          FAR const int *gain, FAR uint8_t *rgb)
 {
   int x;
+  int lg;
 
   for (x = 0; x < width; x++)
     {
@@ -383,13 +384,11 @@ static void demosaic_row(FAR const uint16_t *raw, int stride_pix,
        * 两者相乘即可，不需要各来一遍乘法。
        */
 
-      {
-        int lg = lsc_gain_q8(x, y, width, height);
+      lg = lsc_gain_q8(x, y, width, height);
 
-        rgb[x * 3 + 0] = to8g(r, black, white, gain[0] * lg >> 8);
-        rgb[x * 3 + 1] = to8g(g, black, white, gain[1] * lg >> 8);
-        rgb[x * 3 + 2] = to8g(b, black, white, gain[2] * lg >> 8);
-      }
+      rgb[x * 3 + 0] = to8g(r, black, white, gain[0] * lg >> 8);
+      rgb[x * 3 + 1] = to8g(g, black, white, gain[1] * lg >> 8);
+      rgb[x * 3 + 2] = to8g(b, black, white, gain[2] * lg >> 8);
 
       apply_ccm(&rgb[x * 3]);
     }
@@ -426,6 +425,9 @@ static void measure_awb(FAR const uint16_t *raw, int stride_pix,
   int x;
   int y;
   int i;
+  uint32_t mr;
+  uint32_t mg;
+  uint32_t mb;
 
   memset(sum, 0, sizeof(sum));
   memset(cnt, 0, sizeof(cnt));
@@ -478,20 +480,18 @@ static void measure_awb(FAR const uint16_t *raw, int stride_pix,
       return;
     }
 
-  {
-    uint32_t mr = (uint32_t)(sum[0] / cnt[0]);
-    uint32_t mg = (uint32_t)(sum[1] / cnt[1]);
-    uint32_t mb = (uint32_t)(sum[2] / cnt[2]);
+  mr = (uint32_t)(sum[0] / cnt[0]);
+  mg = (uint32_t)(sum[1] / cnt[1]);
+  mb = (uint32_t)(sum[2] / cnt[2]);
 
-    if (mr == 0 || mb == 0)
-      {
-        return;
-      }
+  if (mr == 0 || mb == 0)
+    {
+      return;
+    }
 
-    gain[0] = (int)(((uint64_t)mg * AWB_UNITY) / mr);
-    gain[1] = AWB_UNITY;
-    gain[2] = (int)(((uint64_t)mg * AWB_UNITY) / mb);
-  }
+  gain[0] = (int)(((uint64_t)mg * AWB_UNITY) / mr);
+  gain[1] = AWB_UNITY;
+  gain[2] = (int)(((uint64_t)mg * AWB_UNITY) / mb);
 
   for (i = 0; i < 3; i++)
     {
@@ -817,6 +817,7 @@ int kickpi_imgproc_jpeg_scaled(FAR const uint16_t *raw, int stride_pix,
   for (y = 0; y < srch; y++)
     {
       JSAMPROW rows[1];
+      int dy;
 
       demosaic_row(raw, stride_pix, srcw, srch, y, phase,
                    black, white, gain, rgbrow);
@@ -829,44 +830,43 @@ int kickpi_imgproc_jpeg_scaled(FAR const uint16_t *raw, int stride_pix,
           continue;
         }
 
-      {
-        int dy = y * dsth / srch;
+      dy = y * dsth / srch;
 
-        if (dy != curdy && accrows > 0)
-          {
-            /* 这一目标行的源行收齐了，除掉计数发出去 */
+      if (dy != curdy && accrows > 0)
+        {
+          /* 这一目标行的源行收齐了，除掉计数发出去 */
 
-            for (x = 0; x < dstw; x++)
-              {
-                uint32_t n = (uint32_t)xcnt[x] * (uint32_t)accrows;
-                int c;
+          for (x = 0; x < dstw; x++)
+            {
+              uint32_t n = (uint32_t)xcnt[x] * (uint32_t)accrows;
+              int c;
 
-                for (c = 0; c < 3; c++)
-                  {
-                    dstrow[x * 3 + c] = n ? (uint8_t)(acc[x * 3 + c] / n) : 0;
-                  }
-              }
+              for (c = 0; c < 3; c++)
+                {
+                  dstrow[x * 3 + c] =
+                    n ? (uint8_t)(acc[x * 3 + c] / n) : 0;
+                }
+            }
 
-            rows[0] = (JSAMPROW)dstrow;
-            jpeg_write_scanlines(&cinfo, rows, 1);
-            emitted++;
+          rows[0] = (JSAMPROW)dstrow;
+          jpeg_write_scanlines(&cinfo, rows, 1);
+          emitted++;
 
-            memset(acc, 0, (size_t)dstw * 3 * sizeof(uint32_t));
-            accrows = 0;
-            curdy = dy;
-          }
+          memset(acc, 0, (size_t)dstw * 3 * sizeof(uint32_t));
+          accrows = 0;
+          curdy = dy;
+        }
 
-        for (x = 0; x < srcw; x++)
-          {
-            int dx = x * dstw / srcw;
+      for (x = 0; x < srcw; x++)
+        {
+          int dx = x * dstw / srcw;
 
-            acc[dx * 3 + 0] += rgbrow[x * 3 + 0];
-            acc[dx * 3 + 1] += rgbrow[x * 3 + 1];
-            acc[dx * 3 + 2] += rgbrow[x * 3 + 2];
-          }
+          acc[dx * 3 + 0] += rgbrow[x * 3 + 0];
+          acc[dx * 3 + 1] += rgbrow[x * 3 + 1];
+          acc[dx * 3 + 2] += rgbrow[x * 3 + 2];
+        }
 
-        accrows++;
-      }
+      accrows++;
     }
 
   /* 最后一行 */
@@ -981,6 +981,8 @@ int kickpi_imgproc_lsccal(FAR const uint16_t *raw, int stride_pix,
   int i;
   int x;
   int y;
+  int64_t a;
+  int64_t b;
 
   if (raw == NULL || width <= 0 || height <= 0)
     {
@@ -1085,13 +1087,11 @@ int kickpi_imgproc_lsccal(FAR const uint16_t *raw, int stride_pix,
    * 解得 k1 = 4a - b，k2 = 2b - 4a。
    */
 
-  {
-    int64_t a = ((int64_t)mean[0] << 16) / mean[LSC_BINS / 2] - 65536;
-    int64_t b = ((int64_t)mean[0] << 16) / mean[LSC_BINS - 1] - 65536;
+  a = ((int64_t)mean[0] << 16) / mean[LSC_BINS / 2] - 65536;
+  b = ((int64_t)mean[0] << 16) / mean[LSC_BINS - 1] - 65536;
 
-    *k1_out = (int)(4 * a - b);
-    *k2_out = (int)(2 * b - 4 * a);
-  }
+  *k1_out = (int)(4 * a - b);
+  *k2_out = (int)(2 * b - 4 * a);
 
   syslog(LOG_INFO, "LSC 标定: k1=%d k2=%d (Q16)，边缘/中心 = %d%%\n",
          *k1_out, *k2_out, (int)(mean[LSC_BINS - 1] * 100 / mean[0]));
@@ -1126,8 +1126,16 @@ int kickpi_imgproc_lsccal(FAR const uint16_t *raw, int stride_pix,
 int kickpi_imgproc_bayerstat(FAR const uint16_t *raw, int stride_pix,
                              int width, int height)
 {
-  uint64_t sum[4] = { 0, 0, 0, 0 };
-  uint32_t cnt[4] = { 0, 0, 0, 0 };
+  uint64_t sum[4] =
+    {
+      0, 0, 0, 0
+    };
+
+  uint32_t cnt[4] =
+    {
+      0, 0, 0, 0
+    };
+
   int x;
   int y;
   int i;
@@ -1158,8 +1166,10 @@ int kickpi_imgproc_bayerstat(FAR const uint16_t *raw, int stride_pix,
     }
 
   syslog(LOG_INFO,
-         "判读：两个相近的是 G（必在对角线）；对红色物体时另两个中亮的是 R。\n"
-         "      R 在 (0,0)->相位0  (1,0)->相位1  (0,1)->相位2  (1,1)->相位3\n");
+         "判读：两个相近的是 G（必在对角线）；"
+         "对红色物体时另两个中亮的是 R。\n"
+         "      R 在 (0,0)->相位0  (1,0)->相位1  "
+         "(0,1)->相位2  (1,1)->相位3\n");
 
   return OK;
 }

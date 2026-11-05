@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_timer.h
+ * chip/rk3576/rk3576_timer.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *

@@ -1,5 +1,5 @@
 /****************************************************************************
- * vendor/rockchip/boards/rk3576/kickpi-k7/src/kickpi_k7_boardinit.c
+ * board/kickpi-k7/src/kickpi_k7_boardinit.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *

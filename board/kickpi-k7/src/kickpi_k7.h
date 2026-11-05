@@ -1,5 +1,5 @@
 /****************************************************************************
- * vendor/rockchip/boards/rk3576/kickpi-k7/src/kickpi_k7.h
+ * board/kickpi-k7/src/kickpi_k7.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -180,7 +180,6 @@ int kickpi_k7_video_initialize(void);
 
 int kickpi_k7_touch_initialize(void);
 #endif
-
 
 /****************************************************************************
  * Name: kickpi_k7_lcd_power

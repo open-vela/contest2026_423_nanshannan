@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_gmac.h
+ * chip/rk3576/rk3576_gmac.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -22,6 +22,10 @@
 
 #ifndef __ARCH_ARM64_SRC_RK3576_RK3576_GMAC_H
 #define __ARCH_ARM64_SRC_RK3576_RK3576_GMAC_H
+
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
 
 #include <nuttx/config.h>
 #include <stdbool.h>

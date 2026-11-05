@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_sai.c
+ * chip/rk3576/rk3576_sai.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -82,8 +82,10 @@
 
 /* 时钟。出处：Linux drivers/clk/rockchip/clk-rk3576.c
  *   COMPOSITE(MCLK_SAI1_8CH_SRC, ... CLKGATE_CON(8), 4)
- *   COMPOSITE_NODIV(MCLK_SAI1_8CH, ... CLKSEL_CON(46), 11, 1, ... CLKGATE_CON(8), 5)
- *   GATE(HCLK_SAI1_8CH, "hclk_sai1_8ch", "hclk_audio_root", CLKGATE_CON(8), 6)
+ *   COMPOSITE_NODIV(MCLK_SAI1_8CH, ... CLKSEL_CON(46), 11, 1, ...
+ *                   CLKGATE_CON(8), 5)
+ *   GATE(HCLK_SAI1_8CH, "hclk_sai1_8ch", "hclk_audio_root",
+ *        CLKGATE_CON(8), 6)
  */
 
 #define SAI1_GATE_CON        8
@@ -387,7 +389,6 @@ static void sai_reset(void)
          getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKGATE_CON(9)));
 }
 
-
 /****************************************************************************
  * i2s_dev_s 实现
  ****************************************************************************/
@@ -510,7 +511,6 @@ static void sai_rx_dma_cb(FAR struct dma_chan_s *chan, FAR void *arg,
   if (ncb < 3)
     {
       ncb++;
-
     }
 
   nxsem_post(&priv->rx_sem);
@@ -631,7 +631,8 @@ static void sai_configure(struct rk3576_sai_dev_s *priv, bool rx)
              SAI_CKR_CKP_NORMAL |
              SAI_CKR_FSP_NORMAL);
 
-  audinfo("SAI: %s %" PRIu32 "Hz %" PRIu32 "bit %" PRIu32 "ch mdiv=%" PRIu32 "\n",
+  audinfo("SAI: %s %" PRIu32 "Hz %" PRIu32 "bit %" PRIu32 "ch mdiv=%" PRIu32
+          "\n",
           rx ? "RX" : "TX", rate, sbw, slots, mdiv);
 }
 
@@ -728,6 +729,10 @@ static int rk3576_sai_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
   irqstate_t flags;
   int ret;
   clock_t t_start;
+  uint32_t bytes_per_s;
+  uint32_t need_ms;
+  clock_t need;
+  static bool once;
 
   ret = nxmutex_lock(&priv->lock);
   if (ret < 0)
@@ -777,7 +782,6 @@ static int rk3576_sai_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
    *   真正的溢出标志是 SAI_INTSR.rxoi(bit17)。这里不再清 RXC，只在
    *   诊断里观测它。
    */
-
 
   /* DMA 设备：appinit 里已 rk3576_pl330_initialize(0)，这里只取句柄。
    * 接收侧不再忙等 —— PL330 用 DMAWFP 等 SAI1 的 DMA 请求线，
@@ -928,18 +932,16 @@ static int rk3576_sai_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
    *   上层给的值。
    */
 
-  {
-    uint32_t bytes_per_s = priv->rxsamplerate * priv->rxchannels *
-                           (uint32_t)((priv->rxdatawidth + 7) / 8);
-    uint32_t need_ms = bytes_per_s ?
-                       (uint32_t)(nbytes * 1000 / bytes_per_s) : 100;
-    clock_t  need = MSEC2TICK(need_ms * 2 + 20);
+  bytes_per_s = priv->rxsamplerate * priv->rxchannels *
+                (uint32_t)((priv->rxdatawidth + 7) / 8);
+  need_ms = bytes_per_s ?
+            (uint32_t)(nbytes * 1000 / bytes_per_s) : 100;
+  need = MSEC2TICK(need_ms * 2 + 20);
 
-    if (timeout < need)
-      {
-        timeout = need;
-      }
-  }
+  if (timeout < need)
+    {
+      timeout = need;
+    }
 
   ret = nxsem_tickwait(&priv->rx_sem, timeout);
   if (ret < 0)
@@ -965,23 +967,19 @@ static int rk3576_sai_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
        * （1 = 非安全）；通道是非安全线程时，外设若是安全的，WFP 等不来。
        */
 
-      {
-        static bool once;
-
-        if (!once)
-          {
-            once = true;
-            syslog(LOG_ERR, "SAI RX DMA: dmac0 CR0=%08" PRIx32 " CR4=%08"
-                   PRIx32 " FSRD=%08" PRIx32 " FSRC=%08" PRIx32 " FTR0=%08"
-                   PRIx32 " CS0=%08" PRIx32 "\n",
-                   getreg32(RK3576_DMAC0_BASE + PL330_CR0),
-                   getreg32(RK3576_DMAC0_BASE + PL330_CR4),
-                   getreg32(RK3576_DMAC0_BASE + 0x30),
-                   getreg32(RK3576_DMAC0_BASE + PL330_FSC),
-                   getreg32(RK3576_DMAC0_BASE + 0x40),
-                   getreg32(RK3576_DMAC0_BASE + PL330_CS(0)));
-          }
-      }
+      if (!once)
+        {
+          once = true;
+          syslog(LOG_ERR, "SAI RX DMA: dmac0 CR0=%08" PRIx32 " CR4=%08"
+                 PRIx32 " FSRD=%08" PRIx32 " FSRC=%08" PRIx32 " FTR0=%08"
+                 PRIx32 " CS0=%08" PRIx32 "\n",
+                 getreg32(RK3576_DMAC0_BASE + PL330_CR0),
+                 getreg32(RK3576_DMAC0_BASE + PL330_CR4),
+                 getreg32(RK3576_DMAC0_BASE + 0x30),
+                 getreg32(RK3576_DMAC0_BASE + PL330_FSC),
+                 getreg32(RK3576_DMAC0_BASE + 0x40),
+                 getreg32(RK3576_DMAC0_BASE + PL330_CS(0)));
+        }
 
       /* 超时：DMA 没等来数据（外设没在跑 / 请求线没到）。如实返回。 */
 
@@ -1003,13 +1001,13 @@ static int rk3576_sai_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
    *   否则 CPU 读到的可能是旧数据（pl330 驱动注释里的硬性要求）。
    */
 
-
   if (priv->rx_result > 0)
     {
       up_invalidate_dcache((uintptr_t)apb->samp,
                            (uintptr_t)apb->samp + (size_t)priv->rx_result);
       apb->nbytes  = (size_t)priv->rx_result;
       apb->curbyte = 0;
+
       /* 一次性：确认搬回来的到底是不是音频数据。 */
 
       if (!g_rx_datalogged && priv->rx_result >= 16)
@@ -1024,7 +1022,8 @@ static int rk3576_sai_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
                  w[0], w[1], w[2], w[3],
                  sai_getreg(RK3576_SAI_RXFIFOLR),
                  sai_getreg(RK3576_SAI_INTSR),
-                 (unsigned long)(TICK2USEC(clock_systime_ticks() - t_start)));
+                 (unsigned long)
+                 (TICK2USEC(clock_systime_ticks() - t_start)));
         }
 
       ret = OK;
@@ -1333,6 +1332,10 @@ int rk3576_sai_probe(void)
 {
   uint32_t version;
   int ret;
+  uint32_t sel46;
+  uint32_t sel28;
+  uint32_t sel12;
+  uint32_t sel13;
 
   /* 1) 电源域。SAI 在 PD_AUDIO 里，U-Boot 不会开它 ——
    *    引导阶段用不到音频。
@@ -1361,7 +1364,8 @@ int rk3576_sai_probe(void)
   rk3576_clk_gate(SAI1_MCLKOUT_CON, SAI1_MCLKOUT_BIT, true);
   sai1_mclkout_to_io(true);
 
-  syslog(LOG_INFO, "SAI: mclk_to_io 已开 0x%08" PRIx32 " = 0x%08" PRIx32 "\n",
+  syslog(LOG_INFO,
+         "SAI: mclk_to_io 已开 0x%08" PRIx32 " = 0x%08" PRIx32 "\n",
          (uint32_t)RK3576_MCLKOUT_IO_REG, getreg32(RK3576_MCLKOUT_IO_REG));
 
   /* ★ 时钟开了还要解复位，顺序照原厂 rockchip_sai_reset()：
@@ -1399,22 +1403,20 @@ int rk3576_sai_probe(void)
    *     CLKSEL_CON(12)/(13) 是 clk_audio_frac_0 的小数分频与源选择
    */
 
-  {
-    uint32_t sel46 = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(46));
-    uint32_t sel28 = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(28));
-    uint32_t sel12 = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(12));
-    uint32_t sel13 = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(13));
+  sel46 = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(46));
+  sel28 = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(28));
+  sel12 = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(12));
+  sel13 = getreg32(RK3576_CRU_ADDR + RK3576_CRU_CLKSEL_CON(13));
 
-    syslog(LOG_INFO,
-           "SAI1 时钟: SEL46=%08" PRIx32 " 源=%" PRIu32 " 分频=%" PRIu32
-           " 二级选=%" PRIu32 "\n",
-           sel46, (sel46 >> 8) & 0x7, (sel46 & 0xff) + 1,
-           (sel46 >> 11) & 0x1);
-    syslog(LOG_INFO,
-           "SAI1 时钟: SEL28=%08" PRIx32 " (audio_int 分频) "
-           "SEL12=%08" PRIx32 " SEL13=%08" PRIx32 " (audio_frac_0)\n",
-           sel28, sel12, sel13);
-  }
+  syslog(LOG_INFO,
+         "SAI1 时钟: SEL46=%08" PRIx32 " 源=%" PRIu32 " 分频=%" PRIu32
+         " 二级选=%" PRIu32 "\n",
+         sel46, (sel46 >> 8) & 0x7, (sel46 & 0xff) + 1,
+         (sel46 >> 11) & 0x1);
+  syslog(LOG_INFO,
+         "SAI1 时钟: SEL28=%08" PRIx32 " (audio_int 分频) "
+         "SEL12=%08" PRIx32 " SEL13=%08" PRIx32 " (audio_frac_0)\n",
+         sel28, sel12, sel13);
 
   /* 3) 引脚复用 */
 

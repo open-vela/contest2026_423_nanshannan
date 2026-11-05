@@ -49,7 +49,8 @@
  *   当成"没人要的中断"吞掉，而它恰恰是握手的第一步，丢了就再也等不到。
  *   所以这里只 irq_attach + 清状态，enable 推迟到 register_callback()。
  *
- * 出处：TRM Part1 V1.2 第 17 章；Linux 6.1 drivers/mailbox/rockchip-mailbox.c。
+ * 出处：TRM Part1 V1.2 第 17 章；
+ *       Linux 6.1 drivers/mailbox/rockchip-mailbox.c。
  ****************************************************************************/
 
 /****************************************************************************
@@ -102,7 +103,8 @@ static inline uint32_t mbox_getreg(uintptr_t base, unsigned int off)
   return getreg32(base + off);
 }
 
-static inline void mbox_putreg(uint32_t val, uintptr_t base, unsigned int off)
+static inline void mbox_putreg(uint32_t val, uintptr_t base,
+                               unsigned int off)
 {
   putreg32(val, base + off);
 }

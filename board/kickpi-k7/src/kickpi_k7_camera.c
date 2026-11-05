@@ -1,5 +1,5 @@
 /****************************************************************************
- * boards/rk3576/kickpi-k7/src/kickpi_k7_camera.c
+ * board/kickpi-k7/src/kickpi_k7_camera.c
  *
  * MIPI CSI 摄像头（Sony IMX415）的传感器探测。
  *
@@ -83,11 +83,19 @@ struct cam_port_s
 
 static const struct cam_port_s g_cam_ports[] =
 {
-  /* 名称  I2C  PDN 脚      MCLK 脚      CLKSEL  门控位 */
+  /* 各行字段：名称、I2C 总线、PDN 脚（bank, pin）、MCLK 脚（bank, pin）、
+   * CLKSEL_CON、门控位
+   */
 
-  { "cam0", 4, 0, 26,      3, 31,       38,     3 },
-  { "cam1", 5, 4, 22,      4,  0,       39,     4 },
-  { "cam3", 8, 0, 23,      4,  1,       40,     5 },
+  {
+    "cam0", 4, 0, 26, 3, 31, 38, 3
+  },
+  {
+    "cam1", 5, 4, 22, 4, 0, 39, 4
+  },
+  {
+    "cam3", 8, 0, 23, 4, 1, 40, 5
+  },
 };
 
 #define CAM_NPORTS (sizeof(g_cam_ports) / sizeof(g_cam_ports[0]))
@@ -140,6 +148,48 @@ static const struct cam_port_s g_cam_ports[] =
 #define CAM_CLK_GPLL_HZ    1188000000u
 #define CAM_CLK_TARGET_HZ  37125000u
 #define CAM_CLK_PIN_FUNC   3
+
+/* kickpi_camera_morph() 的各步，与那里说明中的表一一对应。ourbuf 为
+ * true 表示用 /dev/fb0 的缓冲，否则用 U-Boot 的；宽高为 0 表示沿用
+ * U-Boot 的。
+ */
+
+struct cam_morph_s
+{
+  bool     ourbuf;
+  uint32_t width;
+  uint32_t height;
+  int      origin;
+  const char *what;
+};
+
+static const struct cam_morph_s g_cam_morph[] =
+{
+  {
+    false,   0,    0, 0, "基线：U-Boot 原样"
+  },
+  {
+    true,    0,    0, 0, "只换帧缓冲地址"
+  },
+  {
+    false, 720,    0, 0, "只把宽改成 720"
+  },
+  {
+    false,   0, 1280, 0, "只把高改成 1280"
+  },
+  {
+    false, 720, 1280, 0, "几何改成全屏"
+  },
+  {
+    false, 720, 1280, 1, "再把起点移到有效区原点（0）"
+  },
+  {
+    true,  720, 1280, 1, "全部改完，等价于 fb_setup"
+  },
+  {
+    true,  720, 1280, 2, "★ 用旧的错误起点复现斜纹"
+  },
+};
 
 /****************************************************************************
  * Private Functions
@@ -211,6 +261,8 @@ static struct i2c_master_s     *g_cam_i2c;
 
 static void cam_power_on(const struct cam_port_s *port)
 {
+  uint32_t div;
+
   /* 传感器模拟供电。dtsi 里是个 regulator-fixed，使能脚高有效。
    * 不开的话 I2C 上没有任何应答 —— 与触摸那次"没供电扫不到器件"
    * 是同一类问题。
@@ -225,25 +277,23 @@ static void cam_power_on(const struct cam_port_s *port)
    * 选源 gpll，分频 32 -> 37.125MHz。分频字段写 (n-1)。
    */
 
-  {
-    uint32_t div = CAM_CLK_GPLL_HZ / CAM_CLK_TARGET_HZ;
+  div = CAM_CLK_GPLL_HZ / CAM_CLK_TARGET_HZ;
 
-    rk3576_pinmux_set(port->clk_bank, port->clk_pin, CAM_CLK_PIN_FUNC);
-    rk3576_clk_setmux(port->clk_sel_con, CAM_CLK_MUX_SHIFT, 2,
-                      CAM_CLK_MUX_GPLL);
-    rk3576_clk_setmux(port->clk_sel_con, CAM_CLK_DIV_SHIFT, 8, div - 1);
-    rk3576_clk_gate(CAM_CLK_GATE_CON, port->clk_gate_bit, true);
+  rk3576_pinmux_set(port->clk_bank, port->clk_pin, CAM_CLK_PIN_FUNC);
+  rk3576_clk_setmux(port->clk_sel_con, CAM_CLK_MUX_SHIFT, 2,
+                    CAM_CLK_MUX_GPLL);
+  rk3576_clk_setmux(port->clk_sel_con, CAM_CLK_DIV_SHIFT, 8, div - 1);
+  rk3576_clk_gate(CAM_CLK_GATE_CON, port->clk_gate_bit, true);
 
-    syslog(LOG_INFO,
-           "摄像头: %s MCLK gpio%d-%d 功能%d，gpll/%" PRIu32
-           " = %" PRIu32 "Hz\n",
-           port->name, port->clk_bank, port->clk_pin, CAM_CLK_PIN_FUNC,
-           div, CAM_CLK_GPLL_HZ / div);
+  syslog(LOG_INFO,
+         "摄像头: %s MCLK gpio%d-%d 功能%d，gpll/%" PRIu32
+         " = %" PRIu32 "Hz\n",
+         port->name, port->clk_bank, port->clk_pin, CAM_CLK_PIN_FUNC,
+         div, CAM_CLK_GPLL_HZ / div);
 
-    /* 传感器上电后需要若干个 INCK 周期才能响应，给足余量。 */
+  /* 传感器上电后需要若干个 INCK 周期才能响应，给足余量。 */
 
-    up_mdelay(30);
-  }
+  up_mdelay(30);
 }
 
 static int cam_probe_port(const struct cam_port_s *port)
@@ -674,6 +724,8 @@ int kickpi_camera_capture(void)
   size_t step;
   size_t i;
   int ret;
+  size_t acc2;
+  int    b;
 
   if (g_cam_buf[0] == NULL || g_cam_buf[1] == NULL ||
       g_cam_buf[2] == NULL)
@@ -685,7 +737,8 @@ int kickpi_camera_capture(void)
 
       for (j = 0; j < 3; j++)
         {
-          buf[j] = kmm_memalign(CAM_BUF_ALIGN, CAM_FRAME_BYTES + CAM_DMA_SLACK);
+          buf[j] = kmm_memalign(CAM_BUF_ALIGN,
+                                CAM_FRAME_BYTES + CAM_DMA_SLACK);
           if (buf[j] == NULL)
             {
               while (j > 0)
@@ -909,36 +962,33 @@ int kickpi_camera_capture(void)
 
   /* 百分位。用 256 桶的直方图求，够精度，也不用排序两百万个数。 */
 
-  {
-    size_t acc2 = 0;
-    int    b;
+  acc2 = 0;
 
-    g_cam_p1 = 0;
-    g_cam_p50 = 0;
-    g_cam_p99 = 65535;
+  g_cam_p1 = 0;
+  g_cam_p50 = 0;
+  g_cam_p99 = 65535;
 
-    for (b = 0; b < 256; b++)
-      {
-        size_t prev = acc2;
+  for (b = 0; b < 256; b++)
+    {
+      size_t prev = acc2;
 
-        acc2 += g_cam_hist[b];
+      acc2 += g_cam_hist[b];
 
-        if (prev < nsamp / 100 && acc2 >= nsamp / 100)
-          {
-            g_cam_p1 = (uint16_t)(b << 8);
-          }
+      if (prev < nsamp / 100 && acc2 >= nsamp / 100)
+        {
+          g_cam_p1 = (uint16_t)(b << 8);
+        }
 
-        if (prev < nsamp / 2 && acc2 >= nsamp / 2)
-          {
-            g_cam_p50 = (uint16_t)(b << 8);
-          }
+      if (prev < nsamp / 2 && acc2 >= nsamp / 2)
+        {
+          g_cam_p50 = (uint16_t)(b << 8);
+        }
 
-        if (prev < nsamp - nsamp / 100 && acc2 >= nsamp - nsamp / 100)
-          {
-            g_cam_p99 = (uint16_t)(b << 8);
-          }
-      }
-  }
+      if (prev < nsamp - nsamp / 100 && acc2 >= nsamp - nsamp / 100)
+        {
+          g_cam_p99 = (uint16_t)(b << 8);
+        }
+    }
 
   if (!g_cam_quiet)
     {
@@ -948,20 +998,16 @@ int kickpi_camera_capture(void)
 
   /* 直方图只打非空的桶，否则 256 行刷屏还看不出重点。 */
 
-  {
-    int b;
-
-    for (b = 0; b < 256; b++)
-      {
-        if (!g_cam_quiet && g_cam_hist[b] * 1000 / nsamp > 0)
-          {
-            syslog(LOG_INFO, "  桶[%3d] %5u.. 占 %lu%%\n",
-                   b, (unsigned)(b << 8),
-                   (unsigned long)(g_cam_hist[b] * 100 / npix));
-            up_mdelay(2);
-          }
-      }
-  }
+  for (b = 0; b < 256; b++)
+    {
+      if (!g_cam_quiet && g_cam_hist[b] * 1000 / nsamp > 0)
+        {
+          syslog(LOG_INFO, "  桶[%3d] %5u.. 占 %lu%%\n",
+                 b, (unsigned)(b << 8),
+                 (unsigned long)(g_cam_hist[b] * 100 / npix));
+          up_mdelay(2);
+        }
+    }
 
   /* ★ 拉伸用 p1~p99，不用 min~max。
    *
@@ -973,7 +1019,6 @@ int kickpi_camera_capture(void)
 
   g_cam_min = g_cam_p1;
   g_cam_max = g_cam_p99;
-
 
   if (mx == 0)
     {
@@ -1274,8 +1319,8 @@ int kickpi_camera_fbtest(int pattern)
                 break;
 
               case 6:
-                /* 缓冲左上区域的一个 100x100 白方块（行 100~200、列 100~200），
-                 * 其余全黑。
+                /* 缓冲左上区域的一个 100x100 白方块（行 100~200、
+                 * 列 100~200），其余全黑。
                  *
                  * ★ 为什么改用方块而不是条纹
                  *
@@ -1331,6 +1376,8 @@ int kickpi_camera_show_seq(int gamma, int seq)
   int fd;
   int dx;
   int dy;
+  uint32_t maxpix;
+  int b;
 
   if (g_cam_buf[g_cam_ready] == NULL)
     {
@@ -1413,28 +1460,27 @@ int kickpi_camera_show_seq(int gamma, int seq)
    * 问题，跟"链路通不通"无关，先不引入。
    */
 
-  {
-    uint32_t maxpix = (uint32_t)(pinfo.fblen / 4);
+  maxpix = (uint32_t)(pinfo.fblen / 4);
 
-    rowpix = pinfo.stride / 4;
+  rowpix = pinfo.stride / 4;
 
-    memset(outhist, 0, sizeof(outhist));
+  memset(outhist, 0, sizeof(outhist));
 
-    /* ★ 把画面竖直居中，而不是贴在最上面。
-     *
-     *   摄像头是横的 1932x1096、屏是竖的 720x1280，按宽度等比缩放之后
-     *   只有 720x408，其余三分之二是黑的。贴在顶端时，"上面一小条有东西、
-     *   下面一大片黑"这个样子与"整屏全黑"在昏暗画面下很难分辨；居中之后
-     *   上下各留一条黑边，一眼就能看出画面区域在哪，也就能判断是画面暗
-     *   还是根本没画上去。
-     */
+  /* ★ 把画面竖直居中，而不是贴在最上面。
+   *
+   *   摄像头是横的 1932x1096、屏是竖的 720x1280，按宽度等比缩放之后
+   *   只有 720x408，其余三分之二是黑的。贴在顶端时，"上面一小条有东西、
+   *   下面一大片黑"这个样子与"整屏全黑"在昏暗画面下很难分辨；居中之后
+   *   上下各留一条黑边，一眼就能看出画面区域在哪，也就能判断是画面暗
+   *   还是根本没画上去。
+   */
 
-    imgh = (int)IMX415_MODE_HEIGHT * (int)vinfo.xres / (int)IMX415_MODE_WIDTH;
-    yoff = ((int)vinfo.yres - imgh) / 2;
-    if (yoff < 0)
-      {
-        yoff = 0;
-      }
+  imgh = (int)IMX415_MODE_HEIGHT * (int)vinfo.xres / (int)IMX415_MODE_WIDTH;
+  yoff = ((int)vinfo.yres - imgh) / 2;
+  if (yoff < 0)
+    {
+      yoff = 0;
+    }
 
   /* ★ 只遍历画面区，黑边不每帧重写。
    *
@@ -1607,7 +1653,6 @@ int kickpi_camera_show_seq(int gamma, int seq)
             0xff000000u | (g << 16) | (g << 8) | g;
         }
     }
-  }
 
   /* ★ 必须把缓存刷回 DDR。
    *
@@ -1637,7 +1682,6 @@ int kickpi_camera_show_seq(int gamma, int seq)
     {
       up_flush_dcache((uintptr_t)fb, (uintptr_t)fb + pinfo.fblen);
     }
-
 
   close(fd);
 
@@ -1697,7 +1741,8 @@ int kickpi_camera_show_seq(int gamma, int seq)
     }
 
   syslog(LOG_INFO,
-         "摄像头: 已送屏 %ux%u 画面区 %dx%d @y=%d（按 %u~%u 拉伸，伽马%s）\n",
+         "摄像头: 已送屏 %ux%u 画面区 %dx%d @y=%d"
+         "（按 %u~%u 拉伸，伽马%s）\n",
          vinfo.xres, vinfo.yres, vinfo.xres, imgh, yoff,
          g_cam_min, g_cam_max, gamma ? "开" : "关");
 
@@ -1709,21 +1754,17 @@ int kickpi_camera_show_seq(int gamma, int seq)
    *   那个 8 位灰度 —— 它若分布正常而屏幕仍黑，嫌疑就整个转到显示侧。
    */
 
-  {
-    int b;
-
-    for (b = 0; b < 16; b++)
-      {
-        if (outhist[b] != 0)
-          {
-            syslog(LOG_INFO, "  输出灰度[%3d..%3d] %lu%%\n",
-                   b * 16, b * 16 + 15,
-                   (unsigned long)((uint64_t)outhist[b] * 100 /
-                                   ((uint64_t)vinfo.xres * vinfo.yres)));
-            up_mdelay(2);
-          }
-      }
-  }
+  for (b = 0; b < 16; b++)
+    {
+      if (outhist[b] != 0)
+        {
+          syslog(LOG_INFO, "  输出灰度[%3d..%3d] %lu%%\n",
+                 b * 16, b * 16 + 15,
+                 (unsigned long)((uint64_t)outhist[b] * 100 /
+                                 ((uint64_t)vinfo.xres * vinfo.yres)));
+          up_mdelay(2);
+        }
+    }
 
   return OK;
 }
@@ -1786,6 +1827,7 @@ int kickpi_camera_ubtest(int pattern)
                 break;
 
               case 2:
+
                 /* 竖条纹 —— 检验列方向映射 */
 
                 c = ((x / 32) & 1) ? 0xffffffffu : 0xff000000u;
@@ -1861,30 +1903,6 @@ int kickpi_camera_ubtest(int pattern)
 
 int kickpi_camera_morph(int step)
 {
-  /* 与上表一一对应。ourbuf 为 true 表示用 /dev/fb0 的缓冲，
-   * 否则用 U-Boot 的；宽高为 0 表示沿用 U-Boot 的。
-   */
-
-  static const struct
-  {
-    bool     ourbuf;
-    uint32_t width;
-    uint32_t height;
-    int      origin;
-    const char *what;
-  }
-  steps[] =
-  {
-    { false,   0,    0, 0, "基线：U-Boot 原样"          },
-    { true,    0,    0, 0, "只换帧缓冲地址"             },
-    { false, 720,    0, 0, "只把宽改成 720"             },
-    { false,   0, 1280, 0, "只把高改成 1280"            },
-    { false, 720, 1280, 0, "几何改成全屏"               },
-    { false, 720, 1280, 1, "再把起点移到有效区原点（0）" },
-    { true,  720, 1280, 1, "全部改完，等价于 fb_setup"  },
-    { true,  720, 1280, 2, "★ 用旧的错误起点复现斜纹"    },
-  };
-
   struct fb_planeinfo_s pinfo;
   uintptr_t  fbaddr;
   uintptr_t  ourfb = 0;
@@ -1899,10 +1917,11 @@ int kickpi_camera_morph(int step)
   int x;
   int y;
 
-  if (step < 0 || step >= (int)(sizeof(steps) / sizeof(steps[0])))
+  if (step < 0 ||
+      step >= (int)(sizeof(g_cam_morph) / sizeof(g_cam_morph[0])))
     {
       syslog(LOG_ERR, "摄像头: 步骤号要在 0~%d 之间\n",
-             (int)(sizeof(steps) / sizeof(steps[0])) - 1);
+             (int)(sizeof(g_cam_morph) / sizeof(g_cam_morph[0])) - 1);
       return -EINVAL;
     }
 
@@ -1910,7 +1929,7 @@ int kickpi_camera_morph(int step)
    * 没初始化而失败。
    */
 
-  if (steps[step].ourbuf)
+  if (g_cam_morph[step].ourbuf)
     {
       int fd = open("/dev/fb0", O_RDWR);
 
@@ -1940,10 +1959,12 @@ int kickpi_camera_morph(int step)
         }
     }
 
-  syslog(LOG_INFO, "摄像头: 第 %d 步 —— %s\n", step, steps[step].what);
+  syslog(LOG_INFO, "摄像头: 第 %d 步 —— %s\n",
+         step, g_cam_morph[step].what);
 
-  ret = rk3576_vop2_try_window(ourfb, steps[step].width, steps[step].height,
-                               steps[step].origin,
+  ret = rk3576_vop2_try_window(ourfb, g_cam_morph[step].width,
+                               g_cam_morph[step].height,
+                               g_cam_morph[step].origin,
                                &fbaddr, &w, &h, &stride);
   if (ret < 0)
     {
@@ -1958,7 +1979,7 @@ int kickpi_camera_morph(int step)
    *   而这里只是个调试命令，不值得冒这个险。
    */
 
-  limit = steps[step].ourbuf ? ourlen : (size_t)0x400000;
+  limit = g_cam_morph[step].ourbuf ? ourlen : (size_t)0x400000;
 
   fb     = (uint32_t *)fbaddr;
   rowpix = stride / 4;
@@ -2146,6 +2167,9 @@ int kickpi_camera_preview(int frames)
   int dropped = 0;
   int ret = OK;
   int stop = 0;
+  int fd;
+  uint32_t s0;
+  int64_t ms;
 
   if (frames <= 0)
     {
@@ -2180,33 +2204,31 @@ int kickpi_camera_preview(int frames)
    *   就得保证有人做过第一次。
    */
 
-  {
-    int fd = open("/dev/fb0", O_RDWR);
+  fd = open("/dev/fb0", O_RDWR);
 
-    if (fd >= 0)
-      {
-        struct fb_planeinfo_s pi;
+  if (fd >= 0)
+    {
+      struct fb_planeinfo_s pi;
 
-        memset(&pi, 0, sizeof(pi));
-        if (ioctl(fd, FBIOGET_PLANEINFO, (unsigned long)&pi) >= 0 &&
-            pi.fbmem != NULL && pi.fblen >= 4)
-          {
-            uint32_t *q = (uint32_t *)pi.fbmem;
-            size_t    n = pi.fblen / 4;
-            size_t    k;
+      memset(&pi, 0, sizeof(pi));
+      if (ioctl(fd, FBIOGET_PLANEINFO, (unsigned long)&pi) >= 0 &&
+          pi.fbmem != NULL && pi.fblen >= 4)
+        {
+          uint32_t *q = (uint32_t *)pi.fbmem;
+          size_t    n = pi.fblen / 4;
+          size_t    k;
 
-            for (k = 0; k < n; k++)
-              {
-                q[k] = 0xff000000u;
-              }
+          for (k = 0; k < n; k++)
+            {
+              q[k] = 0xff000000u;
+            }
 
-            up_flush_dcache((uintptr_t)pi.fbmem,
-                            (uintptr_t)pi.fbmem + pi.fblen);
-          }
+          up_flush_dcache((uintptr_t)pi.fbmem,
+                          (uintptr_t)pi.fbmem + pi.fblen);
+        }
 
-        close(fd);
-      }
-  }
+      close(fd);
+    }
 
   g_cam_quiet = true;
 
@@ -2232,17 +2254,13 @@ int kickpi_camera_preview(int frames)
 
   /* 预览同理：连续流的第一帧也是从半中间接上的，丢掉它。 */
 
-  {
-    uint32_t s0;
-
-    if (rk3576_cif_wait_frame(KICKPI_CAM_CSI_HOST, -1, 500, &s0) < 0)
-      {
-        rk3576_cif_stop(KICKPI_CAM_CSI_HOST);
-        g_cam_quiet = false;
-        syslog(LOG_ERR, "摄像头: 预览没等到首帧\n");
-        return -ETIMEDOUT;
-      }
-  }
+  if (rk3576_cif_wait_frame(KICKPI_CAM_CSI_HOST, -1, 500, &s0) < 0)
+    {
+      rk3576_cif_stop(KICKPI_CAM_CSI_HOST);
+      g_cam_quiet = false;
+      syslog(LOG_ERR, "摄像头: 预览没等到首帧\n");
+      return -ETIMEDOUT;
+    }
 
   clock_gettime(CLOCK_MONOTONIC, &t0);
 
@@ -2363,25 +2381,23 @@ int kickpi_camera_preview(int frames)
   rk3576_cif_stop(KICKPI_CAM_CSI_HOST);
   g_cam_quiet = false;
 
-  {
-    int64_t ms = (int64_t)(t1.tv_sec - t0.tv_sec) * 1000 +
-                 (t1.tv_nsec - t0.tv_nsec) / 1000000;
+  ms = (int64_t)(t1.tv_sec - t0.tv_sec) * 1000 +
+       (t1.tv_nsec - t0.tv_nsec) / 1000000;
 
-    syslog(LOG_INFO,
-           "摄像头: 预览结束 %d 帧 / %lld ms = %lld.%02lld fps%s\n",
-           done, (long long)ms,
-           ms > 0 ? (long long)(done * 1000 / ms) : 0,
-           ms > 0 ? (long long)(done * 100000 / ms % 100) : 0,
-           stop ? "（按键停止）" : "");
+  syslog(LOG_INFO,
+         "摄像头: 预览结束 %d 帧 / %lld ms = %lld.%02lld fps%s\n",
+         done, (long long)ms,
+         ms > 0 ? (long long)(done * 1000 / ms) : 0,
+         ms > 0 ? (long long)(done * 100000 / ms % 100) : 0,
+         stop ? "（按键停止）" : "");
 
-    syslog(LOG_INFO,
-           "  每帧：等帧 %lld ms 失效缓存 %lld ms 送屏 %lld ms，"
-           "追不上而丢帧 %d 次\n",
-           done > 0 ? (long long)(wait_ms / done) : 0,
-           done > 0 ? (long long)(inv_ms / done) : 0,
-           done > 0 ? (long long)(shw_ms / done) : 0,
-           dropped);
-  }
+  syslog(LOG_INFO,
+         "  每帧：等帧 %lld ms 失效缓存 %lld ms 送屏 %lld ms，"
+         "追不上而丢帧 %d 次\n",
+         done > 0 ? (long long)(wait_ms / done) : 0,
+         done > 0 ? (long long)(inv_ms / done) : 0,
+         done > 0 ? (long long)(shw_ms / done) : 0,
+         dropped);
 
   return ret;
 }
@@ -2409,7 +2425,10 @@ static bool g_cam_live;
 static bool g_cam_v4l2;
 static uint16_t g_live_black;
 static uint16_t g_live_white;
-static int g_live_gain[3] = { AWB_Q8_UNITY, AWB_Q8_UNITY, AWB_Q8_UNITY };
+static int g_live_gain[3] =
+{
+  AWB_Q8_UNITY, AWB_Q8_UNITY, AWB_Q8_UNITY
+};
 
 void kickpi_camera_v4l2_busy(bool on)
 {
@@ -2540,7 +2559,11 @@ int kickpi_camera_live_frame(FAR uint32_t *argb, int w, int h,
 {
   const int phase = CONFIG_KICKPI_K7_BAYER_PHASE;
   uint32_t hist[64];
-  uint64_t sum[3] = { 0, 0, 0 };
+  uint64_t sum[3] =
+    {
+      0, 0, 0
+    };
+
   uint32_t stat;
   uint32_t n = 0;
   uint32_t span;
@@ -2550,6 +2573,12 @@ int kickpi_camera_live_frame(FAR uint32_t *argb, int w, int h,
   int dy;
   int slot;
   int i;
+  int rx;
+  int ry;
+  int offr;
+  int offb;
+  int offg1;
+  int offg2;
 
   if (!g_cam_live || argb == NULL || w <= 0 || h <= 0 ||
       w > CAM_SXTAB_MAX)
@@ -2617,59 +2646,57 @@ int kickpi_camera_live_frame(FAR uint32_t *argb, int w, int h,
    * 2=GBRG 3=BGGR，和 kickpi_k7_imgproc.c 的约定一致。
    */
 
-  {
-    int rx = phase & 1;
-    int ry = (phase >> 1) & 1;
-    int offr = ry * CAM_ROW_PIX + rx;
-    int offb = (1 - ry) * CAM_ROW_PIX + (1 - rx);
-    int offg1 = ry * CAM_ROW_PIX + (1 - rx);
-    int offg2 = (1 - ry) * CAM_ROW_PIX + rx;
+  rx = phase & 1;
+  ry = (phase >> 1) & 1;
+  offr = ry * CAM_ROW_PIX + rx;
+  offb = (1 - ry) * CAM_ROW_PIX + (1 - rx);
+  offg1 = ry * CAM_ROW_PIX + (1 - rx);
+  offg2 = (1 - ry) * CAM_ROW_PIX + rx;
 
-    black = g_live_black;
-    span = g_live_white > g_live_black ?
-           (uint32_t)(g_live_white - g_live_black) : 1;
-    memset(hist, 0, sizeof(hist));
+  black = g_live_black;
+  span = g_live_white > g_live_black ?
+         (uint32_t)(g_live_white - g_live_black) : 1;
+  memset(hist, 0, sizeof(hist));
 
-    for (dy = 0; dy < h; dy++)
-      {
-        int sy = (dy * (IMX415_MODE_HEIGHT - 2) / h) & ~1;
-        const uint16_t *row = raw + (size_t)sy * CAM_ROW_PIX;
-        uint32_t *out = argb + (size_t)dy * w;
+  for (dy = 0; dy < h; dy++)
+    {
+      int sy = (dy * (IMX415_MODE_HEIGHT - 2) / h) & ~1;
+      const uint16_t *row = raw + (size_t)sy * CAM_ROW_PIX;
+      uint32_t *out = argb + (size_t)dy * w;
 
-        for (dx = 0; dx < w; dx++)
-          {
-            const uint16_t *b = row + g_cam_sxtab[dx];
-            int c[3];
+      for (dx = 0; dx < w; dx++)
+        {
+          const uint16_t *b = row + g_cam_sxtab[dx];
+          int c[3];
 
-            c[0] = b[offr];
-            c[1] = (b[offg1] + b[offg2]) >> 1;
-            c[2] = b[offb];
+          c[0] = b[offr];
+          c[1] = (b[offg1] + b[offg2]) >> 1;
+          c[2] = b[offb];
 
-            /* 统计本帧：亮度直方图（G 通道）和各通道和，供下一帧用 */
+          /* 统计本帧：亮度直方图（G 通道）和各通道和，供下一帧用 */
 
-            if ((dx & 7) == 0 && (dy & 7) == 0)
-              {
-                hist[c[1] >> 10]++;
-                sum[0] += c[0];
-                sum[1] += c[1];
-                sum[2] += c[2];
-                n++;
-              }
+          if ((dx & 7) == 0 && (dy & 7) == 0)
+            {
+              hist[c[1] >> 10]++;
+              sum[0] += c[0];
+              sum[1] += c[1];
+              sum[2] += c[2];
+              n++;
+            }
 
-            for (i = 0; i < 3; i++)
-              {
-                int t = c[i] - black;
+          for (i = 0; i < 3; i++)
+            {
+              int t = c[i] - black;
 
-                t = t <= 0 ? 0 : (int)(((uint32_t)t * 255u) / span);
-                t = (t * g_live_gain[i]) >> 8;
-                c[i] = g_cam_gamma[t > 255 ? 255 : t];
-              }
+              t = t <= 0 ? 0 : (int)(((uint32_t)t * 255u) / span);
+              t = (t * g_live_gain[i]) >> 8;
+              c[i] = g_cam_gamma[t > 255 ? 255 : t];
+            }
 
-            out[dx] = 0xff000000u | ((uint32_t)c[0] << 16) |
-                      ((uint32_t)c[1] << 8) | (uint32_t)c[2];
-          }
-      }
-  }
+          out[dx] = 0xff000000u | ((uint32_t)c[0] << 16) |
+                    ((uint32_t)c[1] << 8) | (uint32_t)c[2];
+        }
+    }
 
   /* 更新下一帧用的拉伸范围（p1..p99）和灰世界白平衡 */
 
@@ -2799,7 +2826,8 @@ int kickpi_camera_vmax(int vmax)
   /* 1H = 10.53us，用整数算成 1000 倍避免浮点 */
 
   syslog(LOG_INFO,
-         "摄像头: VMAX=%d，一帧 %d.%02d ms，理论 %d.%d fps（曝光上限 %d 行）\n",
+         "摄像头: VMAX=%d，一帧 %d.%02d ms，"
+         "理论 %d.%d fps（曝光上限 %d 行）\n",
          vmax, vmax * 1053 / 100000, (vmax * 1053 / 1000) % 100,
          100000000 / (vmax * 1053) , (1000000000 / (vmax * 1053)) % 10,
          vmax - 8);

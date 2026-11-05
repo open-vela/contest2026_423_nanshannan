@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_vop2.c
+ * chip/rk3576/rk3576_vop2.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -86,6 +86,218 @@
 #define VOP_GATE_DCLK_VP0   13
 
 /****************************************************************************
+ * Private Types
+ ****************************************************************************/
+
+/* 寄存器 dump 用的名字表 */
+
+struct vop2_regname_s
+{
+  const char *name;
+  uint32_t    off;
+};
+
+/* U-Boot 留下的窗口配置。
+ *
+ * ★ 在覆盖之前存下来，因为它是**唯一一组被实测验证过能正常显示**的
+ *   参数 —— U-Boot 用它把 logo 显示出来了。我们自己配的参数取出来的
+ *   画面是错乱的，原因未明；有了这份备份，就能随时退回一个已知可用的
+ *   状态，把"显示通路本身有没有问题"和"我的配置对不对"分开验证。
+ */
+
+struct vop2_uboot_win_s
+{
+  uint32_t mst;
+  uint32_t vir;
+  uint32_t act;
+  uint32_t dsp;
+  uint32_t dsp_st;
+  uint32_t ctrl;
+  bool     valid;
+};
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+/* rk3576_vop2_dump_uboot_state()：U-Boot 留下的关键寄存器
+ * （相对 VOP2 基址）
+ */
+
+static const struct vop2_regname_s g_vop2_uboot_regs[] =
+{
+  {
+    "SYS_CTRL_MIPI0_INFACE", 0x0180
+  },
+  {
+    "SYS_AUTO_GATING",       0x0008
+  },
+  {
+    "SYS_PORT_CTRL_IMD",     0x0028
+  },
+  {
+    "VP0_DSP_CTRL",          0x0c00
+  },
+  {
+    "VP0_MIPI_CTRL",         0x0c04
+  },
+  {
+    "VP0_COLOR_BAR_CTRL",    0x0c08
+  },
+  {
+    "VP0_HTOTAL_HS_END",     0x0c48
+  },
+  {
+    "VP0_HACT_ST_END",       0x0c4c
+  },
+  {
+    "VP0_VTOTAL_VS_END",     0x0c50
+  },
+  {
+    "VP0_VACT_ST_END",       0x0c54
+  },
+  {
+    "VP1_DSP_CTRL",          0x0d00
+  },
+  {
+    "VP1_MIPI_CTRL",         0x0d04
+  },
+  {
+    "VP1_COLOR_BAR_CTRL",    0x0d08
+  },
+  {
+    "VP1_HTOTAL_HS_END",     0x0d48
+  },
+  {
+    "VP1_HACT_ST_END",       0x0d4c
+  },
+  {
+    "VP1_VTOTAL_VS_END",     0x0d50
+  },
+  {
+    "VP1_VACT_ST_END",       0x0d54
+  },
+  {
+    "VP2_DSP_CTRL",          0x0e00
+  },
+  {
+    "ESMART0_REGION0_CTRL",  0x1810
+  },
+  {
+    "ESMART0_REGION0_MST",   0x1814
+  },
+  {
+    "ESMART0_REGION0_VIR",   0x181c
+  },
+  {
+    "ESMART0_REGION0_ACT",   0x1820
+  },
+  {
+    "ESMART0_REGION0_DSP",   0x1824
+  },
+  {
+    "OVL_CTRL_VP0",          0x0600
+  },
+  {
+    "OVL_LAYER_SEL_VP0",     0x0604
+  },
+  {
+    "OVL_CTRL_VP1",          0x0700
+  },
+  {
+    "OVL_LAYER_SEL_VP1",     0x0704
+  },
+
+  /* ESMART0 全为 0，说明 U-Boot 的 logo 走的是别的图层。
+   * Cluster 是带 AFBC 的图层，Rockchip 的 U-Boot logo 常用它。
+   */
+
+  {
+    "CLUSTER0_WIN0_CTRL0",   0x1000
+  },
+  {
+    "CLUSTER0_WIN0_YRGB_MST", 0x1010
+  },
+  {
+    "CLUSTER0_WIN0_VIR",     0x101c
+  },
+  {
+    "CLUSTER0_WIN0_ACT_INFO", 0x1020
+  },
+  {
+    "CLUSTER0_WIN0_DSP_INFO", 0x1024
+  },
+  {
+    "CLUSTER0_WIN0_DSP_ST",  0x1028
+  },
+  {
+    "CLUSTER1_WIN0_CTRL0",   0x1200
+  },
+  {
+    "CLUSTER1_WIN0_YRGB_MST", 0x1210
+  },
+  {
+    "ESMART1_REGION0_CTRL",  0x1a10
+  },
+  {
+    "ESMART1_REGION0_MST",   0x1a14
+  },
+};
+
+/* rk3576_vop2_dump_win()：ESMART1 图层寄存器块（相对图层基址） */
+
+static const struct vop2_regname_s g_vop2_win_regs[] =
+{
+  {
+    "ESMART_CTRL0",      RK3576_SMART_CTRL0
+  },
+  {
+    "ESMART_CTRL1",      RK3576_SMART_CTRL1
+  },
+  {
+    "AXI_CTRL_IMD",      RK3576_SMART_AXI_CTRL_IMD
+  },
+  {
+    "REGION0_MST_CTL",   RK3576_SMART_REGION0_CTRL
+  },
+  {
+    "REGION0_MST_YRGB",  RK3576_SMART_REGION0_YRGB_MST
+  },
+  {
+    "REGION0_MST_CBCR",  0x18
+  },
+  {
+    "REGION0_VIR",       RK3576_SMART_REGION0_VIR
+  },
+  {
+    "REGION0_ACT_INFO",  RK3576_SMART_REGION0_ACT_INFO
+  },
+  {
+    "REGION0_DSP_INFO",  RK3576_SMART_REGION0_DSP_INFO
+  },
+  {
+    "REGION0_DSP_OFFSET", RK3576_SMART_REGION0_DSP_ST
+  },
+  {
+    "REGION0_SCL_CTRL",  RK3576_SMART_REGION0_SCL_CTRL
+  },
+  {
+    "REGION0_SCL_FACTOR", RK3576_SMART_REGION0_SCL_FACTOR_YRGB
+  },
+  {
+    "REGION0_SCL_OFFSET", 0x3c
+  },
+  {
+    "REGION1_MST_CTL",   0x40
+  },
+  {
+    "PORT_SEL_IMD",      RK3576_SMART_PORT_SEL_IMD
+  },
+};
+
+static struct vop2_uboot_win_s g_uboot_win;
+
+/****************************************************************************
  * Private Functions
  ****************************************************************************/
 
@@ -162,7 +374,8 @@ int rk3576_vop2_probe(void)
       return -ENODEV;
     }
 
-  syslog(LOG_INFO, "VOP2: VERSION=0x%08" PRIx32 " MIPI0_IF=0x%08" PRIx32 "\n",
+  syslog(LOG_INFO,
+         "VOP2: VERSION=0x%08" PRIx32 " MIPI0_IF=0x%08" PRIx32 "\n",
          version, vop_getreg(RK3576_VOP2_MIPI0_IF_CTRL));
   return OK;
 }
@@ -173,6 +386,7 @@ int rk3576_vop2_colorbar(const struct rk3576_vop2_timing_s *t, bool enable)
   uint32_t vtotal;
   uint32_t hact_st;
   uint32_t vact_st;
+  uint32_t iface;
 
   if (t == NULL)
     {
@@ -255,16 +469,14 @@ int rk3576_vop2_colorbar(const struct rk3576_vop2_timing_s *t, bool enable)
 
   /* 回读接口路由，确认 port_sel 真的落到了 VP0（bit[3:2] 应为 0）。 */
 
-  {
-    uint32_t iface = vop_getreg(RK3576_VOP2_MIPI0_IF_CTRL);
+  iface = vop_getreg(RK3576_VOP2_MIPI0_IF_CTRL);
 
-    syslog(LOG_INFO,
-           "VOP2: MIPI0 接口 0x%08" PRIx32 " 取自 VP%" PRIu32
-           " out_en=%" PRIu32 " clk_out_en=%" PRIu32 "\n",
-           iface, (iface >> RK3576_MIPI_IF_PORT_SEL_SHIFT) & 3,
-           iface & RK3576_MIPI_IF_OUT_EN ? 1 : 0,
-           (iface & RK3576_MIPI_IF_CLK_OUT_EN) ? 1 : 0);
-  }
+  syslog(LOG_INFO,
+         "VOP2: MIPI0 接口 0x%08" PRIx32 " 取自 VP%" PRIu32
+         " out_en=%" PRIu32 " clk_out_en=%" PRIu32 "\n",
+         iface, (iface >> RK3576_MIPI_IF_PORT_SEL_SHIFT) & 3,
+         iface & RK3576_MIPI_IF_OUT_EN ? 1 : 0,
+         (iface & RK3576_MIPI_IF_CLK_OUT_EN) ? 1 : 0);
 
   return OK;
 }
@@ -348,8 +560,10 @@ int rk3576_vop2_takeover(uintptr_t buffer, uint32_t *width, uint32_t *height,
   uint32_t h;
 
   ctrl = vop_getreg(RK3576_VOP2_ESMART1_BASE + RK3576_SMART_REGION0_CTRL);
-  act  = vop_getreg(RK3576_VOP2_ESMART1_BASE + RK3576_SMART_REGION0_ACT_INFO);
-  dsp  = vop_getreg(RK3576_VOP2_ESMART1_BASE + RK3576_SMART_REGION0_DSP_INFO);
+  act  = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                    RK3576_SMART_REGION0_ACT_INFO);
+  dsp  = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                    RK3576_SMART_REGION0_DSP_INFO);
   vir  = vop_getreg(RK3576_VOP2_ESMART1_BASE + RK3576_SMART_REGION0_VIR);
 
   syslog(LOG_INFO,
@@ -445,6 +659,8 @@ int rk3576_vop2_takeover(uintptr_t buffer, uint32_t *width, uint32_t *height,
 
 int rk3576_vop2_fb_pan(uintptr_t buffer)
 {
+  int us;
+
   if (buffer == 0)
     {
       return -EINVAL;
@@ -473,41 +689,37 @@ int rk3576_vop2_fb_pan(uintptr_t buffer)
    *   NuttX 侧没有注册 VOP2 的中断处理，开了却没人应答会变成中断风暴。
    */
 
-  {
-    int us;
+  vop_putreg(RK3576_VOP2_VP1_INT_CLR,
+             (RK3576_VOP2_INT_FS << 16) | RK3576_VOP2_INT_FS);
 
-    vop_putreg(RK3576_VOP2_VP1_INT_CLR,
-               (RK3576_VOP2_INT_FS << 16) | RK3576_VOP2_INT_FS);
+  for (us = 0; us < 25000; us++)     /* 25ms > 60Hz 的一帧 16.7ms */
+    {
+      if ((vop_getreg(RK3576_VOP2_VP1_INT_RAW) & RK3576_VOP2_INT_FS) != 0)
+        {
+          break;
+        }
 
-    for (us = 0; us < 25000; us++)     /* 25ms > 60Hz 的一帧 16.7ms */
-      {
-        if ((vop_getreg(RK3576_VOP2_VP1_INT_RAW) & RK3576_VOP2_INT_FS) != 0)
-          {
-            break;
-          }
+      up_udelay(1);
+    }
 
-        up_udelay(1);
-      }
+  if (us >= 25000)
+    {
+      /* 等不到帧开始就别一直等下去 —— 宁可这一帧不同步，也不要把
+       * 上层卡死。只报一次，避免刷屏。
+       */
 
-    if (us >= 25000)
-      {
-        /* 等不到帧开始就别一直等下去 —— 宁可这一帧不同步，也不要把
-         * 上层卡死。只报一次，避免刷屏。
-         */
+      static bool warned = false;
 
-        static bool warned = false;
-
-        if (!warned)
-          {
-            warned = true;
-            syslog(LOG_WARNING,
-                   "VOP2: 等不到 VP%d 的帧开始（INT_RAW=0x%08" PRIx32
-                   "），翻页未与 vsync 同步\n",
-                   RK3576_VOP2_MIPI_VP,
-                   vop_getreg(RK3576_VOP2_VP1_INT_RAW));
-          }
-      }
-  }
+      if (!warned)
+        {
+          warned = true;
+          syslog(LOG_WARNING,
+                 "VOP2: 等不到 VP%d 的帧开始（INT_RAW=0x%08" PRIx32
+                 "），翻页未与 vsync 同步\n",
+                 RK3576_VOP2_MIPI_VP,
+                 vop_getreg(RK3576_VOP2_VP1_INT_RAW));
+        }
+    }
 
   return OK;
 }
@@ -542,30 +754,20 @@ int rk3576_vop2_fb_pan(uintptr_t buffer)
  *
  ****************************************************************************/
 
-/* U-Boot 留下的窗口配置。
- *
- * ★ 在覆盖之前存下来，因为它是**唯一一组被实测验证过能正常显示**的
- *   参数 —— U-Boot 用它把 logo 显示出来了。我们自己配的参数取出来的
- *   画面是错乱的，原因未明；有了这份备份，就能随时退回一个已知可用的
- *   状态，把"显示通路本身有没有问题"和"我的配置对不对"分开验证。
- */
-
-static struct
-{
-  uint32_t mst;
-  uint32_t vir;
-  uint32_t act;
-  uint32_t dsp;
-  uint32_t dsp_st;
-  uint32_t ctrl;
-  bool     valid;
-}
-g_uboot_win;
-
 int rk3576_vop2_fb_setup(uintptr_t buffer, uint32_t width, uint32_t height,
                          uint32_t stride_bytes)
 {
   uint32_t ctrl;
+  uint32_t s0;
+  uint32_t s1;
+  uint32_t axi;
+  uint32_t v;
+  int vp;
+  uint32_t rb_act;
+  uint32_t rb_dsp;
+  uint32_t rb_vir;
+  uint32_t rb_mst;
+  uint32_t rb_ctl;
 
   if (buffer == 0 || width == 0 || height == 0)
     {
@@ -579,34 +781,32 @@ int rk3576_vop2_fb_setup(uintptr_t buffer, uint32_t width, uint32_t height,
    *   PORT_SEL_IMD。先看清楚现状，再决定动哪个窗口。
    */
 
-  {
-    uint32_t s0 = vop_getreg(RK3576_VOP2_ESMART0_BASE +
-                             RK3576_SMART_PORT_SEL_IMD);
-    uint32_t s1 = vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                             RK3576_SMART_PORT_SEL_IMD);
+  s0 = vop_getreg(RK3576_VOP2_ESMART0_BASE +
+                  RK3576_SMART_PORT_SEL_IMD);
+  s1 = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                  RK3576_SMART_PORT_SEL_IMD);
 
-    syslog(LOG_INFO,
-           "VOP2: ESMART0 归VP%" PRIu32 " CTRL=0x%08" PRIx32
-           " MST=0x%08" PRIx32 " VIR=%" PRIu32 "\n",
-           s0 & RK3576_SMART_PORT_SEL_MASK,
-           vop_getreg(RK3576_VOP2_ESMART0_BASE +
-                      RK3576_SMART_REGION0_CTRL),
-           vop_getreg(RK3576_VOP2_ESMART0_BASE +
-                      RK3576_SMART_REGION0_YRGB_MST),
-           vop_getreg(RK3576_VOP2_ESMART0_BASE +
-                      RK3576_SMART_REGION0_VIR));
+  syslog(LOG_INFO,
+         "VOP2: ESMART0 归VP%" PRIu32 " CTRL=0x%08" PRIx32
+         " MST=0x%08" PRIx32 " VIR=%" PRIu32 "\n",
+         s0 & RK3576_SMART_PORT_SEL_MASK,
+         vop_getreg(RK3576_VOP2_ESMART0_BASE +
+                    RK3576_SMART_REGION0_CTRL),
+         vop_getreg(RK3576_VOP2_ESMART0_BASE +
+                    RK3576_SMART_REGION0_YRGB_MST),
+         vop_getreg(RK3576_VOP2_ESMART0_BASE +
+                    RK3576_SMART_REGION0_VIR));
 
-    syslog(LOG_INFO,
-           "VOP2: ESMART1 归VP%" PRIu32 " CTRL=0x%08" PRIx32
-           " MST=0x%08" PRIx32 " VIR=%" PRIu32 "\n",
-           s1 & RK3576_SMART_PORT_SEL_MASK,
-           vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                      RK3576_SMART_REGION0_CTRL),
-           vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                      RK3576_SMART_REGION0_YRGB_MST),
-           vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                      RK3576_SMART_REGION0_VIR));
-  }
+  syslog(LOG_INFO,
+         "VOP2: ESMART1 归VP%" PRIu32 " CTRL=0x%08" PRIx32
+         " MST=0x%08" PRIx32 " VIR=%" PRIu32 "\n",
+         s1 & RK3576_SMART_PORT_SEL_MASK,
+         vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                    RK3576_SMART_REGION0_CTRL),
+         vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                    RK3576_SMART_REGION0_YRGB_MST),
+         vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                    RK3576_SMART_REGION0_VIR));
 
   if (!g_uboot_win.valid)
     {
@@ -651,20 +851,18 @@ int rk3576_vop2_fb_setup(uintptr_t buffer, uint32_t width, uint32_t height,
    *   我们用的是 kmm 分配的物理连续内存，本来就不需要 MMU，直接旁路。
    */
 
-  {
-    uint32_t axi = vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                              RK3576_SMART_AXI_CTRL_IMD);
+  axi = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                   RK3576_SMART_AXI_CTRL_IMD);
 
-    syslog(LOG_INFO,
-           "VOP2: ESMART1 AXI_CTRL=0x%08" PRIx32 " MMU %s\n",
-           axi, (axi & RK3576_SMART_MMU_BYPASS) ? "已旁路" : "生效中");
+  syslog(LOG_INFO,
+         "VOP2: ESMART1 AXI_CTRL=0x%08" PRIx32 " MMU %s\n",
+         axi, (axi & RK3576_SMART_MMU_BYPASS) ? "已旁路" : "生效中");
 
-    /* ★ 不改这一位 —— 置 1 去旁路会让屏幕彻底变黑，连整屏填白
-     * 都读不到。U-Boot 正是用 bit2=0 显示了自己的 logo，说明
-     * 这条路径本就是直通的，动它反而破坏取数。这条负面结论
-     * 留在这里，下次不必重走一遍。
-     */
-  }
+  /* ★ 不改这一位 —— 置 1 去旁路会让屏幕彻底变黑，连整屏填白
+   * 都读不到。U-Boot 正是用 bit2=0 显示了自己的 logo，说明
+   * 这条路径本就是直通的，动它反而破坏取数。这条负面结论
+   * 留在这里，下次不必重走一遍。
+   */
 
   /* ★ 缩放器必须一起设成 1:1。
    *
@@ -709,7 +907,8 @@ int rk3576_vop2_fb_setup(uintptr_t buffer, uint32_t width, uint32_t height,
 
   ctrl = vop_getreg(RK3576_VOP2_ESMART1_BASE + RK3576_SMART_REGION0_CTRL);
 
-  syslog(LOG_INFO, "VOP2: 原格式 %" PRIu32 "（0=ARGB8888 2=RGB888 3=RGB565）\n",
+  syslog(LOG_INFO,
+         "VOP2: 原格式 %" PRIu32 "（0=ARGB8888 2=RGB888 3=RGB565）\n",
          (ctrl >> RK3576_SMART_REGION0_CTRL_FORMAT_SHIFT) & 0x1f);
 
   ctrl &= ~(0x1fu << RK3576_SMART_REGION0_CTRL_FORMAT_SHIFT);
@@ -730,36 +929,33 @@ int rk3576_vop2_fb_setup(uintptr_t buffer, uint32_t width, uint32_t height,
    *   COLOR_BAR_CTRL 是影子寄存器，跟着下面那次 CFG_DONE 一起提交。
    */
 
-  {
-    uint32_t v;
-    int vp = RK3576_VOP2_MIPI_VP;
+  vp = RK3576_VOP2_MIPI_VP;
 
-    v = vop_getreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL0_IMD);
-    vop_putreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL0_IMD,
-               v | (1u << (RK3576_AXI_PORT_URGENCY_EN_SHIFT + vp)));
+  v = vop_getreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL0_IMD);
+  vop_putreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL0_IMD,
+             v | (1u << (RK3576_AXI_PORT_URGENCY_EN_SHIFT + vp)));
 
-    v = vop_getreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL1_IMD);
-    vop_putreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL1_IMD,
-               v | (1u << (RK3576_AXI_PORT_URGENCY_EN_SHIFT + vp)));
+  v = vop_getreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL1_IMD);
+  vop_putreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL1_IMD,
+             v | (1u << (RK3576_AXI_PORT_URGENCY_EN_SHIFT + vp)));
 
-    /* bit0 是内置彩条使能，必须保持原样（0）。 */
+  /* bit0 是内置彩条使能，必须保持原样（0）。 */
 
-    v = vop_getreg(VP1(RK3576_VP_COLOR_BAR_CTRL));
-    v &= ~((RK3576_VP_URGENCY_TH_MASK << RK3576_VP_URGENCY_THL_SHIFT) |
-           (RK3576_VP_URGENCY_TH_MASK << RK3576_VP_URGENCY_THH_SHIFT));
-    v |= RK3576_VP_URGENCY_EN |
-         ((uint32_t)RK3576_VP_URGENCY_THL << RK3576_VP_URGENCY_THL_SHIFT) |
-         ((uint32_t)RK3576_VP_URGENCY_THH << RK3576_VP_URGENCY_THH_SHIFT);
-    vop_putreg(VP1(RK3576_VP_COLOR_BAR_CTRL), v);
+  v = vop_getreg(VP1(RK3576_VP_COLOR_BAR_CTRL));
+  v &= ~((RK3576_VP_URGENCY_TH_MASK << RK3576_VP_URGENCY_THL_SHIFT) |
+         (RK3576_VP_URGENCY_TH_MASK << RK3576_VP_URGENCY_THH_SHIFT));
+  v |= RK3576_VP_URGENCY_EN |
+       ((uint32_t)RK3576_VP_URGENCY_THL << RK3576_VP_URGENCY_THL_SHIFT) |
+       ((uint32_t)RK3576_VP_URGENCY_THH << RK3576_VP_URGENCY_THH_SHIFT);
+  vop_putreg(VP1(RK3576_VP_COLOR_BAR_CTRL), v);
 
-    syslog(LOG_INFO,
-           "VOP2: VP%d 取数紧急度已开 HURRY0=%08" PRIx32 " HURRY1=%08" PRIx32
-           " COLOR_BAR_CTRL=%08" PRIx32 "\n",
-           vp,
-           vop_getreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL0_IMD),
-           vop_getreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL1_IMD),
-           vop_getreg(VP1(RK3576_VP_COLOR_BAR_CTRL)));
-  }
+  syslog(LOG_INFO,
+         "VOP2: VP%d 取数紧急度已开 HURRY0=%08" PRIx32 " HURRY1=%08" PRIx32
+         " COLOR_BAR_CTRL=%08" PRIx32 "\n",
+         vp,
+         vop_getreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL0_IMD),
+         vop_getreg(RK3576_VOP2_SYS_AXI_HURRY_CTRL1_IMD),
+         vop_getreg(VP1(RK3576_VP_COLOR_BAR_CTRL)));
 
   vop_cfg_done(RK3576_VOP2_MIPI_VP);
 
@@ -785,40 +981,38 @@ int rk3576_vop2_fb_setup(uintptr_t buffer, uint32_t width, uint32_t height,
 
   up_mdelay(50);
 
-  {
-    uint32_t rb_act = vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                                 RK3576_SMART_REGION0_ACT_INFO);
-    uint32_t rb_dsp = vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                                 RK3576_SMART_REGION0_DSP_INFO);
-    uint32_t rb_vir = vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                                 RK3576_SMART_REGION0_VIR);
-    uint32_t rb_mst = vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                                 RK3576_SMART_REGION0_YRGB_MST);
-    uint32_t rb_ctl = vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                                 RK3576_SMART_REGION0_CTRL);
+  rb_act = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                      RK3576_SMART_REGION0_ACT_INFO);
+  rb_dsp = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                      RK3576_SMART_REGION0_DSP_INFO);
+  rb_vir = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                      RK3576_SMART_REGION0_VIR);
+  rb_mst = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                      RK3576_SMART_REGION0_YRGB_MST);
+  rb_ctl = vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                      RK3576_SMART_REGION0_CTRL);
 
-    syslog(LOG_INFO,
-           "VOP2: 帧缓冲 %" PRIu32 "x%" PRIu32 " 跨距 %" PRIu32
-           " 字节 @0x%08lx\n",
-           width, height, stride_bytes, (unsigned long)buffer);
+  syslog(LOG_INFO,
+         "VOP2: 帧缓冲 %" PRIu32 "x%" PRIu32 " 跨距 %" PRIu32
+         " 字节 @0x%08lx\n",
+         width, height, stride_bytes, (unsigned long)buffer);
 
-    syslog(LOG_INFO,
-           "VOP2: 回读 ACT=0x%08" PRIx32 "(%" PRIu32 "x%" PRIu32 ")"
-           " DSP=0x%08" PRIx32 " VIR=%" PRIu32 " MST=0x%08" PRIx32
-           " CTRL=0x%08" PRIx32 "\n",
-           rb_act, (rb_act & 0xffff) + 1, ((rb_act >> 16) & 0xffff) + 1,
-           rb_dsp, rb_vir, rb_mst, rb_ctl);
+  syslog(LOG_INFO,
+         "VOP2: 回读 ACT=0x%08" PRIx32 "(%" PRIu32 "x%" PRIu32 ")"
+         " DSP=0x%08" PRIx32 " VIR=%" PRIu32 " MST=0x%08" PRIx32
+         " CTRL=0x%08" PRIx32 "\n",
+         rb_act, (rb_act & 0xffff) + 1, ((rb_act >> 16) & 0xffff) + 1,
+         rb_dsp, rb_vir, rb_mst, rb_ctl);
 
-    syslog(LOG_INFO,
-           "VOP2: 回读 SCL_CTRL=0x%08" PRIx32 " SCL_FACTOR=0x%08" PRIx32
-           " DSP_ST=0x%08" PRIx32 "\n",
-           vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                      RK3576_SMART_REGION0_SCL_CTRL),
-           vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                      RK3576_SMART_REGION0_SCL_FACTOR_YRGB),
-           vop_getreg(RK3576_VOP2_ESMART1_BASE +
-                      RK3576_SMART_REGION0_DSP_ST));
-  }
+  syslog(LOG_INFO,
+         "VOP2: 回读 SCL_CTRL=0x%08" PRIx32 " SCL_FACTOR=0x%08" PRIx32
+         " DSP_ST=0x%08" PRIx32 "\n",
+         vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                    RK3576_SMART_REGION0_SCL_CTRL),
+         vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                    RK3576_SMART_REGION0_SCL_FACTOR_YRGB),
+         vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                    RK3576_SMART_REGION0_DSP_ST));
 
   return OK;
 }
@@ -872,66 +1066,17 @@ int rk3576_vop2_get_mode(uint32_t *width, uint32_t *height)
 
 void rk3576_vop2_dump_uboot_state(void)
 {
-  static const struct
-  {
-    const char *name;
-    uint32_t    off;
-  }
-  regs[] =
-  {
-    { "SYS_CTRL_MIPI0_INFACE", 0x0180 },
-    { "SYS_AUTO_GATING",       0x0008 },
-    { "SYS_PORT_CTRL_IMD",     0x0028 },
-    { "VP0_DSP_CTRL",          0x0c00 },
-    { "VP0_MIPI_CTRL",         0x0c04 },
-    { "VP0_COLOR_BAR_CTRL",    0x0c08 },
-    { "VP0_HTOTAL_HS_END",     0x0c48 },
-    { "VP0_HACT_ST_END",       0x0c4c },
-    { "VP0_VTOTAL_VS_END",     0x0c50 },
-    { "VP0_VACT_ST_END",       0x0c54 },
-    { "VP1_DSP_CTRL",          0x0d00 },
-    { "VP1_MIPI_CTRL",         0x0d04 },
-    { "VP1_COLOR_BAR_CTRL",    0x0d08 },
-    { "VP1_HTOTAL_HS_END",     0x0d48 },
-    { "VP1_HACT_ST_END",       0x0d4c },
-    { "VP1_VTOTAL_VS_END",     0x0d50 },
-    { "VP1_VACT_ST_END",       0x0d54 },
-    { "VP2_DSP_CTRL",          0x0e00 },
-    { "ESMART0_REGION0_CTRL",  0x1810 },
-    { "ESMART0_REGION0_MST",   0x1814 },
-    { "ESMART0_REGION0_VIR",   0x181c },
-    { "ESMART0_REGION0_ACT",   0x1820 },
-    { "ESMART0_REGION0_DSP",   0x1824 },
-    { "OVL_CTRL_VP0",          0x0600 },
-    { "OVL_LAYER_SEL_VP0",     0x0604 },
-    { "OVL_CTRL_VP1",          0x0700 },
-    { "OVL_LAYER_SEL_VP1",     0x0704 },
-
-    /* ESMART0 全为 0，说明 U-Boot 的 logo 走的是别的图层。
-     * Cluster 是带 AFBC 的图层，Rockchip 的 U-Boot logo 常用它。
-     */
-
-    { "CLUSTER0_WIN0_CTRL0",   0x1000 },
-    { "CLUSTER0_WIN0_YRGB_MST", 0x1010 },
-    { "CLUSTER0_WIN0_VIR",     0x101c },
-    { "CLUSTER0_WIN0_ACT_INFO", 0x1020 },
-    { "CLUSTER0_WIN0_DSP_INFO", 0x1024 },
-    { "CLUSTER0_WIN0_DSP_ST",  0x1028 },
-    { "CLUSTER1_WIN0_CTRL0",   0x1200 },
-    { "CLUSTER1_WIN0_YRGB_MST", 0x1210 },
-    { "ESMART1_REGION0_CTRL",  0x1a10 },
-    { "ESMART1_REGION0_MST",   0x1a14 },
-  };
-
   int i;
 
   syslog(LOG_INFO, "==== U-Boot 留下的 VOP2 状态（未改动）====\n");
 
-  for (i = 0; i < (int)(sizeof(regs) / sizeof(regs[0])); i++)
+  for (i = 0;
+       i < (int)(sizeof(g_vop2_uboot_regs) / sizeof(g_vop2_uboot_regs[0]));
+       i++)
     {
       syslog(LOG_INFO, "  %-22s 0x%08" PRIx32 "\n",
-             regs[i].name,
-             getreg32(RK3576_VOP2_ADDR + regs[i].off));
+             g_vop2_uboot_regs[i].name,
+             getreg32(RK3576_VOP2_ADDR + g_vop2_uboot_regs[i].off));
 
       /* 串口在连续刷屏时会丢字节，把 dump 打断行读不全就白读了。 */
 
@@ -1025,30 +1170,6 @@ int rk3576_vop2_restore_uboot(uintptr_t *buffer, uint32_t *width,
 
 void rk3576_vop2_dump_win(void)
 {
-  static const struct
-  {
-    const char *name;
-    uint32_t    off;
-  }
-  regs[] =
-  {
-    { "ESMART_CTRL0",      RK3576_SMART_CTRL0 },
-    { "ESMART_CTRL1",      RK3576_SMART_CTRL1 },
-    { "AXI_CTRL_IMD",      RK3576_SMART_AXI_CTRL_IMD },
-    { "REGION0_MST_CTL",   RK3576_SMART_REGION0_CTRL },
-    { "REGION0_MST_YRGB",  RK3576_SMART_REGION0_YRGB_MST },
-    { "REGION0_MST_CBCR",  0x18 },
-    { "REGION0_VIR",       RK3576_SMART_REGION0_VIR },
-    { "REGION0_ACT_INFO",  RK3576_SMART_REGION0_ACT_INFO },
-    { "REGION0_DSP_INFO",  RK3576_SMART_REGION0_DSP_INFO },
-    { "REGION0_DSP_OFFSET", RK3576_SMART_REGION0_DSP_ST },
-    { "REGION0_SCL_CTRL",  RK3576_SMART_REGION0_SCL_CTRL },
-    { "REGION0_SCL_FACTOR", RK3576_SMART_REGION0_SCL_FACTOR_YRGB },
-    { "REGION0_SCL_OFFSET", 0x3c },
-    { "REGION1_MST_CTL",   0x40 },
-    { "PORT_SEL_IMD",      RK3576_SMART_PORT_SEL_IMD },
-  };
-
   uint32_t vir;
   uint32_t act;
   uint32_t dsp;
@@ -1057,10 +1178,13 @@ void rk3576_vop2_dump_win(void)
 
   syslog(LOG_INFO, "==== ESMART1 当前寄存器 ====\n");
 
-  for (i = 0; i < (int)(sizeof(regs) / sizeof(regs[0])); i++)
+  for (i = 0;
+       i < (int)(sizeof(g_vop2_win_regs) / sizeof(g_vop2_win_regs[0]));
+       i++)
     {
-      syslog(LOG_INFO, "  %-20s 0x%08" PRIx32 "\n", regs[i].name,
-             vop_getreg(RK3576_VOP2_ESMART1_BASE + regs[i].off));
+      syslog(LOG_INFO, "  %-20s 0x%08" PRIx32 "\n", g_vop2_win_regs[i].name,
+             vop_getreg(RK3576_VOP2_ESMART1_BASE +
+                        g_vop2_win_regs[i].off));
 
       /* 串口连续刷屏会丢字节，dump 读不全就白读了。 */
 

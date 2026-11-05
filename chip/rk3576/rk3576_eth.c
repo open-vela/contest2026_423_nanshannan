@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/s32k3xx/rk3576_eth_emac.c
+ * chip/rk3576/rk3576_eth.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -429,7 +429,8 @@ aligned_data(64);
 
 static void rk3576_eth_initbuffer(struct rk3576_eth_driver_s *priv,
                              uint8_t *txbuffer);
-static inline uint8_t *rk3576_eth_allocbuffer(struct rk3576_eth_driver_s *priv);
+static inline uint8_t *
+rk3576_eth_allocbuffer(struct rk3576_eth_driver_s *priv);
 static inline void rk3576_eth_freebuffer(struct rk3576_eth_driver_s *priv,
                                     uint8_t *buffer);
 static inline bool rk3576_eth_isfreebuffer(struct rk3576_eth_driver_s *priv);
@@ -489,17 +490,22 @@ static int  rk3576_eth_ioctl(struct net_driver_s *dev, int cmd,
 static int rk3576_eth_phyintenable(struct rk3576_eth_driver_s *priv);
 #endif
 #if defined(CONFIG_NETDEV_PHY_IOCTL)
-static int rk3576_eth_writemii(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
-             uint8_t regaddr, uint16_t data);
+static int rk3576_eth_writemii(struct rk3576_eth_driver_s *priv,
+                               uint8_t phyaddr, uint8_t regaddr,
+                               uint16_t data);
 #endif
-static int rk3576_eth_readmii(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
-             uint8_t regaddr, uint16_t *data);
-static int rk3576_eth_initphy(struct rk3576_eth_driver_s *priv, bool renogphy);
+static int rk3576_eth_readmii(struct rk3576_eth_driver_s *priv,
+                              uint8_t phyaddr, uint8_t regaddr,
+                              uint16_t *data);
+static int rk3576_eth_initphy(struct rk3576_eth_driver_s *priv,
+                              bool renogphy);
 #if defined(CLAUSE45)
-static int rk3576_eth_readmmd(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
-                         uint8_t mmd, uint16_t regaddr, uint16_t *data);
-static int rk3576_eth_writemmd(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
-                         uint8_t mmd, uint16_t regaddr, uint16_t data);
+static int rk3576_eth_readmmd(struct rk3576_eth_driver_s *priv,
+                              uint8_t phyaddr, uint8_t mmd, uint16_t regaddr,
+                              uint16_t *data);
+static int rk3576_eth_writemmd(struct rk3576_eth_driver_s *priv,
+                               uint8_t phyaddr, uint8_t mmd,
+                               uint16_t regaddr, uint16_t data);
 #endif
 
 /* Initialization */
@@ -574,7 +580,8 @@ static void rk3576_eth_initbuffer(struct rk3576_eth_driver_s *priv,
  *
  ****************************************************************************/
 
-static inline uint8_t *rk3576_eth_allocbuffer(struct rk3576_eth_driver_s *priv)
+static inline uint8_t *
+rk3576_eth_allocbuffer(struct rk3576_eth_driver_s *priv)
 {
   /* Allocate a buffer by returning the head of the free buffer list */
 
@@ -925,7 +932,8 @@ static int rk3576_eth_transmit(struct rk3576_eth_driver_s *priv)
 
 static int rk3576_eth_txpoll(struct net_driver_s *dev)
 {
-  struct rk3576_eth_driver_s *priv = (struct rk3576_eth_driver_s *)dev->d_private;
+  struct rk3576_eth_driver_s *priv =
+    (struct rk3576_eth_driver_s *)dev->d_private;
 
   DEBUGASSERT(priv->dev.d_buf != NULL);
 
@@ -1072,7 +1080,8 @@ static void rk3576_eth_dopoll(struct rk3576_eth_driver_s *priv)
  *
  ****************************************************************************/
 
-static void rk3576_eth_enableint(struct rk3576_eth_driver_s *priv, uint32_t ierbit)
+static void rk3576_eth_enableint(struct rk3576_eth_driver_s *priv,
+                                 uint32_t ierbit)
 {
   uint32_t regval;
 
@@ -1910,7 +1919,6 @@ static void rk3576_eth_interrupt_work(void *arg)
 #endif
 
   net_unlock();
-
 }
 
 /****************************************************************************
@@ -2110,7 +2118,8 @@ static void rk3576_eth_txtimeout_expiry(wdparm_t arg)
 
 static int rk3576_eth_ifup_action(struct net_driver_s *dev, bool resetphy)
 {
-  struct rk3576_eth_driver_s *priv = (struct rk3576_eth_driver_s *)dev->d_private;
+  struct rk3576_eth_driver_s *priv =
+    (struct rk3576_eth_driver_s *)dev->d_private;
   uint8_t *mac = dev->d_mac.ether.ether_addr_octet;
   uint32_t regval;
   int ret;
@@ -2241,8 +2250,10 @@ static int rk3576_eth_ifup(struct net_driver_s *dev)
 
 static int rk3576_eth_ifdown(struct net_driver_s *dev)
 {
-  struct rk3576_eth_driver_s *priv = (struct rk3576_eth_driver_s *)dev->d_private;
+  struct rk3576_eth_driver_s *priv =
+    (struct rk3576_eth_driver_s *)dev->d_private;
   irqstate_t flags;
+  irqstate_t lockflags;
 
   netdev_carrier_off(dev);
 
@@ -2257,11 +2268,9 @@ static int rk3576_eth_ifdown(struct net_driver_s *dev)
   up_disable_irq(RK3576_IRQ_EMAC);
   up_disable_irq(RK3576_IRQ_EMAC_CH0);
 
-  {
-    irqstate_t lockflags = spin_lock_irqsave(&g_eth_irq_lock);
-    priv->dmasr = 0;
-    spin_unlock_irqrestore(&g_eth_irq_lock, lockflags);
-  }
+  lockflags = spin_lock_irqsave(&g_eth_irq_lock);
+  priv->dmasr = 0;
+  spin_unlock_irqrestore(&g_eth_irq_lock, lockflags);
 
   /* FIXME clear interrupts */
 
@@ -2338,7 +2347,8 @@ static void rk3576_eth_txavail_work(void *arg)
 
 static int rk3576_eth_txavail(struct net_driver_s *dev)
 {
-  struct rk3576_eth_driver_s *priv = (struct rk3576_eth_driver_s *)dev->d_private;
+  struct rk3576_eth_driver_s *priv =
+    (struct rk3576_eth_driver_s *)dev->d_private;
 
   /* Is our single work structure available?  It may not be if there are
    * pending interrupt actions and we will have to ignore the Tx
@@ -2556,7 +2566,8 @@ static int rk3576_eth_ioctl(struct net_driver_s *dev, int cmd,
                          unsigned long arg)
 {
 #ifdef CONFIG_NETDEV_PHY_IOCTL
-  struct rk3576_eth_driver_s *priv = (struct rk3576_eth_driver_s *)dev->d_private;
+  struct rk3576_eth_driver_s *priv =
+    (struct rk3576_eth_driver_s *)dev->d_private;
 #endif
   int ret;
 
@@ -2616,7 +2627,8 @@ static int rk3576_eth_ioctl(struct net_driver_s *dev, int cmd,
           struct mii_ioctl_data_s *req =
             (struct mii_ioctl_data_s *)((uintptr_t)arg);
           ret =
-            rk3576_eth_writemii(priv, req->phy_id, req->reg_num, req->val_in);
+            rk3576_eth_writemii(priv, req->phy_id, req->reg_num,
+                                req->val_in);
         }
         break;
 #endif /* CONFIG_NETDEV_PHY_IOCTL */
@@ -2675,8 +2687,8 @@ static int rk3576_eth_phyintenable(struct rk3576_eth_driver_s *priv)
   uint16_t phyval;
   int ret;
 
-  ret = rk3576_eth_writemmd(priv, priv->phyaddr, MMD30_VEND1, VEND1_PHY_IRQ_EN,
-                    PHY_IRQ_LINK_EVENT);
+  ret = rk3576_eth_writemmd(priv, priv->phyaddr, MMD30_VEND1,
+                            VEND1_PHY_IRQ_EN, PHY_IRQ_LINK_EVENT);
 
   return ret;
 #else
@@ -2703,8 +2715,9 @@ static int rk3576_eth_phyintenable(struct rk3576_eth_driver_s *priv)
  *
  ****************************************************************************/
 #if defined(CONFIG_NETDEV_PHY_IOCTL)
-static int rk3576_eth_writemii(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
-                            uint8_t regaddr, uint16_t data)
+static int rk3576_eth_writemii(struct rk3576_eth_driver_s *priv,
+                               uint8_t phyaddr, uint8_t regaddr,
+                               uint16_t data)
 {
   int timeout;
   uint32_t regval;
@@ -2769,8 +2782,9 @@ static int rk3576_eth_writemii(struct rk3576_eth_driver_s *priv, uint8_t phyaddr
  *
  ****************************************************************************/
 
-static int rk3576_eth_readmii(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
-                           uint8_t regaddr, uint16_t *data)
+static int rk3576_eth_readmii(struct rk3576_eth_driver_s *priv,
+                              uint8_t phyaddr, uint8_t regaddr,
+                              uint16_t *data)
 {
   int timeout;
   uint32_t regval;
@@ -2838,8 +2852,9 @@ static int rk3576_eth_readmii(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
  *
  ****************************************************************************/
 
-static int rk3576_eth_readmmd(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
-                         uint8_t mmd, uint16_t regaddr, uint16_t *data)
+static int rk3576_eth_readmmd(struct rk3576_eth_driver_s *priv,
+                              uint8_t phyaddr, uint8_t mmd, uint16_t regaddr,
+                              uint16_t *data)
 {
   int timeout;
   uint32_t regval;
@@ -2907,8 +2922,9 @@ static int rk3576_eth_readmmd(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
  *
  ****************************************************************************/
 
-static int rk3576_eth_writemmd(struct rk3576_eth_driver_s *priv, uint8_t phyaddr,
-                         uint8_t mmd, uint16_t regaddr, uint16_t data)
+static int rk3576_eth_writemmd(struct rk3576_eth_driver_s *priv,
+                               uint8_t phyaddr, uint8_t mmd,
+                               uint16_t regaddr, uint16_t data)
 {
   int timeout;
   uint32_t regval;
@@ -2983,6 +2999,11 @@ static inline int rk3576_eth_initphy(struct rk3576_eth_driver_s *priv,
   int retries;
   int ret;
   uint32_t mac_conf = 0;
+#if !defined(CONFIG_ETH0_PHY_TJA1103)
+#ifdef CONFIG_RK3576_ETH_PHY_MAE0621A
+  uint16_t oldpage;
+#endif
+#endif
 
   if (renogphy)
     {
@@ -3058,7 +3079,8 @@ static inline int rk3576_eth_initphy(struct rk3576_eth_driver_s *priv,
 
       /* Set RMII mode */
 
-      ret = rk3576_eth_readmii(priv, phyaddr, MII_KSZ8081_PHYCTRL2, &phydata);
+      ret = rk3576_eth_readmii(priv, phyaddr, MII_KSZ8081_PHYCTRL2,
+                               &phydata);
       if (ret < 0)
         {
           nerr("ERROR: Failed to read MII_KSZ8081_PHYCTRL2\n");
@@ -3084,7 +3106,8 @@ static inline int rk3576_eth_initphy(struct rk3576_eth_driver_s *priv,
 
       /* Set Ethernet led to green = activity and yellow = link and  */
 
-      ret = rk3576_eth_readmii(priv, phyaddr, MII_KSZ8081_PHYCTRL2, &phydata);
+      ret = rk3576_eth_readmii(priv, phyaddr, MII_KSZ8081_PHYCTRL2,
+                               &phydata);
       if (ret < 0)
         {
           nerr("ERROR: Failed to read MII_KSZ8081_PHYCTRL2\n");
@@ -3204,15 +3227,13 @@ static inline int rk3576_eth_initphy(struct rk3576_eth_driver_s *priv,
 #ifdef CONFIG_RK3576_ETH_PHY_MAE0621A
       /* 状态寄存器在分页空间：先选页，读完把页选回去 */
 
-      {
-        uint16_t oldpage = 0;
+      oldpage = 0;
 
-        rk3576_eth_readmii(priv, phyaddr, MAXIO_PAGE_SELECT, &oldpage);
-        rk3576_eth_writemii(priv, phyaddr, MAXIO_PAGE_SELECT,
-                            MAXIO_PHYSR_PAGE);
-        ret = rk3576_eth_readmii(priv, phyaddr, MAXIO_PHYSR_REG, &phydata);
-        rk3576_eth_writemii(priv, phyaddr, MAXIO_PAGE_SELECT, oldpage);
-      }
+      rk3576_eth_readmii(priv, phyaddr, MAXIO_PAGE_SELECT, &oldpage);
+      rk3576_eth_writemii(priv, phyaddr, MAXIO_PAGE_SELECT,
+                          MAXIO_PHYSR_PAGE);
+      ret = rk3576_eth_readmii(priv, phyaddr, MAXIO_PHYSR_REG, &phydata);
+      rk3576_eth_writemii(priv, phyaddr, MAXIO_PAGE_SELECT, oldpage);
 #else
       ret = rk3576_eth_readmii(priv, phyaddr, BOARD_PHY_STATUS, &phydata);
 #endif
@@ -3493,7 +3514,8 @@ static void rk3576_eth_initbuffers(struct rk3576_eth_driver_s *priv,
 
   /* Set Receive Descriptor Tail pointer Address */
 
-  putreg32((uint32_t)(uintptr_t)&rxtable[CONFIG_RK3576_ETH_NRXBUFFERS - 1].desc,
+  putreg32((uint32_t)(uintptr_t)
+           &rxtable[CONFIG_RK3576_ETH_NRXBUFFERS - 1].desc,
            RK3576_EMAC_DMA_CH0_RXDESC_TAIL_POINTER);
 }
 
@@ -3516,6 +3538,7 @@ static void rk3576_eth_initbuffers(struct rk3576_eth_driver_s *priv,
 static void rk3576_eth_initdma(struct rk3576_eth_driver_s *priv)
 {
   uint32_t regval;
+  uint32_t v;
 
   /* ★ 描述符步长必须与软件摆放的间距一致。
    *
@@ -3562,14 +3585,12 @@ static void rk3576_eth_initdma(struct rk3576_eth_driver_s *priv)
    *   独立线"的样子。这里显式清零。
    */
 
-  {
-    uint32_t v = getreg32(RK3576_EMAC_DMA_MODE);
+  v = getreg32(RK3576_EMAC_DMA_MODE);
 
-    v &= ~(3u << 16);
-    putreg32(v, RK3576_EMAC_DMA_MODE);
-    syslog(LOG_INFO, "ETH: DMA_MODE INTM 清零后=%08" PRIx32 "\n",
-           getreg32(RK3576_EMAC_DMA_MODE));
-  }
+  v &= ~(3u << 16);
+  putreg32(v, RK3576_EMAC_DMA_MODE);
+  syslog(LOG_INFO, "ETH: DMA_MODE INTM 清零后=%08" PRIx32 "\n",
+         getreg32(RK3576_EMAC_DMA_MODE));
 
   putreg32(0xffffffff, RK3576_EMAC_DMA_CH0_STATUS);
 
@@ -3609,7 +3630,6 @@ static void rk3576_eth_initdma(struct rk3576_eth_driver_s *priv)
   regval  = getreg32(RK3576_EMAC_DMA_CH0_RX_CONTROL);
   regval |= EMAC_DMA_CH0_RX_CONTROL_SR;
   putreg32(regval, RK3576_EMAC_DMA_CH0_RX_CONTROL);
-
 }
 
 /****************************************************************************

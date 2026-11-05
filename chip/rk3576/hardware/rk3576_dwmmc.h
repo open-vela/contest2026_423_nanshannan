@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/hardware/rk3576_dwmmc.h
+ * chip/rk3576/hardware/rk3576_dwmmc.h
  *
  * Synopsys DesignWare Mobile Storage Host Controller（dw_mmc / MSHC）。
  *

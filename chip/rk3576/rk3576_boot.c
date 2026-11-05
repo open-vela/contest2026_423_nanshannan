@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_boot.c
+ * chip/rk3576/rk3576_boot.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -216,7 +216,8 @@ void arm64_el_init(void)
    *       State），且早期打印能正常输出到 "- Boot from EL2"。
    *
    * 根因：Rockchip 的 U-Boot 2017.09 在 EL2 运行时置了 HCR_EL2.TGE=1。
-   *       ARM 架构规定 TGE=1 时禁止 eret 到 EL1（Illegal Exception Return）。
+   *       ARM 架构规定 TGE=1 时禁止 eret 到 EL1
+   *       （Illegal Exception Return）。
    *       而 arch/arm64 通用层的 arm64_boot_el2_init() 对 HCR_EL2 用的是
    *       read-modify-write：
    *

@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_ir.c
+ * chip/rk3576/rk3576_ir.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -96,9 +96,9 @@
 #define PWM_ENABLE_EN           (1u << 1)
 #define PWM_ENABLE_CTRL_UPDATE  (1u << 2)           /* W1T，自清 */
 
-#define PWM_CLK_SRC_OSC         (1u << 13)          /* clk_src_sel = 01 */
+#define PWM_CLK_SRC_OSC         (1u << 13)           /* clk_src_sel = 01 */
 #define PWM_CLK_SCALE(n)        ((uint32_t)(n) << 4) /* 分频 2*n */
-#define PWM_CLK_CTRL_MASK       0xfff7              /* bit3 保留 */
+#define PWM_CLK_CTRL_MASK       0xfff7               /* bit3 保留 */
 
 #define PWM_CTRL_MODE_CAPTURE   0x2
 #define PWM_CTRL_MASK           0x01ff              /* in_sel..mode */

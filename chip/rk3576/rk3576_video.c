@@ -58,7 +58,9 @@
  ****************************************************************************/
 
 /* CIF 中断。出处 rk3576.dtsi：
- *   rkcif: rkcif@27c10000 { interrupts = <GIC_SPI 318 IRQ_TYPE_LEVEL_HIGH>; };
+ *   rkcif: rkcif@27c10000 {
+ *     interrupts = <GIC_SPI 318 IRQ_TYPE_LEVEL_HIGH>;
+ *   };
  * SPI 号加 32 得到中断号，与本端口其它外设一致。
  */
 
@@ -207,6 +209,8 @@ static void rk3576_video_encode_work(FAR void *arg)
 {
   FAR struct rk3576_video_s *priv = (FAR struct rk3576_video_s *)arg;
   int len;
+  FAR const uint8_t *g;
+  size_t i;
 
   if (!priv->capturing || priv->callback == NULL || g_conv == NULL)
     {
@@ -221,31 +225,28 @@ static void rk3576_video_encode_work(FAR void *arg)
   up_invalidate_dcache((uintptr_t)priv->rawbuf,
                        (uintptr_t)priv->rawbuf + priv->rawbytes);
 
-  {
-    FAR const uint8_t *g = (FAR const uint8_t *)priv->rawbuf +
-                           priv->rawbytes;
-    size_t i;
+  g = (FAR const uint8_t *)priv->rawbuf +
+      priv->rawbytes;
 
-    up_invalidate_dcache((uintptr_t)g, (uintptr_t)g + RAW_GUARD_BYTES);
-    for (i = 0; i < RAW_GUARD_BYTES && g[i] == RAW_GUARD_BYTE; i++);
-    if (i < RAW_GUARD_BYTES)
-      {
-        size_t last = i;
-        size_t k;
+  up_invalidate_dcache((uintptr_t)g, (uintptr_t)g + RAW_GUARD_BYTES);
+  for (i = 0; i < RAW_GUARD_BYTES && g[i] == RAW_GUARD_BYTE; i++);
+  if (i < RAW_GUARD_BYTES)
+    {
+      size_t last = i;
+      size_t k;
 
-        for (k = i; k < RAW_GUARD_BYTES; k++)
-          {
-            if (g[k] != RAW_GUARD_BYTE)
-              {
-                last = k;
-              }
-          }
+      for (k = i; k < RAW_GUARD_BYTES; k++)
+        {
+          if (g[k] != RAW_GUARD_BYTE)
+            {
+              last = k;
+            }
+        }
 
-        syslog(LOG_ERR, "CIF: ★ DMA 越界写 RAW 缓冲尾部：第 %zu..%zu 字节"
-               "（缓冲 %zu 字节，一行 %d 字节）\n",
-               i, last, priv->rawbytes, priv->stride_pix * 2);
-      }
-  }
+      syslog(LOG_ERR, "CIF: ★ DMA 越界写 RAW 缓冲尾部：第 %zu..%zu 字节"
+             "（缓冲 %zu 字节，一行 %d 字节）\n",
+             i, last, priv->rawbytes, priv->stride_pix * 2);
+    }
 
   len = g_conv(priv->rawbuf, priv->stride_pix, g_capw, g_caph,
                priv->width, priv->height,
@@ -519,6 +520,7 @@ static int rk3576_video_start_capture(FAR struct imgdata_s *data,
 {
   FAR struct rk3576_video_s *priv = (FAR struct rk3576_video_s *)data;
   int ret;
+  uintptr_t dma;
 
   ret = rk3576_video_validate_frame_setting(data, nr_datafmts,
                                             datafmts, interval);
@@ -587,19 +589,17 @@ static int rk3576_video_start_capture(FAR struct imgdata_s *data,
       priv->irq_attached = true;
     }
 
-  {
-    uintptr_t dma = priv->jpeg_mode ? (uintptr_t)priv->rawbuf
-                                    : (uintptr_t)priv->buf;
+  dma = priv->jpeg_mode ? (uintptr_t)priv->rawbuf
+                        : (uintptr_t)priv->buf;
 
-    /* ★ CIF 一律按采集尺寸搬运。JPEG 模式下 priv->width/height 是
-     *   **输出**尺寸，喂给 CIF 会让它按错的跨距写内存。
-     */
+  /* ★ CIF 一律按采集尺寸搬运。JPEG 模式下 priv->width/height 是
+   *   **输出**尺寸，喂给 CIF 会让它按错的跨距写内存。
+   */
 
-    int cifw = priv->jpeg_mode ? g_capw : (int)priv->width;
-    int cifh = priv->jpeg_mode ? g_caph : (int)priv->height;
+  int cifw = priv->jpeg_mode ? g_capw : (int)priv->width;
+  int cifh = priv->jpeg_mode ? g_caph : (int)priv->height;
 
-    ret = rk3576_cif_start(RK3576_VIDEO_HOST, dma, dma, cifw, cifh);
-  }
+  ret = rk3576_cif_start(RK3576_VIDEO_HOST, dma, dma, cifw, cifh);
   if (ret < 0)
     {
       return ret;

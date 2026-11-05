@@ -58,7 +58,6 @@ extern "C"
 
 int rk3576_rptun_init(const char *cpuname);
 
-
 #ifdef __cplusplus
 }
 #endif

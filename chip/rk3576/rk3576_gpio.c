@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_gpio.c
+ * chip/rk3576/rk3576_gpio.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -369,7 +369,6 @@ int rk3576_gpio_read(int bank, int pin)
   regval = getreg32(g_gpio_base[bank] + RK3576_GPIO_EXT_PORT);
   return (regval >> pin) & 1;
 }
-
 
 /****************************************************************************
  * Name: rk3576_gpio_clk_enable

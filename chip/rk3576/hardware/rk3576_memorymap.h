@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/hardware/rk3576_memorymap.h
+ * chip/rk3576/hardware/rk3576_memorymap.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -52,7 +52,8 @@
  * 中断号：dtsi 给的是 GIC_SPI 号，NuttX 的 IRQ 号需 +32。
  *
  * ★ 调试口已确认为 UART0，依据 KICKPI 官方 Armbian 源码中的 U-Boot
- * defconfig（kickpi-k7-rk3576_defconfig）：CONFIG_DEBUG_UART_BASE=0x2ad40000、
+ * defconfig（kickpi-k7-rk3576_defconfig）：
+ * CONFIG_DEBUG_UART_BASE=0x2ad40000、
  * CONFIG_DEBUG_UART_CLOCK=24000000、CONFIG_DEBUG_UART_SHIFT=2、
  * CONFIG_BAUDRATE=1500000。
  */
@@ -154,8 +155,10 @@
 /* 以太网（供 M5 网络适配）
  *
  * 已由板上运行的出厂 Android 内核日志确认：
- *   rk_gmac-dwmac 2a220000.ethernet eth0: PHY [stmmac-0:00] driver [MAE0621A-Q2C Gigabit Ethernet]
- *   rk_gmac-dwmac 2a230000.ethernet eth1: PHY [stmmac-1:00] driver [MAE0621A-Q2C Gigabit Ethernet]
+ *   rk_gmac-dwmac 2a220000.ethernet eth0: PHY [stmmac-0:00]
+ *     driver [MAE0621A-Q2C Gigabit Ethernet]
+ *   rk_gmac-dwmac 2a230000.ethernet eth1: PHY [stmmac-1:00]
+ *     driver [MAE0621A-Q2C Gigabit Ethernet]
  *   dwmac4: Master AXI performs any burst length
  *
  * 控制器为 Synopsys DesignWare MAC 4.x（stmmac），PHY 是 MAXIO MAE0621A，

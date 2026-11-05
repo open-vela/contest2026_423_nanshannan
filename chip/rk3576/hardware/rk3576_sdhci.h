@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/hardware/rk3576_sdhci.h
+ * chip/rk3576/hardware/rk3576_sdhci.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *

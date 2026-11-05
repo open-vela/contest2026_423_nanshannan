@@ -1,5 +1,5 @@
 /****************************************************************************
- * vendor/rockchip/boards/rk3576/kickpi-k7/src/kickpi_k7_appinit.c
+ * board/kickpi-k7/src/kickpi_k7_appinit.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -70,6 +70,9 @@
 #  include "netutils/netinit.h"
 #endif
 
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
 
 /* 板级 late init 里直接把界面拉起来，见下面 fb_register 之后那一段。
  * Application.mk 会把应用的 main 重命名成 <PROGNAME>_main，所以这里
@@ -85,7 +88,109 @@ int k7mqttd_main(int argc, FAR char *argv[]);
 #endif
 
 /****************************************************************************
- * Public Functions
+ * Private Data
+ ****************************************************************************/
+
+#if defined(CONFIG_RK3576_SDHCI) && defined(CONFIG_GPT_PARTITION) && \
+    defined(CONFIG_FS_FAT)
+/* ★ /data 落在 eMMC 出厂 GPT 的 cache 分区（384MB）。
+ *
+ *   AMP 下 Linux 不碰 eMMC（内核没编 MMC），cache 分区没人用；它离
+ *   U-Boot / FIT / 内核（全在 LBA 65536 以内）很远。
+ *
+ *   只认名字**和**范围都对得上的那一项：GPT 被人改过（比如重刷了
+ *   厂商固件、分区挪了位置）就不注册，宁可退回 tmpfs，也不往一块
+ *   不知道是什么的地方写。预期值取自出厂 GPT 备份
+ *   ~/rk3576-amp/backup/gpt-orig.bin，和 10-25 板上读出的一致。
+ *
+ *   ★ U-Boot SPL 每次启动刷一串 "Invalid GPT"，那是在扫 MMC2（TF 卡，
+ *     本来就没有 GPT），不是 eMMC。
+ *
+ *   不在启动路径里格式化。第一次用要手动：mkfatfs /dev/data
+ */
+
+#define KICKPI_DATA_PART    "cache"
+#define KICKPI_DATA_FIRST   1165312
+#define KICKPI_DATA_NBLOCKS 786432
+#define KICKPI_DATA_DEV     "/dev/data"
+
+/* ★ /dev/lxroot：出厂 GPT 的 backup 分区（384MB，前 4KB 全零），给 A72
+ *   上 Linux 的根文件系统镜像用。openvela 经网络写入（lxroot 命令），
+ *   U-Boot 启动时读进内存当 initramfs —— Linux 运行时不碰 eMMC。
+ *
+ *   ★ 只能用 4GB 以内的分区。本端没开 CONFIG_FS_LARGEFILE，off_t 是
+ *     32 位：直接对 /dev/mmcsd0 定位到 4GB 以外会**静默回绕**到低地址
+ *     （2026-10-31 上板实测：dd skip=61079518 读到的是 LBA 2359262）。
+ *     走分区设备时偏移从分区起点算，384MB 不会溢出。
+ *
+ *   这里只注册设备，不读不写；写入在 lxroot 命令里，由人手动触发。
+ */
+
+#define KICKPI_LXROOT_PART    "backup"
+#define KICKPI_LXROOT_FIRST   378880
+#define KICKPI_LXROOT_NBLOCKS 786432
+#define KICKPI_LXROOT_DEV     "/dev/lxroot"
+
+/* ★ openvela 镜像的 A/B（格式与布局见 amp/include/k7_bootab.h）
+ *
+ *   /dev/abslot  出厂 GPT 的 recovery 分区（96MB），A/B 两个 FIT 槽各 32MB。
+ *                AMP 下没有 Android recovery，早期调试借它放过 FIT，现在
+ *                里面只有当时的测试图案，没有人读。
+ *   /dev/abctl   trust 分区的最后 8 个扇区（LBA 32760..32767）：启动控制块。
+ *                trust 分区前面是救援 FIT，这里只注册末尾这一小段，
+ *                ota / bootctl 碰不到救援 FIT。
+ *
+ *   同样只注册、不读写；写入在 ota / bootctl 命令里。
+ */
+
+#define KICKPI_ABSLOT_PART    "recovery"
+#define KICKPI_ABSLOT_FIRST   182272
+#define KICKPI_ABSLOT_NBLOCKS 196608
+#define KICKPI_ABSLOT_DEV     "/dev/abslot"
+
+#define KICKPI_ABCTL_PART     "trust"
+#define KICKPI_ABCTL_FIRST    24576
+#define KICKPI_ABCTL_NBLOCKS  8192
+#define KICKPI_ABCTL_SUB      8184         /* 分区内起点 = LBA 32760 */
+#define KICKPI_ABCTL_SUBN     8
+#define KICKPI_ABCTL_DEV      "/dev/abctl"
+
+#define KICKPI_4GB_SECTORS    8388608
+
+struct kickpi_part_s
+{
+  FAR const char *name;
+  size_t          first;
+  size_t          nblocks;
+  FAR const char *dev;
+  size_t          sub;      /* 只注册分区内 [sub, sub + subn)；subn = 0 为整个分区 */
+  size_t          subn;
+  bool            found;
+};
+
+static struct kickpi_part_s g_kickpi_parts[] =
+{
+  {
+    KICKPI_DATA_PART,   KICKPI_DATA_FIRST,   KICKPI_DATA_NBLOCKS,
+    KICKPI_DATA_DEV,
+  },
+  {
+    KICKPI_LXROOT_PART, KICKPI_LXROOT_FIRST, KICKPI_LXROOT_NBLOCKS,
+    KICKPI_LXROOT_DEV,
+  },
+  {
+    KICKPI_ABSLOT_PART, KICKPI_ABSLOT_FIRST, KICKPI_ABSLOT_NBLOCKS,
+    KICKPI_ABSLOT_DEV,
+  },
+  {
+    KICKPI_ABCTL_PART,  KICKPI_ABCTL_FIRST,  KICKPI_ABCTL_NBLOCKS,
+    KICKPI_ABCTL_DEV,   KICKPI_ABCTL_SUB,    KICKPI_ABCTL_SUBN,
+  },
+};
+#endif
+
+/****************************************************************************
+ * Private Functions
  ****************************************************************************/
 
 #ifdef CONFIG_RK3576_GMAC
@@ -225,6 +330,9 @@ static int gmac_bringup_thread(int argc, FAR char *argv[])
 static int devinit_thread(int argc, FAR char *argv[])
 {
   int ret;
+#ifdef CONFIG_LVX_DEMO_CONTEST2026_423_MQTTD_AUTOSTART
+  int pid;
+#endif
 
   UNUSED(argc);
   UNUSED(argv);
@@ -317,15 +425,13 @@ static int devinit_thread(int argc, FAR char *argv[])
    * 它只监听 0.0.0.0，不依赖网线和 IP 是否已经就绪。
    */
 
-  {
-    int pid = task_create("k7mqttd", SCHED_PRIORITY_DEFAULT, 8192,
-                          k7mqttd_main, NULL);
+  pid = task_create("k7mqttd", SCHED_PRIORITY_DEFAULT, 8192,
+                    k7mqttd_main, NULL);
 
-    if (pid < 0)
-      {
-        syslog(LOG_ERR, "ERROR: 启动 k7mqttd 失败: %d\n", pid);
-      }
-  }
+  if (pid < 0)
+    {
+      syslog(LOG_ERR, "ERROR: 启动 k7mqttd 失败: %d\n", pid);
+    }
 #endif
 
 #ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_423_KICKPI_UI
@@ -344,21 +450,19 @@ static int devinit_thread(int argc, FAR char *argv[])
    *      openvela 的中断使能位清掉了，见 amp/linux/0001）。
    */
 
-  {
-    int pid = task_create("kickpi_ui",
-                          CONFIG_LVX_DEMO_CONTEST2026_423_KICKPI_UI_PRIORITY,
-                          CONFIG_LVX_DEMO_CONTEST2026_423_KICKPI_UI_STACKSIZE,
-                          kickpi_ui_main, NULL);
+  pid = task_create("kickpi_ui",
+                    CONFIG_LVX_DEMO_CONTEST2026_423_KICKPI_UI_PRIORITY,
+                    CONFIG_LVX_DEMO_CONTEST2026_423_KICKPI_UI_STACKSIZE,
+                    kickpi_ui_main, NULL);
 
-    if (pid < 0)
-      {
-        syslog(LOG_ERR, "ERROR: 启动 kickpi_ui 失败: %d\n", pid);
-      }
-    else
-      {
-        syslog(LOG_INFO, "界面: kickpi_ui 已启动（pid %d）\n", pid);
-      }
-  }
+  if (pid < 0)
+    {
+      syslog(LOG_ERR, "ERROR: 启动 kickpi_ui 失败: %d\n", pid);
+    }
+  else
+    {
+      syslog(LOG_INFO, "界面: kickpi_ui 已启动（pid %d）\n", pid);
+    }
 #endif
 
   UNUSED(ret);
@@ -367,63 +471,6 @@ static int devinit_thread(int argc, FAR char *argv[])
 
 #if defined(CONFIG_RK3576_SDHCI) && defined(CONFIG_GPT_PARTITION) && \
     defined(CONFIG_FS_FAT)
-/* ★ /data 落在 eMMC 出厂 GPT 的 cache 分区（384MB）。
- *
- *   AMP 下 Linux 不碰 eMMC（内核没编 MMC），cache 分区没人用；它离
- *   U-Boot / FIT / 内核（全在 LBA 65536 以内）很远。
- *
- *   只认名字**和**范围都对得上的那一项：GPT 被人改过（比如重刷了
- *   厂商固件、分区挪了位置）就不注册，宁可退回 tmpfs，也不往一块
- *   不知道是什么的地方写。预期值取自出厂 GPT 备份
- *   ~/rk3576-amp/backup/gpt-orig.bin，和 10-25 板上读出的一致。
- *
- *   ★ U-Boot SPL 每次启动刷一串 "Invalid GPT"，那是在扫 MMC2（TF 卡，
- *     本来就没有 GPT），不是 eMMC。
- *
- *   不在启动路径里格式化。第一次用要手动：mkfatfs /dev/data
- */
-
-#define KICKPI_DATA_PART    "cache"
-#define KICKPI_DATA_FIRST   1165312
-#define KICKPI_DATA_NBLOCKS 786432
-#define KICKPI_DATA_DEV     "/dev/data"
-
-/* ★ /dev/lxroot：出厂 GPT 的 backup 分区（384MB，前 4KB 全零），给 A72
- *   上 Linux 的根文件系统镜像用。openvela 经网络写入（lxroot 命令），
- *   U-Boot 启动时读进内存当 initramfs —— Linux 运行时不碰 eMMC。
- *
- *   ★ 只能用 4GB 以内的分区。本端没开 CONFIG_FS_LARGEFILE，off_t 是
- *     32 位：直接对 /dev/mmcsd0 定位到 4GB 以外会**静默回绕**到低地址
- *     （2026-10-31 上板实测：dd skip=61079518 读到的是 LBA 2359262）。
- *     走分区设备时偏移从分区起点算，384MB 不会溢出。
- *
- *   这里只注册设备，不读不写；写入在 lxroot 命令里，由人手动触发。
- */
-
-#define KICKPI_LXROOT_PART    "backup"
-#define KICKPI_LXROOT_FIRST   378880
-#define KICKPI_LXROOT_NBLOCKS 786432
-#define KICKPI_LXROOT_DEV     "/dev/lxroot"
-
-#define KICKPI_4GB_SECTORS    8388608
-
-struct kickpi_part_s
-{
-  FAR const char *name;
-  size_t          first;
-  size_t          nblocks;
-  FAR const char *dev;
-  bool            found;
-};
-
-static struct kickpi_part_s g_kickpi_parts[] =
-{
-  { KICKPI_DATA_PART,   KICKPI_DATA_FIRST,   KICKPI_DATA_NBLOCKS,
-    KICKPI_DATA_DEV },
-  { KICKPI_LXROOT_PART, KICKPI_LXROOT_FIRST, KICKPI_LXROOT_NBLOCKS,
-    KICKPI_LXROOT_DEV },
-};
-
 static void kickpi_part_handler(FAR struct partition_s *part, FAR void *arg)
 {
   int ret;
@@ -452,7 +499,8 @@ static void kickpi_part_handler(FAR struct partition_s *part, FAR void *arg)
         }
 
       ret = register_blockpartition(p->dev, 0666, "/dev/mmcsd0",
-                                    part->firstblock, part->nblocks);
+                                    part->firstblock + p->sub,
+                                    p->subn ? p->subn : part->nblocks);
       if (ret < 0)
         {
           syslog(LOG_ERR, "ERROR: 注册 %s 失败: %d\n", p->dev, ret);
@@ -461,7 +509,8 @@ static void kickpi_part_handler(FAR struct partition_s *part, FAR void *arg)
 
       p->found = true;
       syslog(LOG_INFO, "eMMC: GPT %s -> %s（LBA %zu + %zu）\n",
-             p->name, p->dev, p->first, p->nblocks);
+             p->name, p->dev, p->first + p->sub,
+             p->subn ? p->subn : p->nblocks);
       return;
     }
 }
@@ -478,7 +527,7 @@ static bool kickpi_mount_data_emmc(void)
       return false;
     }
 
-  /* 一次解析同时注册 /dev/data 和 /dev/lxroot */
+  /* 一次解析同时注册 /dev/data、/dev/lxroot、/dev/abslot、/dev/abctl */
 
   ret = parse_block_partition("/dev/mmcsd0", kickpi_part_handler, NULL);
   if (ret < 0 || !g_kickpi_parts[0].found)
@@ -504,6 +553,10 @@ static bool kickpi_mount_data_emmc(void)
 #endif
 
 /****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+/****************************************************************************
  * Name: board_app_initialize
  *
  * Description:
@@ -518,6 +571,14 @@ int board_app_initialize(uintptr_t arg)
 #if defined(CONFIG_FS_PROCFS) || defined(CONFIG_DEV_GPIO) || \
     defined(CONFIG_RK3576_I2C)
   int ret;
+#endif
+  bool data_ok;
+  int tid;
+#ifdef CONFIG_RK3576_SDHCI
+  struct sdio_dev_s *sdio;
+#endif
+#ifdef CONFIG_RK3576_TIMER
+  struct oneshot_lowerhalf_s *os;
 #endif
 
 #ifdef CONFIG_CXX_EXCEPTION
@@ -574,7 +635,8 @@ int board_app_initialize(uintptr_t arg)
       syslog(LOG_ERR, "ERROR: 挂载 tmpfs 到 /tmp 失败: %d\n", ret);
     }
 
-  /* ★ /data 给 ai_agent 用（/data/ai_agent，技能在 /data/ai_agent/skills/）。
+  /* ★ /data 给 ai_agent 用（/data/ai_agent，技能在
+   *   /data/ai_agent/skills/）。
    *
    *   它要等 eMMC 就绪后才挂，所以不在这里，见下面 SDHCI 那段之后：
    *   优先 eMMC cache 分区（kickpi_mount_data_emmc()），不行退回 tmpfs。
@@ -667,61 +729,59 @@ int board_app_initialize(uintptr_t arg)
    * 失败不阻断其余初始化 —— 没有存储时控制台仍应可用，便于继续排查。
    */
 
-    {
-      struct sdio_dev_s *sdio = rk3576_sdhci_initialize(0);
+  sdio = rk3576_sdhci_initialize(0);
 
-      if (sdio == NULL)
+  if (sdio == NULL)
+    {
+      syslog(LOG_ERR, "ERROR: eMMC 控制器初始化失败\n");
+    }
+  else
+    {
+      ret = mmcsd_slotinitialize(0, sdio);
+      if (ret < 0)
         {
-          syslog(LOG_ERR, "ERROR: eMMC 控制器初始化失败\n");
+          syslog(LOG_ERR, "ERROR: mmcsd_slotinitialize 失败: %d\n", ret);
         }
       else
         {
-          ret = mmcsd_slotinitialize(0, sdio);
-          if (ret < 0)
-            {
-              syslog(LOG_ERR, "ERROR: mmcsd_slotinitialize 失败: %d\n", ret);
-            }
-          else
-            {
-              /* ★ 不能只看返回值。mmcsd_slotinitialize() 在卡未识别时
-               * 也返回 OK —— 它只把 -ENODEV 之外的错误当作失败，
-               * 而块设备注册发生在更里层的 mmcsd_probe()，条件是
-               * 分区块数非零。所以这里实际 stat 一下设备节点，
-               * 存在才算就绪。
-               */
+          /* ★ 不能只看返回值。mmcsd_slotinitialize() 在卡未识别时
+           * 也返回 OK —— 它只把 -ENODEV 之外的错误当作失败，
+           * 而块设备注册发生在更里层的 mmcsd_probe()，条件是
+           * 分区块数非零。所以这里实际 stat 一下设备节点，
+           * 存在才算就绪。
+           */
 
-              struct stat st;
+          struct stat st;
 
-              if (stat("/dev/mmcsd0", &st) == 0)
-                {
-                  syslog(LOG_INFO, "eMMC: /dev/mmcsd0 就绪\n");
+          if (stat("/dev/mmcsd0", &st) == 0)
+            {
+              syslog(LOG_INFO, "eMMC: /dev/mmcsd0 就绪\n");
 
 #ifdef CONFIG_BCH
-                  /* NuttX 的块设备不能直接被 open() 当文件读 ——
-                   * dd / hexdump 这类工具走的是字符设备接口。
-                   * BCH 把块设备包成字符设备，便于裸读验证与取分区表。
-                   * 只读注册，避免误写坏 eMMC 上原有的分区。
-                   */
+              /* NuttX 的块设备不能直接被 open() 当文件读 ——
+               * dd / hexdump 这类工具走的是字符设备接口。
+               * BCH 把块设备包成字符设备，便于裸读验证与取分区表。
+               * 只读注册，避免误写坏 eMMC 上原有的分区。
+               */
 
-                  ret = bchdev_register("/dev/mmcsd0", "/dev/mmcsd0c", true);
-                  if (ret < 0)
-                    {
-                      syslog(LOG_ERR, "ERROR: 注册 /dev/mmcsd0c 失败: %d\n",
-                             ret);
-                    }
-                  else
-                    {
-                      syslog(LOG_INFO,
-                             "eMMC: /dev/mmcsd0c 就绪（只读字符视图）\n");
-                    }
-#endif
+              ret = bchdev_register("/dev/mmcsd0", "/dev/mmcsd0c", true);
+              if (ret < 0)
+                {
+                  syslog(LOG_ERR, "ERROR: 注册 /dev/mmcsd0c 失败: %d\n",
+                         ret);
                 }
               else
                 {
-                  syslog(LOG_ERR,
-                         "ERROR: mmcsd_slotinitialize 返回 OK 但 "
-                         "/dev/mmcsd0 不存在 —— 卡未被识别\n");
+                  syslog(LOG_INFO,
+                         "eMMC: /dev/mmcsd0c 就绪（只读字符视图）\n");
                 }
+#endif
+            }
+          else
+            {
+              syslog(LOG_ERR,
+                     "ERROR: mmcsd_slotinitialize 返回 OK 但 "
+                     "/dev/mmcsd0 不存在 —— 卡未被识别\n");
             }
         }
     }
@@ -729,31 +789,29 @@ int board_app_initialize(uintptr_t arg)
 
   /* /data：优先 eMMC 的 cache 分区，不行就退回 tmpfs（掉电即失） */
 
-    {
-      bool data_ok = false;
+  data_ok = false;
 
 #if defined(CONFIG_RK3576_SDHCI) && defined(CONFIG_GPT_PARTITION) && \
-    defined(CONFIG_FS_FAT)
-      data_ok = kickpi_mount_data_emmc();
+  defined(CONFIG_FS_FAT)
+  data_ok = kickpi_mount_data_emmc();
 #endif
 
 #ifdef CONFIG_FS_TMPFS
-      if (!data_ok)
+  if (!data_ok)
+    {
+      ret = mount(NULL, "/data", "tmpfs", 0, NULL);
+      if (ret < 0)
         {
-          ret = mount(NULL, "/data", "tmpfs", 0, NULL);
-          if (ret < 0)
-            {
-              syslog(LOG_ERR, "ERROR: 挂载 tmpfs 到 /data 失败: %d\n", ret);
-            }
-          else
-            {
-              syslog(LOG_WARNING, "/data 是 tmpfs，掉电即失\n");
-            }
+          syslog(LOG_ERR, "ERROR: 挂载 tmpfs 到 /data 失败: %d\n", ret);
         }
+      else
+        {
+          syslog(LOG_WARNING, "/data 是 tmpfs，掉电即失\n");
+        }
+    }
 #endif
 
-      UNUSED(data_ok);
-    }
+  UNUSED(data_ok);
 
 #ifdef CONFIG_RK3576_VOP2
   /* 显示链路第一步：VOP2 自检 + 内置彩条。
@@ -780,146 +838,141 @@ int board_app_initialize(uintptr_t arg)
     }
 #endif
 
-    {
-      /* 时序取自 docs/refs/panel/rk3308b-mipi-display-v11.dtsi 的
-       * 720x1280 5 寸屏（ST7703）。规格与本板 F050008M01 一致
-       * （4 lane RGB888、68x121mm），但那是另一块屏的数据 ——
-       * 见 docs/refs/panel/README.md 中标注的适用边界。
-       */
+  /* 时序取自 docs/refs/panel/rk3308b-mipi-display-v11.dtsi 的
+   * 720x1280 5 寸屏（ST7703）。规格与本板 F050008M01 一致
+   * （4 lane RGB888、68x121mm），但那是另一块屏的数据 ——
+   * 见 docs/refs/panel/README.md 中标注的适用边界。
+   */
 
-      static const struct rk3576_vop2_timing_s timing =
-      {
-        .pixclk_hz    = 65000000,
-        .hactive      = 720,
-        .hfront_porch = 48,
-        .hsync_len    = 8,
-        .hback_porch  = 52,
-        .vactive      = 1280,
-        .vfront_porch = 16,
-        .vsync_len    = 6,
-        .vback_porch  = 15,
-      };
+  static const struct rk3576_vop2_timing_s timing =
+  {
+    .pixclk_hz    = 65000000,
+    .hactive      = 720,
+    .hfront_porch = 48,
+    .hsync_len    = 8,
+    .hback_porch  = 52,
+    .vactive      = 1280,
+    .vfront_porch = 16,
+    .vsync_len    = 6,
+    .vback_porch  = 15,
+  };
 
-      /* 每通道码率 = 像素时钟 * 每像素位数 / 通道数，单位 kbps。
-       * D-PHY 与 DSI 的时序换算都要用它，只算一次，避免两处各算一遍
-       * 后悄悄不一致。
-       */
+  /* 每通道码率 = 像素时钟 * 每像素位数 / 通道数，单位 kbps。
+   * D-PHY 与 DSI 的时序换算都要用它，只算一次，避免两处各算一遍
+   * 后悄悄不一致。
+   */
 
-      const uint32_t lane_kbps = timing.pixclk_hz / 1000 * 24 / 4;
+  const uint32_t lane_kbps = timing.pixclk_hz / 1000 * 24 / 4;
 
-      UNUSED(lane_kbps);
+  UNUSED(lane_kbps);
 
-      /* ★ 先读后写。
-       *
-       * 这块板的出厂固件能在这块屏上显示 Rockchip logo，说明 U-Boot
-       * 已经完整跑通过面板初始化 + VOP2 + DSI + D-PHY。它留在寄存器里
-       * 的是一份针对这块屏的已知可用配置 —— 包括我们拿不到的面板初始化
-       * 序列所产生的效果。先把它原样读出来。
-       *
-       * KEEP_UBOOT_DISPLAY 为 1 时完全不碰显示，用来判断：不去动它的话
-       * logo 是不是还在。这一个观测能区分「U-Boot 根本没点屏」和
-       * 「U-Boot 点了、被我们改配置改灭了」，而这两种情况此前无法区分。
-       */
+  /* ★ 先读后写。
+   *
+   * 这块板的出厂固件能在这块屏上显示 Rockchip logo，说明 U-Boot
+   * 已经完整跑通过面板初始化 + VOP2 + DSI + D-PHY。它留在寄存器里
+   * 的是一份针对这块屏的已知可用配置 —— 包括我们拿不到的面板初始化
+   * 序列所产生的效果。先把它原样读出来。
+   *
+   * KEEP_UBOOT_DISPLAY 为 1 时完全不碰显示，用来判断：不去动它的话
+   * logo 是不是还在。这一个观测能区分「U-Boot 根本没点屏」和
+   * 「U-Boot 点了、被我们改配置改灭了」，而这两种情况此前无法区分。
+   */
 
 #define KEEP_UBOOT_DISPLAY 1
 
-      rk3576_vop2_dump_uboot_state();
+  rk3576_vop2_dump_uboot_state();
 #ifdef CONFIG_RK3576_DSI2
-      rk3576_dsi2_dump_uboot_state();
+  rk3576_dsi2_dump_uboot_state();
 #endif
 
 #if KEEP_UBOOT_DISPLAY
-      /* 接管而不是重建。U-Boot 已经把这块屏点亮（面板初始化序列在拿不到
-       * 的厂商 dtsi 里，复位就回不来），所以只把图层扩到全屏、指向我们
-       * 自己的帧缓冲，其余一律不碰。
-       */
+  /* 接管而不是重建。U-Boot 已经把这块屏点亮（面板初始化序列在拿不到
+   * 的厂商 dtsi 里，复位就回不来），所以只把图层扩到全屏、指向我们
+   * 自己的帧缓冲，其余一律不碰。
+   */
 
 #ifdef CONFIG_RK3576_FB
-      ret = fb_register(0, 0);
-      if (ret < 0)
-        {
-          syslog(LOG_ERR, "ERROR: 注册 /dev/fb0 失败: %d\n", ret);
-        }
-      else
-        {
-          syslog(LOG_INFO, "显示: /dev/fb0 就绪\n");
-
-        }
+  ret = fb_register(0, 0);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: 注册 /dev/fb0 失败: %d\n", ret);
+    }
+  else
+    {
+      syslog(LOG_INFO, "显示: /dev/fb0 就绪\n");
+    }
 #endif
 #else
-      ret = rk3576_vop2_probe();
-      if (ret < 0)
-        {
-          syslog(LOG_ERR, "ERROR: VOP2 探测失败: %d\n", ret);
-        }
-      else
-        {
-          rk3576_vop2_colorbar(&timing, true);
-        }
+  ret = rk3576_vop2_probe();
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: VOP2 探测失败: %d\n", ret);
+    }
+  else
+    {
+      rk3576_vop2_colorbar(&timing, true);
+    }
 
 #ifdef CONFIG_RK3576_DCPHY
-      /* D-PHY：PLL 锁定是整条显示链路第一个真正的硬件反馈。
-       * 码率 = 像素时钟 * 每像素位数 / 通道数 = 65MHz * 24 / 4。
-       */
+  /* D-PHY：PLL 锁定是整条显示链路第一个真正的硬件反馈。
+   * 码率 = 像素时钟 * 每像素位数 / 通道数 = 65MHz * 24 / 4。
+   */
 
-      if (rk3576_dcphy_probe() == OK)
-        {
-          rk3576_dcphy_enable(lane_kbps, 4);
-        }
+  if (rk3576_dcphy_probe() == OK)
+    {
+      rk3576_dcphy_enable(lane_kbps, 4);
+    }
 #endif
 
 #ifdef CONFIG_RK3576_DSI2
-      if (rk3576_dsi2_probe() == OK)
-        {
-          rk3576_dsi2_configure(&timing, 4, lane_kbps / 1000);   /* 换成 Mbps */
+  if (rk3576_dsi2_probe() == OK)
+    {
+      static const uint8_t dcs_sleep_out = 0x11;
+      static const uint8_t dcs_display_on = 0x29;
+      int r1;
+      int r2;
 
-          /* 面板唤醒。厂商的完整初始化序列拿不到，但这两条是
-           * MIPI DCS 标准命令、与具体面板无关，且几乎所有 MIPI 屏
-           * 上电后都停在睡眠态 —— 不发这两条就是背光亮、无图像。
-           *
-           *   0x11 exit_sleep_mode   之后须等 >120ms
-           *   0x29 set_display_on
-           *
-           * dtype 0x05 = DCS short write, no parameter。
-           */
+      rk3576_dsi2_configure(&timing, 4, lane_kbps / 1000);   /* 换成 Mbps */
 
-          {
-            static const uint8_t dcs_sleep_out = 0x11;
-            static const uint8_t dcs_display_on = 0x29;
-            int r1;
-            int r2;
-
-            r1 = rk3576_dsi2_send_cmd(0x05, &dcs_sleep_out, 1);
-            up_mdelay(150);
-            r2 = rk3576_dsi2_send_cmd(0x05, &dcs_display_on, 1);
-            up_mdelay(50);
-
-            /* 返回值必须打出来。命令接口忙超时的话这两条根本没发出去，
-             * 而"背光亮无图像"的现象与没发是一模一样的 —— 不打就分不清。
-             */
-
-            syslog(LOG_INFO,
-                   "DSI2: 面板唤醒 sleep_out=%d display_on=%d\n", r1, r2);
-          }
-
-          /* ★ 配置完停在命令模式是没有图像的直接原因 —— DSI 不接收
-           * VOP 送来的像素流。必须显式切到视频模式。
-           *
-           * 本板不能用命令模式：原理图第 27 页 FPC Pin18 (LCD_TE)
-           * 打叉未连线，没有 TE 就无法与面板刷新同步。
-           */
-
-          rk3576_dsi2_set_video_mode();
-        }
-#endif
-
-      /* 整条链路配完之后再问一句：VP 到底在不在扫描。
-       * 放在最后是因为 DSI 起来前 VP 可能被下游反压。
+      /* 面板唤醒。厂商的完整初始化序列拿不到，但这两条是
+       * MIPI DCS 标准命令、与具体面板无关，且几乎所有 MIPI 屏
+       * 上电后都停在睡眠态 —— 不发这两条就是背光亮、无图像。
+       *
+       *   0x11 exit_sleep_mode   之后须等 >120ms
+       *   0x29 set_display_on
+       *
+       * dtype 0x05 = DCS short write, no parameter。
        */
 
-      rk3576_vop2_check_scanning(0);
-#endif  /* KEEP_UBOOT_DISPLAY */
+      r1 = rk3576_dsi2_send_cmd(0x05, &dcs_sleep_out, 1);
+      up_mdelay(150);
+      r2 = rk3576_dsi2_send_cmd(0x05, &dcs_display_on, 1);
+      up_mdelay(50);
+
+      /* 返回值必须打出来。命令接口忙超时的话这两条根本没发出去，
+       * 而"背光亮无图像"的现象与没发是一模一样的 —— 不打就分不清。
+       */
+
+      syslog(LOG_INFO,
+             "DSI2: 面板唤醒 sleep_out=%d display_on=%d\n", r1, r2);
+
+      /* ★ 配置完停在命令模式是没有图像的直接原因 —— DSI 不接收
+       * VOP 送来的像素流。必须显式切到视频模式。
+       *
+       * 本板不能用命令模式：原理图第 27 页 FPC Pin18 (LCD_TE)
+       * 打叉未连线，没有 TE 就无法与面板刷新同步。
+       */
+
+      rk3576_dsi2_set_video_mode();
     }
+#endif
+
+  /* 整条链路配完之后再问一句：VP 到底在不在扫描。
+   * 放在最后是因为 DSI 起来前 VP 可能被下游反压。
+   */
+
+  rk3576_vop2_check_scanning(0);
+#endif  /* KEEP_UBOOT_DISPLAY */
 #endif
 
 #ifdef CONFIG_RK3576_RPTUN
@@ -973,15 +1026,12 @@ int board_app_initialize(uintptr_t arg)
 
   /* 触摸、TF 卡、摄像头和界面放到后台（见 devinit_thread 的说明） */
 
-  {
-    int tid = kthread_create("devinit", 100, 8192, devinit_thread, NULL);
+  tid = kthread_create("devinit", 100, 8192, devinit_thread, NULL);
 
-    if (tid < 0)
-      {
-        syslog(LOG_ERR, "ERROR: devinit 后台线程创建失败: %d\n", tid);
-      }
-  }
-
+  if (tid < 0)
+    {
+      syslog(LOG_ERR, "ERROR: devinit 后台线程创建失败: %d\n", tid);
+    }
 
 /* 蓝牙（SKW6621S）的 SDIO 探测不再放在启动路径上（2026-09-19）。
  *
@@ -1032,30 +1082,25 @@ int board_app_initialize(uintptr_t arg)
    *   详见 notes/DEBUG-CASES.md 案例 16。
    */
 
-  {
-    struct oneshot_lowerhalf_s *os = rk3576_oneshot_initialize();
+  os = rk3576_oneshot_initialize();
 
-    if (os == NULL)
-      {
-        syslog(LOG_ERR, "ERROR: oneshot 下半部初始化失败\n");
-      }
-    else
-      {
-        ret = oneshot_register("/dev/oneshot", os);
-        if (ret < 0)
-          {
-            syslog(LOG_ERR, "ERROR: 注册 /dev/oneshot 失败: %d\n", ret);
-          }
-        else
-          {
-            syslog(LOG_INFO, "定时器: /dev/oneshot 就绪\n");
-          }
-      }
-  }
+  if (os == NULL)
+    {
+      syslog(LOG_ERR, "ERROR: oneshot 下半部初始化失败\n");
+    }
+  else
+    {
+      ret = oneshot_register("/dev/oneshot", os);
+      if (ret < 0)
+        {
+          syslog(LOG_ERR, "ERROR: 注册 /dev/oneshot 失败: %d\n", ret);
+        }
+      else
+        {
+          syslog(LOG_INFO, "定时器: /dev/oneshot 就绪\n");
+        }
+    }
 #endif
-
-
-
 
 #ifdef CONFIG_RK3576_GMAC
   /* 以太网前置链路：PD_SDGMAC + 时钟 + DMA 复位 + MDIO 读 PHY ID。
@@ -1111,16 +1156,13 @@ int board_app_initialize(uintptr_t arg)
    *   —— CONFIG_DEFAULT_TASK_STACKSIZE 就是 8192。
    */
 
-  {
-    int tid = kthread_create("gmac", 100, 8192, gmac_bringup_thread, NULL);
+  tid = kthread_create("gmac", 100, 8192, gmac_bringup_thread, NULL);
 
-    if (tid < 0)
-      {
-        syslog(LOG_ERR, "ERROR: GMAC 后台线程创建失败: %d\n", tid);
-      }
-  }
+  if (tid < 0)
+    {
+      syslog(LOG_ERR, "ERROR: GMAC 后台线程创建失败: %d\n", tid);
+    }
 #endif
-
 
 #ifdef CONFIG_RK3576_WDT
   /* ★ 看门狗**必须最后注册**。
@@ -1148,7 +1190,6 @@ int board_app_initialize(uintptr_t arg)
       syslog(LOG_INFO, "看门狗: /dev/watchdog0 就绪\n");
     }
 #endif
-
 
   return OK;
 }

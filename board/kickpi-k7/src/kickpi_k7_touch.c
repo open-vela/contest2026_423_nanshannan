@@ -1,12 +1,13 @@
 /****************************************************************************
- * boards/rk3576/kickpi-k7/src/kickpi_k7_touch.c
+ * board/kickpi-k7/src/kickpi_k7_touch.c
  *
  * 5 寸 MIPI 屏（F050008M01）转接板上的电容触摸。
  *
  * ★ 芯片是 FocalTech FT8756 @ I2C0:0x38，不是 Goodix GT9xx。
  *
  *   出处是原厂 Android 的启动日志：
- *     input: fts_ts as /devices/platform/27300000.i2c/i2c-0/0-0038/input/input1
+ *     input: fts_ts as
+ *       /devices/platform/27300000.i2c/i2c-0/0-0038/input/input1
  *     [FTS_TS/I]fts_get_chip_types:verify id:0x8756
  *     [FTS_TS/I]fts_parse_dt:max touch number:10, irq gpio:21, reset gpio:24
  *
@@ -321,6 +322,7 @@ int kickpi_k7_touch_initialize(void)
 {
   struct i2c_master_s *i2c;
   int ret;
+  int pid;
 
   i2c = rk3576_i2cbus_initialize(TOUCH_I2C_BUS);
   if (i2c == NULL)
@@ -399,14 +401,12 @@ int kickpi_k7_touch_initialize(void)
 
   /* 常驻采样线程 —— 见上面的说明，目的是把"对时"从实验里去掉。 */
 
-  {
-    int pid = task_create("tpmon", 50, 2048, kickpi_touch_monitor, NULL);
+  pid = task_create("tpmon", 50, 2048, kickpi_touch_monitor, NULL);
 
-    if (pid < 0)
-      {
-        syslog(LOG_ERR, "ERROR: 触摸采样线程启动失败: %d\n", pid);
-      }
-  }
+  if (pid < 0)
+    {
+      syslog(LOG_ERR, "ERROR: 触摸采样线程启动失败: %d\n", pid);
+    }
 
   syslog(LOG_INFO,
          "触摸: /dev/input0 就绪（FT8756 @I2C%d:0x%02x, %s）\n",

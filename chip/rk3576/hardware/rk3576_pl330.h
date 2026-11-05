@@ -55,12 +55,14 @@
 #define RK3576_DMAC1_BASE      0x2abb0000
 #define RK3576_DMAC2_BASE      0x2abd0000
 
-/* 中断：NuttX 的中断号 = GIC SPI 号 + 32（对照 uart4 的 SPI 80 = 112 确认） */
+/* 中断：NuttX 的中断号 = GIC SPI 号 + 32
+ * （对照 uart4 的 SPI 80 = 112 确认）
+ */
 
 #define RK3576_IRQ_DMAC0_0     (32 + 32)
 #define RK3576_IRQ_DMAC0_1     (33 + 32)
 
-/* 寄存器偏移 ---------------------------------------------------------------*/
+/* 寄存器偏移 */
 
 #define PL330_DS               0x0000  /* 管理线程状态 */
 #define PL330_DPC              0x0004  /* 管理线程 PC  */
@@ -71,9 +73,10 @@
 #define PL330_FSM              0x0030  /* 管理线程故障  */
 #define PL330_FSC              0x0034  /* 通道故障位图  */
 #define PL330_FTM              0x0038  /* 管理线程故障类型 */
-#define PL330_FTC(n)           (0x0040 + (n) * 4)   /* 通道故障类型 */
-#define PL330_CS(n)            (0x0100 + (n) * 8)   /* 通道状态 */
-#define PL330_CPC(n)           (0x0104 + (n) * 8)   /* 通道 PC  */
+
+#define PL330_FTC(n)           (0x0040 + (n) * 4) /* 通道故障类型 */
+#define PL330_CS(n)            (0x0100 + (n) * 8) /* 通道状态 */
+#define PL330_CPC(n)           (0x0104 + (n) * 8) /* 通道 PC  */
 #define PL330_SA(n)            (0x0400 + (n) * 0x20)
 #define PL330_DA(n)            (0x0404 + (n) * 0x20)
 #define PL330_CC(n)            (0x0408 + (n) * 0x20)
@@ -125,7 +128,7 @@
 #define PL330_CR0_NUM_PERIPH(v)  ((((v) >> 12) & 0x1f) + 1)
 #define PL330_CR0_NUM_EVENTS(v)  ((((v) >> 17) & 0x1f) + 1)
 
-/* 通道控制字 CC(n) / DMAMOV CCR 的内容 --------------------------------------
+/* 通道控制字 CC(n) / DMAMOV CCR 的内容
  *
  * ★ 突发"大小"和"长度"是两回事，写错了不报错、只是搬得不对：
  *     size = 每次传输的字节数，编码是 log2(bytes)，[2:0] 源 / [17:15] 目的
@@ -152,7 +155,7 @@
 
 #define PL330_CCTRL_NONCACHEABLE 0
 
-/* 微码指令编码 -------------------------------------------------------------*/
+/* 微码指令编码 */
 
 #define PL330_CMD_DMAEND       0x00
 #define PL330_CMD_DMAKILL      0x01

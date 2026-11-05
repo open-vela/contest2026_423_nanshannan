@@ -1,5 +1,5 @@
 /****************************************************************************
- * vendor/rockchip/boards/rk3576/kickpi-k7/src/kickpi_k7_audio.c
+ * board/kickpi-k7/src/kickpi_k7_audio.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -197,6 +197,7 @@ int kickpi_k7_audio_initialize(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: 注册 /dev/audio/pcm1（录音）失败: %d\n", ret);
+
       /* 不致命：放音仍可用 */
     }
 

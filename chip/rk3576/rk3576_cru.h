@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_cru.h
+ * chip/rk3576/rk3576_cru.h
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -52,8 +52,10 @@
  *
  *   drivers/clk/rockchip/clk.h:
  *     #define RK3576_PMU_CRU_BASE       0x20000
- *     #define RK3576_PMU_CLKSEL_CON(x)  ((x)*0x4 + RK3576_PMU_CRU_BASE + 0x300)
- *     #define RK3576_PMU_CLKGATE_CON(x) ((x)*0x4 + RK3576_PMU_CRU_BASE + 0x800)
+ *     #define RK3576_PMU_CLKSEL_CON(x)
+ *             ((x)*0x4 + RK3576_PMU_CRU_BASE + 0x300)
+ *     #define RK3576_PMU_CLKGATE_CON(x)
+ *             ((x)*0x4 + RK3576_PMU_CRU_BASE + 0x800)
  */
 
 #define RK3576_PMUCRU_OFFSET         0x20000

@@ -10,7 +10,8 @@
  *   drivers/sensors/mpu60x0.c 是老式字符设备（register_driver 出 /dev/imuN，
  *   读回私有结构），不走 uORB；mpu9250_uorb.c 走 uORB，但绑死 AK8963 磁力计
  *   （MPU6050 没有）。xTS 1.3.7 的 cmocka_driver_i2c_spi 打开的是
- *   /dev/accel0（注意是 accel 而不是 imu）并按 struct sensor_accel 读，所以这里补一层 uORB 适配。
+ *   /dev/accel0（注意是 accel 而不是 imu）并按 struct sensor_accel 读，
+ *   所以这里补一层 uORB 适配。
  *
  * ★ 只实现 fetch
  *
@@ -25,6 +26,10 @@
  *     MPU6050 GND -> 6 脚 GND          SDA -> 24 脚 GPIO3_A1 = I2C7_SDA_M1
  *     AD0 -> GND（地址 0x68；接 VCC 则为 0x69）
  *
+ ****************************************************************************/
+
+/****************************************************************************
+ * Included Files
  ****************************************************************************/
 
 #include <nuttx/config.h>

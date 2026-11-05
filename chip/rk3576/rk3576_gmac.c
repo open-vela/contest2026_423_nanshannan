@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm64/src/rk3576/rk3576_gmac.c
+ * chip/rk3576/rk3576_gmac.c
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -185,7 +185,9 @@
 /* ★ PHY 的 25MHz 参考时钟由 SoC 送出，板上没有晶振。
  *
  *   出处：rk3576-kickpi-ethernet-gmac0.dtsi 的 PHY 节点
- *     rgmii_phy0: phy@1 { reg = <0x0>; clocks = <&cru REFCLKO25M_GMAC0_OUT>; };
+ *     rgmii_phy0: phy@1 {
+ *       reg = <0x0>; clocks = <&cru REFCLKO25M_GMAC0_OUT>;
+ *     };
  *   dwmac-rk.c 的 gmac_clk_enable() 里 clk_prepare_enable(clk_phy)，
  *   位置在 set_to_rgmii() 与放 PHY 复位**之前**。
  *
@@ -201,7 +203,8 @@
  *   COMPOSITE(REFCLKO25M_GMAC0_OUT, "refclko25m_gmac0_out", gpll_cpll_p, 0,
  *             RK3576_CLKSEL_CON(36),  7, 1, MFLAGS, 0, 7, DFLAGS,
  *             RK3576_CLKGATE_CON(5), 10, GFLAGS)
- *   COMPOSITE(REFCLKO25M_GMAC1_OUT, ... CON(36), 15, 1, MFLAGS, 8, 7, DFLAGS,
+ *   COMPOSITE(REFCLKO25M_GMAC1_OUT, ...
+ *             CON(36), 15, 1, MFLAGS, 8, 7, DFLAGS,
  *             RK3576_CLKGATE_CON(5), 11, GFLAGS)
  *
  *   mux 1 = CPLL = 1000MHz，1000/40 = 25MHz 整除；
@@ -357,6 +360,18 @@ static const uint8_t g_gmac1_pins[] =
 #define MAXIO_PAGE_SELECT    0x1f
 
 /****************************************************************************
+ * Private Types
+ ****************************************************************************/
+
+#ifdef CONFIG_RK3576_GMAC_DIAG
+struct gmac_clkpin_s
+{
+  const char *name;
+  uint8_t     pin;
+};
+#endif
+
+/****************************************************************************
  * Private Data
  ****************************************************************************/
 
@@ -364,6 +379,20 @@ static const uintptr_t g_gmac_base[2] =
 {
   RK3576_GMAC0_ADDR, RK3576_GMAC1_ADDR
 };
+
+#ifdef CONFIG_RK3576_GMAC_DIAG
+/* 时钟脚采样用的 GMAC0 引脚（GMAC1 的在代码里按端口另选） */
+
+static const struct gmac_clkpin_s g_gmac_clkpins[] =
+{
+  {
+    "RXCLK(PHY 送来)", 25
+  },
+  {
+    "TXCLK(SoC 送出)", 14
+  },
+};
+#endif
 
 /****************************************************************************
  * Private Functions
@@ -623,7 +652,8 @@ void rk3576_gmac_set_speed(int port, int speed)
     }
 
   putreg32(val, SDGMAC_GRF_ADDR + off);
-  syslog(LOG_INFO, "GMAC%d: 速率 %dM，GRF[0x%02" PRIx32 "]=0x%08" PRIx32 "\n",
+  syslog(LOG_INFO,
+         "GMAC%d: 速率 %dM，GRF[0x%02" PRIx32 "]=0x%08" PRIx32 "\n",
          port, speed, off, getreg32(SDGMAC_GRF_ADDR + off));
 }
 
@@ -645,6 +675,10 @@ void rk3576_gmac_refclk25m(int port)
   int bank  = port ? GMAC1_CLK25M_BANK : GMAC0_CLK25M_BANK;
   int pin   = port ? GMAC1_CLK25M_PIN  : GMAC0_CLK25M_PIN;
   int func  = port ? GMAC1_CLK25M_FUNC : GMAC0_CLK25M_FUNC;
+  int prev;
+  int edges;
+  int high;
+  int k;
 
   syslog(LOG_INFO, "GMAC%d: 25M 使能前 div=%u sel=%u 引脚 g%d-%d 功能=%d\n",
          port,
@@ -678,8 +712,8 @@ void rk3576_gmac_refclk25m(int port)
   UNUSED(pin);
   UNUSED(func);
 
-
-  syslog(LOG_INFO, "GMAC%d: 25M 已开 CPLL/40 回读 div=%u sel=%u 引脚功能=%d\n",
+  syslog(LOG_INFO,
+         "GMAC%d: 25M 已开 CPLL/40 回读 div=%u sel=%u 引脚功能=%d\n",
          port,
          rk3576_clk_getmux(GMAC_REFCLK25M_CON, shift,
                            GMAC_REFCLK25M_DIV_WIDTH),
@@ -698,35 +732,32 @@ void rk3576_gmac_refclk25m(int port)
    *   25MHz 远快于采样速率，会混叠，但"有没有跳变"这个判据不受影响。
    */
 
-  {
-    int prev = rk3576_gpio_read(bank, pin);
-    int edges = 0;
-    int high = 0;
-    int k;
+  prev = rk3576_gpio_read(bank, pin);
+  edges = 0;
+  high = 0;
 
-    for (k = 0; k < 200; k++)
-      {
-        int v = rk3576_gpio_read(bank, pin);
+  for (k = 0; k < 200; k++)
+    {
+      int v = rk3576_gpio_read(bank, pin);
 
-        if (v)
-          {
-            high++;
-          }
+      if (v)
+        {
+          high++;
+        }
 
-        if (v != prev)
-          {
-            edges++;
-          }
+      if (v != prev)
+        {
+          edges++;
+        }
 
-        prev = v;
-      }
+      prev = v;
+    }
 
-    syslog(LOG_INFO, "GMAC%d: 25M 焊盘 g%d-%d 采样 200 次 高=%d 跳变=%d —— %s\n",
-           port, bank, pin, high, edges,
-           edges ? "时钟已输出" : "★无跳变，时钟没到引脚");
-  }
+  syslog(LOG_INFO,
+         "GMAC%d: 25M 焊盘 g%d-%d 采样 200 次 高=%d 跳变=%d —— %s\n",
+         port, bank, pin, high, edges,
+         edges ? "时钟已输出" : "★无跳变，时钟没到引脚");
 }
-
 
 void rk3576_gmac_phy_reset(int bank, int pin, bool active_low)
 {
@@ -756,6 +787,32 @@ int rk3576_gmac_probe(int port)
   uint16_t id2 = 0xffff;
   int ret;
   int us;
+  int con;
+  int shift;
+  int width;
+  const uint8_t *pins;
+  int bank;
+  int func;
+  size_t npins;
+  size_t i;
+  uint32_t grf_off;
+  uint32_t val;
+  uint32_t dly;
+  uint32_t rl_before;
+  uint32_t rl_back;
+  uint16_t bmsr;
+  uint16_t lp;
+#ifdef CONFIG_RK3576_GMAC_DIAG
+  uint16_t v0;
+  uint16_t v;
+  int same;
+  int k;
+  int a;
+  int n;
+  uint16_t back;
+  int wr;
+  uint16_t bmcr;
+#endif
 
   if (port < 0 || port > 1)
     {
@@ -784,38 +841,33 @@ int rk3576_gmac_probe(int port)
 
   /* ★ 设 125M 分频。只开门控不设分频，输出不是 125MHz。 */
 
-  {
-    int con   = port ? GMAC1_CLKSEL_125M_CON   : GMAC0_CLKSEL_125M_CON;
-    int shift = port ? GMAC1_CLKSEL_125M_SHIFT : GMAC0_CLKSEL_125M_SHIFT;
-    int width = port ? GMAC1_CLKSEL_125M_WIDTH : GMAC0_CLKSEL_125M_WIDTH;
+  con = port ? GMAC1_CLKSEL_125M_CON   : GMAC0_CLKSEL_125M_CON;
+  shift = port ? GMAC1_CLKSEL_125M_SHIFT : GMAC0_CLKSEL_125M_SHIFT;
+  width = port ? GMAC1_CLKSEL_125M_WIDTH : GMAC0_CLKSEL_125M_WIDTH;
 
-    rk3576_clk_setmux(con, shift, width, GMAC_125M_DIV_VALUE);
-    syslog(LOG_INFO, "GMAC%d: 125M 分频 CLKSEL_CON(%d)[%d:%d]=%u（回读 %u）\n",
-           port, con, shift + width - 1, shift, GMAC_125M_DIV_VALUE,
-           rk3576_clk_getmux(con, shift, width));
-  }
+  rk3576_clk_setmux(con, shift, width, GMAC_125M_DIV_VALUE);
+  syslog(LOG_INFO, "GMAC%d: 125M 分频 CLKSEL_CON(%d)[%d:%d]=%u（回读 %u）\n",
+         port, con, shift + width - 1, shift, GMAC_125M_DIV_VALUE,
+         rk3576_clk_getmux(con, shift, width));
 
   /* ★ 引脚复用。必须在 GRF 与复位之前 —— 时钟线没接出去时，
    * 后面无论怎么配都收不到 RX 时钟。
    */
 
-  {
-    const uint8_t *pins = port ? g_gmac1_pins : g_gmac0_pins;
-    int bank = port ? GMAC1_PIN_BANK : GMAC0_PIN_BANK;
-    int func = port ? GMAC1_PIN_FUNC : GMAC0_PIN_FUNC;
-    size_t npins = port ? sizeof(g_gmac1_pins) : sizeof(g_gmac0_pins);
-    size_t i;
+  pins = port ? g_gmac1_pins : g_gmac0_pins;
+  bank = port ? GMAC1_PIN_BANK : GMAC0_PIN_BANK;
+  func = port ? GMAC1_PIN_FUNC : GMAC0_PIN_FUNC;
+  npins = port ? sizeof(g_gmac1_pins) : sizeof(g_gmac0_pins);
 
-    for (i = 0; i < npins; i++)
-      {
-        rk3576_pinmux_set(bank, pins[i], func);
-      }
+  for (i = 0; i < npins; i++)
+    {
+      rk3576_pinmux_set(bank, pins[i], func);
+    }
 
-    syslog(LOG_INFO,
-           "GMAC%d: 复用 %d 脚 bank%d 功能%d（抽查 rxclk g%d-%d→%d）\n",
-           port, (int)npins, bank, func, bank, pins[8],
-           rk3576_pinmux_get(bank, pins[8]));
-  }
+  syslog(LOG_INFO,
+         "GMAC%d: 复用 %d 脚 bank%d 功能%d（抽查 rxclk g%d-%d→%d）\n",
+         port, (int)npins, bank, func, bank, pins[8],
+         rk3576_pinmux_get(bank, pins[8]));
 
   /* ★ GRF：选 RGMII 模式并接通时钟。
    *
@@ -825,27 +877,24 @@ int rk3576_gmac_probe(int port)
    *   本端口在这四者之间逐个排除了四轮。
    */
 
-    {
-      uint32_t grf_off = port ? GRF_GMAC_CON1 : GRF_GMAC_CON0;
-      uint32_t val;
+  grf_off = port ? GRF_GMAC_CON1 : GRF_GMAC_CON0;
 
-      /* 清 RMII_MODE 选 RGMII；io_clksel 用 CRU 出时钟；
-       * gmii_clk_sel 按千兆选 DIV1_125M。
-       *
-       * ★ 该字段是按速率选 TX 时钟分频的，不能一律清零 ——
-       *   出处：dwmac-rk.c 的 rk_gmac_rgmii_clk_div()
-       *     SPEED_1000 → GMAC_CLK_DIV1_125M
-       *     SPEED_100  → GMAC_CLK_DIV5_25M
-       *     SPEED_10   → GMAC_CLK_DIV50_2_5M
-       */
+  /* 清 RMII_MODE 选 RGMII；io_clksel 用 CRU 出时钟；
+   * gmii_clk_sel 按千兆选 DIV1_125M。
+   *
+   * ★ 该字段是按速率选 TX 时钟分频的，不能一律清零 ——
+   *   出处：dwmac-rk.c 的 rk_gmac_rgmii_clk_div()
+   *     SPEED_1000 → GMAC_CLK_DIV1_125M
+   *     SPEED_100  → GMAC_CLK_DIV5_25M
+   *     SPEED_10   → GMAC_CLK_DIV50_2_5M
+   */
 
-      val = ((GRF_RMII_MODE | GRF_IO_CLKSEL_IO | GRF_GMII_CLK_SEL_MASK) << 16)
-            | (GMAC_CLK_DIV1_125M << 5);
-      putreg32(val, SDGMAC_GRF_ADDR + grf_off);
+  val = ((GRF_RMII_MODE | GRF_IO_CLKSEL_IO | GRF_GMII_CLK_SEL_MASK) << 16)
+        | (GMAC_CLK_DIV1_125M << 5);
+  putreg32(val, SDGMAC_GRF_ADDR + grf_off);
 
-      syslog(LOG_INFO, "GMAC%d: GRF[0x%02" PRIx32 "]=0x%08" PRIx32 "\n",
-             port, grf_off, getreg32(SDGMAC_GRF_ADDR + grf_off));
-    }
+  syslog(LOG_INFO, "GMAC%d: GRF[0x%02" PRIx32 "]=0x%08" PRIx32 "\n",
+         port, grf_off, getreg32(SDGMAC_GRF_ADDR + grf_off));
 
   /* ★ RGMII 延时线。
    *
@@ -854,20 +903,18 @@ int rk3576_gmac_probe(int port)
    *   而不是等出问题再回来找。
    */
 
-  {
-    uint32_t dly = IOC_GRF_ADDR +
-                   (port ? IOC_GMAC1_DLY_CON : IOC_GMAC0_DLY_CON);
-    uint32_t val = GMAC_DLY_VALUE(port ? GMAC1_TX_DELAY : GMAC0_TX_DELAY);
+  dly = IOC_GRF_ADDR +
+        (port ? IOC_GMAC1_DLY_CON : IOC_GMAC0_DLY_CON);
+  val = GMAC_DLY_VALUE(port ? GMAC1_TX_DELAY : GMAC0_TX_DELAY);
 
-    putreg32(GMAC_DLY_ENABLE, dly);
-    putreg32(GMAC_DLY_ENABLE, dly + 4);
-    putreg32(val, dly);
-    putreg32(val, dly + 4);
+  putreg32(GMAC_DLY_ENABLE, dly);
+  putreg32(GMAC_DLY_ENABLE, dly + 4);
+  putreg32(val, dly);
+  putreg32(val, dly + 4);
 
-    syslog(LOG_INFO,
-           "GMAC%d: RGMII 延时 tx=0x%02x rx=关（回读 0x%08" PRIx32 "）\n",
-           port, port ? GMAC1_TX_DELAY : GMAC0_TX_DELAY, getreg32(dly));
-  }
+  syslog(LOG_INFO,
+         "GMAC%d: RGMII 延时 tx=0x%02x rx=关（回读 0x%08" PRIx32 "）\n",
+         port, port ? GMAC1_TX_DELAY : GMAC0_TX_DELAY, getreg32(dly));
 
   up_udelay(100);
 
@@ -911,27 +958,24 @@ int rk3576_gmac_probe(int port)
    *     不能写 → 整块处于复位/无时钟，再补前置条件也没用
    */
 
-    {
-      uint32_t rl_before = gmac_getreg(port, RK3576_GMAC_DMA_CH0_TXDESC_RL);
-      uint32_t rl_back;
+  rl_before = gmac_getreg(port, RK3576_GMAC_DMA_CH0_TXDESC_RL);
 
-      gmac_putreg(port, RK3576_GMAC_DMA_CH0_TXDESC_RL, 0x0000003f);
-      rl_back = gmac_getreg(port, RK3576_GMAC_DMA_CH0_TXDESC_RL);
+  gmac_putreg(port, RK3576_GMAC_DMA_CH0_TXDESC_RL, 0x0000003f);
+  rl_back = gmac_getreg(port, RK3576_GMAC_DMA_CH0_TXDESC_RL);
 
-      syslog(LOG_INFO,
-             "GMAC%d: DMA 块写测试 TXDESC_RL 原值=0x%08" PRIx32
-             " 写 0x3f 读回=0x%08" PRIx32 " → %s\n",
-             port, rl_before, rl_back,
-             (rl_back & 0x3f) == 0x3f ? "可写" : "★不可写（整块无时钟/在复位）");
+  syslog(LOG_INFO,
+         "GMAC%d: DMA 块写测试 TXDESC_RL 原值=0x%08" PRIx32
+         " 写 0x3f 读回=0x%08" PRIx32 " → %s\n",
+         port, rl_before, rl_back,
+         (rl_back & 0x3f) == 0x3f ? "可写" : "★不可写（整块无时钟/在复位）");
 
-      /* MAC 块对照：MAC_ADDR0_HIGH 同样是纯数据寄存器 */
+  /* MAC 块对照：MAC_ADDR0_HIGH 同样是纯数据寄存器 */
 
-      gmac_putreg(port, RK3576_GMAC_MAC_ADDR0_HIGH, 0x00001234);
-      syslog(LOG_INFO,
-             "GMAC%d: MAC 块写测试 ADDR0_HIGH 写 0x1234 读回=0x%08" PRIx32
-             "\n", port,
-             gmac_getreg(port, RK3576_GMAC_MAC_ADDR0_HIGH) & 0xffff);
-    }
+  gmac_putreg(port, RK3576_GMAC_MAC_ADDR0_HIGH, 0x00001234);
+  syslog(LOG_INFO,
+         "GMAC%d: MAC 块写测试 ADDR0_HIGH 写 0x1234 读回=0x%08" PRIx32
+         "\n", port,
+         gmac_getreg(port, RK3576_GMAC_MAC_ADDR0_HIGH) & 0xffff);
 
   syslog(LOG_INFO,
          "GMAC%d: 复位前 DMA_MODE=0x%08" PRIx32 " MAC_VERSION=0x%08" PRIx32
@@ -956,76 +1000,61 @@ int rk3576_gmac_probe(int port)
    *   后者是 SoC 配置问题，修法毫不相干。
    */
 
-  {
-    static const struct
+  for (i = 0; i < 2; i++)
     {
-      const char *name;
-      uint8_t     pin;
+      int ones = 0;
+      int j;
+      int prev;
+      int edges = 0;
+
+      /* 采样的必须是**本端口**的时钟脚。写死 GMAC0 的 bank 时，
+       * GMAC1 报出来的是 GMAC0 的引脚状态 —— 一份看起来很具体、
+       * 实际张冠李戴的读数，比没有读数更容易误导。
+       */
+
+      int cbank = port ? GMAC1_PIN_BANK : GMAC0_PIN_BANK;
+      int cpin  = port ? (i ? 21 : 18) : g_gmac_clkpins[i].pin;
+
+      rk3576_pinmux_set(cbank, cpin, RK3576_PINMUX_GPIO);
+      rk3576_pinmux_setpull(cbank, cpin, RK3576_PULL_NONE);
+      rk3576_gpio_setdir(cbank, cpin, false);
+      up_udelay(50);
+
+      prev = rk3576_gpio_read(cbank, cpin);
+
+      for (j = 0; j < 200; j++)
+        {
+          int lvl = rk3576_gpio_read(cbank, cpin);
+
+          ones += lvl;
+          if (lvl != prev)
+            {
+              edges++;
+            }
+
+          prev = lvl;
+        }
+
+      syslog(LOG_INFO,
+             "GMAC%d: %s g%d-%u 采样 200 次 高=%d 跳变=%d —— %s\n",
+             port, g_gmac_clkpins[i].name, cbank, cpin,
+             ones, edges,
+             edges > 0 ? "有跳变，时钟在跑" :
+                         (ones == 0 ? "恒低，无时钟" : "恒高，无时钟"));
+
+      /* 串口在连续输出时会丢字节，这两行是本次测量的全部结论，
+       * 丢一行就等于白测，所以留出间隔。
+       */
+
+      up_mdelay(20);
+
+      /* 测完还回 RGMII 功能 —— 诊断改了复用必须还原，
+       * 否则后面的现象都是自己造出来的（本项目在触摸那次踩过）。
+       */
+
+      rk3576_pinmux_set(cbank, cpin,
+                        port ? GMAC1_PIN_FUNC : GMAC0_PIN_FUNC);
     }
-    clkpins[] =
-    {
-      { "RXCLK(PHY 送来)", 25 },
-      { "TXCLK(SoC 送出)", 14 },
-    };
-
-    int i;
-
-    for (i = 0; i < 2; i++)
-      {
-        int ones = 0;
-        int j;
-        int prev;
-        int edges = 0;
-
-        /* 采样的必须是**本端口**的时钟脚。写死 GMAC0 的 bank 时，
-         * GMAC1 报出来的是 GMAC0 的引脚状态 —— 一份看起来很具体、
-         * 实际张冠李戴的读数，比没有读数更容易误导。
-         */
-
-        int cbank = port ? GMAC1_PIN_BANK : GMAC0_PIN_BANK;
-        int cpin  = port ? (i ? 21 : 18) : clkpins[i].pin;
-
-        rk3576_pinmux_set(cbank, cpin, RK3576_PINMUX_GPIO);
-        rk3576_pinmux_setpull(cbank, cpin, RK3576_PULL_NONE);
-        rk3576_gpio_setdir(cbank, cpin, false);
-        up_udelay(50);
-
-        prev = rk3576_gpio_read(cbank, cpin);
-
-        for (j = 0; j < 200; j++)
-          {
-            int v = rk3576_gpio_read(cbank, cpin);
-
-            ones += v;
-            if (v != prev)
-              {
-                edges++;
-              }
-
-            prev = v;
-          }
-
-        syslog(LOG_INFO,
-               "GMAC%d: %s g%d-%u 采样 200 次 高=%d 跳变=%d —— %s\n",
-               port, clkpins[i].name, cbank, cpin,
-               ones, edges,
-               edges > 0 ? "有跳变，时钟在跑" :
-                           (ones == 0 ? "恒低，无时钟" : "恒高，无时钟"));
-
-        /* 串口在连续输出时会丢字节，这两行是本次测量的全部结论，
-         * 丢一行就等于白测，所以留出间隔。
-         */
-
-        up_mdelay(20);
-
-        /* 测完还回 RGMII 功能 —— 诊断改了复用必须还原，
-         * 否则后面的现象都是自己造出来的（本项目在触摸那次踩过）。
-         */
-
-        rk3576_pinmux_set(cbank, cpin,
-                          port ? GMAC1_PIN_FUNC : GMAC0_PIN_FUNC);
-      }
-  }
 #endif /* CONFIG_RK3576_GMAC_DIAG */
 
   gmac_putreg(port, RK3576_GMAC_DMA_MODE, GMAC_DMA_MODE_SWR);
@@ -1074,215 +1103,199 @@ int rk3576_gmac_probe(int port)
        *   路径之后等于没有。
        */
 
-      {
-        uint16_t bmcr = 0xffff;
-        uint16_t bmsr = 0xffff;
-        int i;
+      bmcr = 0xffff;
+      bmsr = 0xffff;
 
-        /* ★ 稳定性判断要在固件里做，不能靠人看串口。
-         *
-         *   上一轮我据"两次启动读到的 ID1 不同"断言 MDIO 在返回噪声。
-         *   但那两个值是从**串口日志**里读的，而串口这一整轮一直在丢字符
-         *   —— 我无法区分"MDIO 乱"和"日志乱"。用一个本身不可靠的观测去
-         *   判断另一个东西可不可靠，这个循环今天已经绕进去好几次了。
-         *
-         *   改成同一次启动里连读 8 遍 PHYID1，在固件里比较，只输出
-         *   "稳定/不稳定"和取值。这样结论不再经过串口这一层。
-         */
+      /* ★ 稳定性判断要在固件里做，不能靠人看串口。
+       *
+       *   上一轮我据"两次启动读到的 ID1 不同"断言 MDIO 在返回噪声。
+       *   但那两个值是从**串口日志**里读的，而串口这一整轮一直在丢字符
+       *   —— 我无法区分"MDIO 乱"和"日志乱"。用一个本身不可靠的观测去
+       *   判断另一个东西可不可靠，这个循环今天已经绕进去好几次了。
+       *
+       *   改成同一次启动里连读 8 遍 PHYID1，在固件里比较，只输出
+       *   "稳定/不稳定"和取值。这样结论不再经过串口这一层。
+       */
 
+      v0 = 0;
+      v = 0;
+      same = 1;
+
+      for (k = 0; k < 8; k++)
         {
-          uint16_t v0 = 0;
-          uint16_t v = 0;
-          int same = 1;
-          int k;
-
-          for (k = 0; k < 8; k++)
+          gmac_mdio_read(port, GMAC_PHY_ADDR, 2, &v);
+          if (k == 0)
             {
-              gmac_mdio_read(port, GMAC_PHY_ADDR, 2, &v);
-              if (k == 0)
-                {
-                  v0 = v;
-                }
-              else if (v != v0)
-                {
-                  same = 0;
-                }
+              v0 = v;
             }
-
-          syslog(LOG_ERR,
-                 "GMAC%d: PHYID1 连读 8 次 %s，值=0x%04x（%s）\n",
-                 port, same ? "全部相同" : "有差异", v0,
-                 !same ? "MDIO 不稳定，先修总线" :
-                 (v0 == 0xffff) ? "无应答，查 PHY 供电/复位/地址" :
-                 (v0 == 0x0000) ? "读回全 0，查 MDC 是否在跑" :
-                 "MDIO 可信");
-          up_mdelay(3);
-        }
-
-        gmac_mdio_read(port, GMAC_PHY_ADDR, 0, &bmcr);   /* BMCR  */
-        gmac_mdio_read(port, GMAC_PHY_ADDR, 1, &bmsr);   /* BMSR  */
-        gmac_mdio_read(port, GMAC_PHY_ADDR, 2, &id1);    /* PHYID1 */
-        gmac_mdio_read(port, GMAC_PHY_ADDR, 3, &id2);    /* PHYID2 */
-
-        /* ★ 判据不能只看"有没有 0xffff"。
-         *
-         *   上一版只要 ID1/ID2 有一个不是 0xffff 就断言"PHY 活着" ——
-         *   那太弱了：MDIO 没人应答时总线被上拉，读回 0xffff；但**一个
-         *   寄存器读到别的值也可能只是噪声或时序毛刺**。实测就出现过
-         *   ID1=0xffff 而 ID2=0x4411 这种自相矛盾的组合，据此下结论是
-         *   不负责任的。
-         *
-         *   加两条更硬的：BMCR(reg0) 与 BMSR(reg1)。它们有明确的保留位
-         *   和固定位模式，全 0xffff 或全 0 都说明总线没在工作；而
-         *   BMSR bit2 是链路状态，直接回答"对端接上没有"这个问题 ——
-         *   这正是当前最需要知道的。
-         */
-
-        syslog(LOG_ERR,
-               "GMAC%d: PHY BMCR=0x%04x BMSR=0x%04x ID1=0x%04x ID2=0x%04x\n",
-               port, bmcr, bmsr, id1, id2);
-        up_mdelay(3);
-
-        syslog(LOG_ERR,
-               "GMAC%d: 链路=%s 自协商=%s（BMSR bit2/bit5）\n", port,
-               (bmsr != 0xffff && (bmsr & (1u << 2))) ? "已建立" : "未建立",
-               (bmsr != 0xffff && (bmsr & (1u << 5))) ? "已完成" : "未完成");
-        up_mdelay(3);
-
-        /* ★ 扫描 32 个 MDIO 地址。
-         *
-         *   这条测量拖了好几轮才做。它一次回答三个问题：地址对不对、
-         *   总线上有几颗 PHY、以及读到的 ID 是真器件还是噪声 ——
-         *   如果 32 个地址都"应答"同一个值，那就不是 PHY 在说话。
-         */
-
-        {
-          int a;
-
-          for (a = 0; a < 32; a++)
+          else if (v != v0)
             {
-              uint16_t s1 = 0xffff;
-              uint16_t s2 = 0xffff;
-
-              gmac_mdio_read(port, a, 2, &s1);
-              gmac_mdio_read(port, a, 3, &s2);
-
-              if (s1 != 0xffff && s1 != 0x0000)
-                {
-                  syslog(LOG_ERR, "GMAC%d: 扫描 addr=%d ID=%04x%04x\n",
-                         port, a, s1, s2);
-                  up_mdelay(3);
-                }
+              same = 0;
             }
         }
 
-        /* ★ PHY 层实验：软复位 + 强制重启自协商。
-         *
-         *   两颗 PHY 用网线对接时，自协商是 PHY 之间的事，与 MAC 无关。
-         *   既然 PHY 活着、自协商使能、又没 power-down/isolate，却五秒
-         *   不完成，那就把它按标准流程重来一遍，并把**链路伙伴**的
-         *   通告寄存器读出来 —— reg5 有值说明对端在发 FLP，问题在本端
-         *   解析；reg5 全 0 且 reg6.bit0=0 说明**根本没收到对端**，
-         *   那问题就在网线/变压器/模拟侧，不在寄存器配置。
-         */
+      syslog(LOG_ERR,
+             "GMAC%d: PHYID1 连读 8 次 %s，值=0x%04x（%s）\n",
+             port, same ? "全部相同" : "有差异", v0,
+             !same ? "MDIO 不稳定，先修总线" :
+             (v0 == 0xffff) ? "无应答，查 PHY 供电/复位/地址" :
+             (v0 == 0x0000) ? "读回全 0，查 MDC 是否在跑" :
+             "MDIO 可信");
+      up_mdelay(3);
 
+      gmac_mdio_read(port, GMAC_PHY_ADDR, 0, &bmcr);   /* BMCR  */
+      gmac_mdio_read(port, GMAC_PHY_ADDR, 1, &bmsr);   /* BMSR  */
+      gmac_mdio_read(port, GMAC_PHY_ADDR, 2, &id1);    /* PHYID1 */
+      gmac_mdio_read(port, GMAC_PHY_ADDR, 3, &id2);    /* PHYID2 */
+
+      /* ★ 判据不能只看"有没有 0xffff"。
+       *
+       *   上一版只要 ID1/ID2 有一个不是 0xffff 就断言"PHY 活着" ——
+       *   那太弱了：MDIO 没人应答时总线被上拉，读回 0xffff；但**一个
+       *   寄存器读到别的值也可能只是噪声或时序毛刺**。实测就出现过
+       *   ID1=0xffff 而 ID2=0x4411 这种自相矛盾的组合，据此下结论是
+       *   不负责任的。
+       *
+       *   加两条更硬的：BMCR(reg0) 与 BMSR(reg1)。它们有明确的保留位
+       *   和固定位模式，全 0xffff 或全 0 都说明总线没在工作；而
+       *   BMSR bit2 是链路状态，直接回答"对端接上没有"这个问题 ——
+       *   这正是当前最需要知道的。
+       */
+
+      syslog(LOG_ERR,
+             "GMAC%d: PHY BMCR=0x%04x BMSR=0x%04x ID1=0x%04x ID2=0x%04x\n",
+             port, bmcr, bmsr, id1, id2);
+      up_mdelay(3);
+
+      syslog(LOG_ERR,
+             "GMAC%d: 链路=%s 自协商=%s（BMSR bit2/bit5）\n", port,
+             (bmsr != 0xffff && (bmsr & (1u << 2))) ? "已建立" : "未建立",
+             (bmsr != 0xffff && (bmsr & (1u << 5))) ? "已完成" : "未完成");
+      up_mdelay(3);
+
+      /* ★ 扫描 32 个 MDIO 地址。
+       *
+       *   这条测量拖了好几轮才做。它一次回答三个问题：地址对不对、
+       *   总线上有几颗 PHY、以及读到的 ID 是真器件还是噪声 ——
+       *   如果 32 个地址都"应答"同一个值，那就不是 PHY 在说话。
+       */
+
+      for (a = 0; a < 32; a++)
         {
-          uint16_t v = 0;
-          int n;
+          uint16_t s1 = 0xffff;
+          uint16_t s2 = 0xffff;
 
-          gmac_mdio_read(port, GMAC_PHY_ADDR, 4, &v);
-          syslog(LOG_ERR, "GMAC%d: 本端通告 ANAR(reg4)=0x%04x\n", port, v);
-          up_mdelay(3);
-          gmac_mdio_read(port, GMAC_PHY_ADDR, 9, &v);
-          syslog(LOG_ERR, "GMAC%d: 千兆通告 GBCR(reg9)=0x%04x\n", port, v);
-          up_mdelay(3);
+          gmac_mdio_read(port, a, 2, &s1);
+          gmac_mdio_read(port, a, 3, &s2);
 
-          /* ★ 先验证写通道本身，再谈写进去的内容。
-           *
-           *   上一轮软复位后 BMCR 读回 0x0000、且"0ms 就自清"，这更像
-           *   写下去的是 0 而不是 0x8000。在确认写能落地之前，任何
-           *   "写了 X 但 PHY 没反应"的结论都不成立。
-           *
-           *   用 ANAR(reg4) 试：它可读可写、改动无副作用，且刚读到的
-           *   原值 0x01e1 已知，写完能复原。
-           */
-
-          {
-            uint16_t back = 0xffff;
-            int wr;
-
-            wr = gmac_mdio_write(port, GMAC_PHY_ADDR, 4, 0x0141);
-            gmac_mdio_read(port, GMAC_PHY_ADDR, 4, &back);
-            syslog(LOG_ERR,
-                   "GMAC%d: 写通道自检 ANAR 写 0x0141 读回 0x%04x（写返回 %d）"
-                   "%s\n", port, back, wr,
-                   back == 0x0141 ? " 写通道正常" : " ★写没落地");
-            up_mdelay(3);
-
-            gmac_mdio_write(port, GMAC_PHY_ADDR, 4, 0x01e1);  /* 复原 */
-          }
-
-          gmac_mdio_write(port, GMAC_PHY_ADDR, 0, 0x8000);  /* 软复位 */
-
-          for (n = 0; n < 200; n++)
+          if (s1 != 0xffff && s1 != 0x0000)
             {
-              up_mdelay(5);
-              gmac_mdio_read(port, GMAC_PHY_ADDR, 0, &v);
-              if ((v & 0x8000) == 0)
-                {
-                  break;
-                }
-            }
-
-          syslog(LOG_ERR, "GMAC%d: PHY 软复位 %s（%d ms 后 BMCR=0x%04x）\n",
-                 port, (v & 0x8000) ? "未自清" : "已完成", n * 5, v);
-          up_mdelay(3);
-
-          /* 自协商使能 + 重启 */
-
-          gmac_mdio_write(port, GMAC_PHY_ADDR, 0, 0x1200);
-          gmac_mdio_read(port, GMAC_PHY_ADDR, 0, &v);
-          syslog(LOG_ERR, "GMAC%d: 写 BMCR=0x1200 后读回 0x%04x\n", port, v);
-          up_mdelay(3);
-
-          for (n = 1; n <= 6; n++)
-            {
-              uint16_t lp = 0;
-              uint16_t exp = 0;
-
-              up_mdelay(1000);
-              gmac_mdio_read(port, GMAC_PHY_ADDR, 1, &v);
-              gmac_mdio_read(port, GMAC_PHY_ADDR, 5, &lp);
-              gmac_mdio_read(port, GMAC_PHY_ADDR, 6, &exp);
-              syslog(LOG_ERR,
-                     "GMAC%d: 重启后 %ds BMSR=0x%04x LP(reg5)=0x%04x "
-                     "EXP(reg6)=0x%04x\n", port, n, v, lp, exp);
+              syslog(LOG_ERR, "GMAC%d: 扫描 addr=%d ID=%04x%04x\n",
+                     port, a, s1, s2);
               up_mdelay(3);
-
-              if (v & (1u << 2))
-                {
-                  break;
-                }
             }
         }
 
-        /* 链路没起来时再多等一会儿重读几次 —— 1000Base-T 自协商可能要
-         * 数秒，一次读不到不代表永远读不到。
-         */
+      /* ★ PHY 层实验：软复位 + 强制重启自协商。
+       *
+       *   两颗 PHY 用网线对接时，自协商是 PHY 之间的事，与 MAC 无关。
+       *   既然 PHY 活着、自协商使能、又没 power-down/isolate，却五秒
+       *   不完成，那就把它按标准流程重来一遍，并把**链路伙伴**的
+       *   通告寄存器读出来 —— reg5 有值说明对端在发 FLP，问题在本端
+       *   解析；reg5 全 0 且 reg6.bit0=0 说明**根本没收到对端**，
+       *   那问题就在网线/变压器/模拟侧，不在寄存器配置。
+       */
 
-        /* 失败路径上的复读也从 5 次减到 1 次：它是"再看一眼"，
-         * 不是"等着它好"，而每一次都要 1 秒。
-         */
+      v = 0;
 
-        for (i = 0; i < 1 && (bmsr == 0xffff || !(bmsr & (1u << 2))); i++)
-          {
-            up_mdelay(1000);
-            gmac_mdio_read(port, GMAC_PHY_ADDR, 1, &bmsr);
-            syslog(LOG_ERR, "GMAC%d:  第 %d 秒 BMSR=0x%04x\n",
-                   port, i + 1, bmsr);
-            up_mdelay(3);
-          }
-      }
+      gmac_mdio_read(port, GMAC_PHY_ADDR, 4, &v);
+      syslog(LOG_ERR, "GMAC%d: 本端通告 ANAR(reg4)=0x%04x\n", port, v);
+      up_mdelay(3);
+      gmac_mdio_read(port, GMAC_PHY_ADDR, 9, &v);
+      syslog(LOG_ERR, "GMAC%d: 千兆通告 GBCR(reg9)=0x%04x\n", port, v);
+      up_mdelay(3);
+
+      /* ★ 先验证写通道本身，再谈写进去的内容。
+       *
+       *   上一轮软复位后 BMCR 读回 0x0000、且"0ms 就自清"，这更像
+       *   写下去的是 0 而不是 0x8000。在确认写能落地之前，任何
+       *   "写了 X 但 PHY 没反应"的结论都不成立。
+       *
+       *   用 ANAR(reg4) 试：它可读可写、改动无副作用，且刚读到的
+       *   原值 0x01e1 已知，写完能复原。
+       */
+
+      back = 0xffff;
+
+      wr = gmac_mdio_write(port, GMAC_PHY_ADDR, 4, 0x0141);
+      gmac_mdio_read(port, GMAC_PHY_ADDR, 4, &back);
+      syslog(LOG_ERR,
+             "GMAC%d: 写通道自检 ANAR 写 0x0141 读回 0x%04x（写返回 %d）"
+             "%s\n", port, back, wr,
+             back == 0x0141 ? " 写通道正常" : " ★写没落地");
+      up_mdelay(3);
+
+      gmac_mdio_write(port, GMAC_PHY_ADDR, 4, 0x01e1);  /* 复原 */
+
+      gmac_mdio_write(port, GMAC_PHY_ADDR, 0, 0x8000);  /* 软复位 */
+
+      for (n = 0; n < 200; n++)
+        {
+          up_mdelay(5);
+          gmac_mdio_read(port, GMAC_PHY_ADDR, 0, &v);
+          if ((v & 0x8000) == 0)
+            {
+              break;
+            }
+        }
+
+      syslog(LOG_ERR, "GMAC%d: PHY 软复位 %s（%d ms 后 BMCR=0x%04x）\n",
+             port, (v & 0x8000) ? "未自清" : "已完成", n * 5, v);
+      up_mdelay(3);
+
+      /* 自协商使能 + 重启 */
+
+      gmac_mdio_write(port, GMAC_PHY_ADDR, 0, 0x1200);
+      gmac_mdio_read(port, GMAC_PHY_ADDR, 0, &v);
+      syslog(LOG_ERR, "GMAC%d: 写 BMCR=0x1200 后读回 0x%04x\n", port, v);
+      up_mdelay(3);
+
+      for (n = 1; n <= 6; n++)
+        {
+          uint16_t lpa = 0;
+          uint16_t exp = 0;
+
+          up_mdelay(1000);
+          gmac_mdio_read(port, GMAC_PHY_ADDR, 1, &v);
+          gmac_mdio_read(port, GMAC_PHY_ADDR, 5, &lpa);
+          gmac_mdio_read(port, GMAC_PHY_ADDR, 6, &exp);
+          syslog(LOG_ERR,
+                 "GMAC%d: 重启后 %ds BMSR=0x%04x LP(reg5)=0x%04x "
+                 "EXP(reg6)=0x%04x\n", port, n, v, lpa, exp);
+          up_mdelay(3);
+
+          if (v & (1u << 2))
+            {
+              break;
+            }
+        }
+
+      /* 链路没起来时再多等一会儿重读几次 —— 1000Base-T 自协商可能要
+       * 数秒，一次读不到不代表永远读不到。
+       */
+
+      /* 失败路径上的复读也从 5 次减到 1 次：它是"再看一眼"，
+       * 不是"等着它好"，而每一次都要 1 秒。
+       */
+
+      for (i = 0; i < 1 && (bmsr == 0xffff || !(bmsr & (1u << 2))); i++)
+        {
+          up_mdelay(1000);
+          gmac_mdio_read(port, GMAC_PHY_ADDR, 1, &bmsr);
+          syslog(LOG_ERR, "GMAC%d:  第 %d 秒 BMSR=0x%04x\n",
+                 port, (int)i + 1, bmsr);
+          up_mdelay(3);
+        }
 
 #endif /* CONFIG_RK3576_GMAC_DIAG */
       return -ETIMEDOUT;
@@ -1311,36 +1324,33 @@ int rk3576_gmac_probe(int port)
    *   两条路径上都能执行的位置。
    */
 
-  {
-    uint16_t bmsr = 0;
-    uint16_t lp = 0;
+  bmsr = 0;
+  lp = 0;
 
-    /* ★ 只读一次，不再等着链路起来。
-     *
-     *   这里原来是 `for (i = 1; i <= 8; i++) { up_mdelay(500); ... }` ——
-     *   最多等 4 秒，**只为了打一行链路状态**，而且等到与否都 return OK。
-     *
-     *   带时间戳抓启动日志量出来的代价：GMAC0（没插线）4500ms +
-     *   GMAC1 3000ms = 7.5 秒，占当时整个启动的六分之一。
-     *
-     *   链路状态是有用的诊断，但它是**随时间变化的量**，在启动路径上
-     *   阻塞着等一个"迟早会变"的位，本来就不是它该待的地方 —— 自协商
-     *   没完成不影响 openvela 继续启动，netinit 线程和 ifconfig 随后
-     *   都会再看。所以改成读一次、如实报告"还在协商"。
-     */
+  /* ★ 只读一次，不再等着链路起来。
+   *
+   *   这里原来是 `for (i = 1; i <= 8; i++) { up_mdelay(500); ... }` ——
+   *   最多等 4 秒，**只为了打一行链路状态**，而且等到与否都 return OK。
+   *
+   *   带时间戳抓启动日志量出来的代价：GMAC0（没插线）4500ms +
+   *   GMAC1 3000ms = 7.5 秒，占当时整个启动的六分之一。
+   *
+   *   链路状态是有用的诊断，但它是**随时间变化的量**，在启动路径上
+   *   阻塞着等一个"迟早会变"的位，本来就不是它该待的地方 —— 自协商
+   *   没完成不影响 openvela 继续启动，netinit 线程和 ifconfig 随后
+   *   都会再看。所以改成读一次、如实报告"还在协商"。
+   */
 
-    gmac_mdio_read(port, GMAC_PHY_ADDR, 1, &bmsr);
-    gmac_mdio_read(port, GMAC_PHY_ADDR, 5, &lp);
-    syslog(LOG_INFO,
-           "GMAC%d: 链路=%s 自协商=%s 对端能力 LP=0x%04x"
-           "（探测结束即时读取，未完成不等）\n",
-           port, (bmsr & (1u << 2)) ? "已建立" : "未建立",
-           (bmsr & (1u << 5)) ? "已完成" : "未完成", lp);
-  }
+  gmac_mdio_read(port, GMAC_PHY_ADDR, 1, &bmsr);
+  gmac_mdio_read(port, GMAC_PHY_ADDR, 5, &lp);
+  syslog(LOG_INFO,
+         "GMAC%d: 链路=%s 自协商=%s 对端能力 LP=0x%04x"
+         "（探测结束即时读取，未完成不等）\n",
+         port, (bmsr & (1u << 2)) ? "已建立" : "未建立",
+         (bmsr & (1u << 5)) ? "已完成" : "未完成", lp);
 
   return OK;
 }
-
 
 /****************************************************************************
  * Name: rk3576_gmac_linkinfo
