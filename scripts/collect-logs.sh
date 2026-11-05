@@ -44,6 +44,8 @@ SESSIONS=(
   6396523f-2861-4bec-8d27-a68bbd63cfc3
   # 09-19/20：Linux 用户态、AI 助手与语音唤醒、开机 logo、xTS 严格复测
   a6fadf52-fde8-4859-b800-e334901c58df
+  # 10-24 ~ 11-05：SMP/eMMC、SKW6621S WiFi/BT、外设划分与 UI、OTA、蓝牙与媒体框架
+  3069be32-7076-4e98-bf4e-8cf84b8fc52e
 )
 
 [ -f "$TOOLS/export-session.py" ] || {
@@ -92,7 +94,9 @@ for d in sorted(logs.glob('*/')):
 PY
 fi
 
-python3 "$TOOLS/validate-log.py" "$ROOT/logs/zhouyllll"
+# 校验器返回 2 = 只有警告（例如按天分段的会话，manifest 只登记最新一段，
+# 其余各段报 orphan）。不能让 set -e 在这里退出，否则下面的脱敏不会执行。
+python3 "$TOOLS/validate-log.py" "$ROOT/logs/zhouyllll" || [ $? -eq 2 ]
 
 # ★ 脱敏：会话日志里会出现运行时配置过的密钥
 # ------------------------------------------------
@@ -127,6 +131,44 @@ scrub() {
 }
 
 scrub
+
+# ★ 无线相关脱敏：WiFi 密码、MAC 地址、扫描到的 SSID
+# ------------------------------------------------
+# 调 WiFi 时在板上敲过 `wifi connect <SSID> <密码>`，密码原样留在对话里；
+# 扫描结果里是周围别人的网络名和 BSSID，蓝牙扫描里是别人设备的地址。
+#
+# 密码不写进本脚本（脚本本身要入仓）：从日志里的 `wifi connect` 命令自动
+# 认出来，再全文替换。MAC 一律遮掉；扫描结果行（"ch N  -xx dBm  名字"）
+# 里的网络名遮掉。
+scrub_wireless() {
+  python3 - "$ROOT/logs" <<'PY'
+import re, sys
+from pathlib import Path
+
+files = sorted(Path(sys.argv[1]).rglob('*.jsonl'))
+cmd = re.compile(r'wifi connect +(?:\\"|")?[^\s"\\<\[]+(?:\\"|")? +([^\s"\\<\[`]{8,64})')
+pw = set()
+for f in files:
+    pw.update(cmd.findall(f.read_text(errors='replace')))
+mac = re.compile(r'(?i)\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b')
+scan = re.compile(r'(\bch +\d+ +-\d+ dBm +)(?!<hidden>)([^\s"\\][^"\\\n]{0,31}?)(?=\\n|\\r|\n|"|$)')
+total = 0
+for f in files:
+    t = f.read_text(errors='replace')
+    o = t
+    for p in pw:
+        t = t.replace(p, '***REDACTED-WIFI-PSK***')
+    t = mac.sub('xx:xx:xx:xx:xx:xx', t)
+    t = scan.sub(lambda m: m.group(1) + '***SSID***', t)
+    if t != o:
+        f.write_text(t)
+        total += 1
+        print(f'  无线脱敏: {f}')
+print(f'  无线脱敏: 识别出 {len(pw)} 个 WiFi 密码，改动 {total} 个文件')
+PY
+}
+
+scrub_wireless
 
 echo
 echo "提交： git add logs/ && git commit -s -m 'logs: 更新 AI Coding 日志'"
