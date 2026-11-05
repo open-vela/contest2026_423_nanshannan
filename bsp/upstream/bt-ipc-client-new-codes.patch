@@ -1,0 +1,34 @@
+diff --git a/service/ipc/socket/src/bt_socket_client.c b/service/ipc/socket/src/bt_socket_client.c
+index 2920413..31c2134 100644
+--- a/service/ipc/socket/src/bt_socket_client.c
++++ b/service/ipc/socket/src/bt_socket_client.c
+@@ -251,14 +251,27 @@ static int bt_socket_client_receive(uv_poll_t* poll, int fd, void* userdata)
+         ins->offset = 0;
+     }
+ 
+-    if (packet->code > BT_MESSAGE_START && packet->code < BT_MESSAGE_END) {
++    bool is_msg = packet->code > BT_MESSAGE_START && packet->code < BT_MESSAGE_END;
++    bool is_cb = packet->code > BT_CALLBACK_START && packet->code < BT_CALLBACK_END;
++
++    /* 新式 BT_IPC_CODE(type, group, subcode)：group 非 0（0 是 LEGACY，老枚举
++     * 都小于 0x10000）。例如 LE 扫描结果按批发的 BT_LE_ON_BATCH_SCAN_RESULT。
++     * 回调分发表本来就按新式区间查（callback_map），只是这里没放行，
++     * 扫到第一批设备就 assert(0)。
++     */
++    if (BT_IPC_GET_GROUP(packet->code) != BT_IPC_CODE_GROUP_LEGACY) {
++        is_cb = BT_IPC_CODE_CHECK_TYPE(packet->code, BT_IPC_CODE_TYPE_CALLBACK);
++        is_msg = !is_cb;
++    }
++
++    if (is_msg) {
+         if (ins->cpacket == NULL)
+             return BT_STATUS_SUCCESS;
+ 
+         memcpy(ins->cpacket, packet, sizeof(*packet));
+         uv_sem_post(&ins->message_processed);
+         return BT_STATUS_SUCCESS;
+-    } else if (packet->code > BT_CALLBACK_START && packet->code < BT_CALLBACK_END) {
++    } else if (is_cb) {
+         bt_client_msg_t* msg = malloc(sizeof(*msg));
+         if (!msg)
+             return BT_STATUS_NOMEM;

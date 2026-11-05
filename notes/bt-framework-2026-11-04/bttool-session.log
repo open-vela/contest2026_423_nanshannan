@@ -1,0 +1,96 @@
+NuttShell (NSH)
+nsh> �bluetoothd &
+�bluetoothd [60:100]
+nsh> �bttool
+�bttool> bttool> [bttool] Context:0x4b66f5b0, Adapter state changed: 1
+[bttool] Context:0x4b66f5b0, Adapter state changed: 2
+[bttool] Context:0x4b66f5b0, Adapter state changed: 3
+[bttool] Context:0x4b66f5b0, Adapter state changed: 4
+[bttool] Adapter Name: XIAOMI VELA-147, Cap: 3, Class: 0x00280704, Mode:1
+[bttool] Adapter new scan mode: 1
+bttool> [bttool] Adapter State: 4
+bttool> [bttool] on_scan_start_status_cb, scanner:0x4b6d1160, status:0
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-95
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-99
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-97
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-99
+[bttool] Type:0
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-92
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-99
+[bttool] Type:0
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-92
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-98
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-97
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-96
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-99
+[bttool] Type:0
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-102
+[bttool] Type:0
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-93
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-101
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+[bttool] Rssi:-100
+[bttool] Type:3
+[bttool] 
+[bttool] ScanResult ------[xx:xx:xx:xx:xx:xx]------
+[bttool] AddrType:1
+bttool> [bttool] Rssi:-95
+[bttool] Type:3
+[bttool] 
+[bttool] on_scan_stopped_cb, scanner:0x4b6d1160
+bttool> [bttool] start general discovery timeout:8
+[bttool] Discovery state: Started
+[bttool] Discovery state: Stopped

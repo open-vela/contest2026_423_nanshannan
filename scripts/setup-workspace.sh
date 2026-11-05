@@ -74,6 +74,10 @@ apply upstream/agent-monotonic-latency.patch packages/ai_agent
 apply upstream/agent-skills-mkdir-fat.patch  packages/ai_agent
 apply upstream/agent-tls-stale-close-timeout.patch packages/ai_agent
 apply upstream/frameworks-uv.patch           frameworks/system/utils/uv
+apply upstream/bt-framework-aarch64-build.patch frameworks/connectivity/bluetooth
+apply upstream/bt-ipc-client-new-codes.patch frameworks/connectivity/bluetooth
+apply upstream/zblue-lp64-stack-align.patch   apps/external/zblue/zblue
+apply upstream/zblue-nuttx-smp-headers.patch  apps/external/zblue/zblue
 apply upstream/posixspawn-enoent-not-error.patch nuttx
 apply upstream/stdio-stream-limit-open-max.patch nuttx
 apply upstream/bmi160-spi-only-guard.patch    nuttx

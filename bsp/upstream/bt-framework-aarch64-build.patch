@@ -1,0 +1,196 @@
+diff --git a/Makefile b/Makefile
+index 017b327..6fd53b0 100644
+--- a/Makefile
++++ b/Makefile
+@@ -234,9 +234,9 @@ ifneq ($(CONFIG_BLUETOOTH_STACK_BREDR_ZBLUE)$(CONFIG_BLUETOOTH_STACK_LE_ZBLUE),)
+ 	CSRCS += service/stacks/zephyr/sal_debug_interface.c
+ 	CSRCS += service/stacks/zephyr/sal_zblue.c
+ 	CSRCS += service/stacks/zephyr/sal_adapter_interface.c
+-	ifeq ($(CONFIG_BLUETOOTH_CONNECTION_MANAGER), y)
++	# 与 CMakeLists.txt 一致：zblue 下无条件编译。sal_adapter_interface.c 无条件调
++	# bt_sal_cm_*，而 CONFIG_BLUETOOTH_CONNECTION_MANAGER 在 Kconfig 里并不存在
+ 	CSRCS += service/stacks/zephyr/sal_connection_manager.c
+-	endif
+ ifeq ($(CONFIG_BLUETOOTH_A2DP), y)
+ 	CSRCS += service/stacks/zephyr/sal_a2dp_interface.c
+ endif #CONFIG_BLUETOOTH_A2DP
+diff --git a/framework/api/bt_adapter.c b/framework/api/bt_adapter.c
+index c38d343..0c023f8 100644
+--- a/framework/api/bt_adapter.c
++++ b/framework/api/bt_adapter.c
+@@ -82,7 +82,7 @@ bt_status_t BTSYMBOLS(bt_adapter_start_limited_discovery)(bt_instance_t* ins, ui
+     return adapter_start_discovery(timeout, true);
+ }
+ 
+-bt_status_t BTSYMBOLS(bt_adapter_set_debug_mode)(bt_instance_t* ins, uint8_t mode, uint8_t operation)
++bt_status_t BTSYMBOLS(bt_adapter_set_debug_mode)(bt_instance_t* ins, bt_debug_mode_t mode, uint8_t operation)
+ {
+     return adapter_set_debug_mode(mode, operation);
+ }
+diff --git a/framework/common/uv_thread_loop.c b/framework/common/uv_thread_loop.c
+index 1be645c..21c8738 100644
+--- a/framework/common/uv_thread_loop.c
++++ b/framework/common/uv_thread_loop.c
+@@ -58,6 +58,9 @@ typedef struct {
+ 
+ #if defined(ANDROID)
+ #define LOOP_THREAD_STACK_SIZE 40960
++#elif defined(CONFIG_BLUETOOTH_SERVICE_LOOP_THREAD_STACK_SIZE)
++/* 4096 在 64 位上不够：syslog 一次就能把栈压穿，写坏堆上相邻对象 */
++#define LOOP_THREAD_STACK_SIZE CONFIG_BLUETOOTH_SERVICE_LOOP_THREAD_STACK_SIZE
+ #else
+ #define LOOP_THREAD_STACK_SIZE 4096
+ #endif
+diff --git a/framework/include/bt_config.h b/framework/include/bt_config.h
+index 860cf48..5659c87 100644
+--- a/framework/include/bt_config.h
++++ b/framework/include/bt_config.h
+@@ -2,7 +2,7 @@
+ #define __INCLUDE_BT_CONFIG_H
+ 
+ // Platform: 32-bit or 64-bit
+-#if defined(CONFIG_ARCH_ARM64) || defined(ARCH_X86_64) || defined(ANDROID) || (!defined(CONFIG_SIM_M32) && defined(CONFIG_ARCH_SIM))
++#if defined(__LP64__) || defined(CONFIG_ARCH_ARM64) || defined(ARCH_X86_64) || defined(ANDROID) || (!defined(CONFIG_SIM_M32) && defined(CONFIG_ARCH_SIM))
+ #define CONFIG_CPU_BIT64 1
+ #elif defined(ARCH_ARM) || defined(ARCH_X86) || defined(__NuttX__)
+ #define CONFIG_CPU_BIT32 1
+diff --git a/service/stacks/zephyr/sal_gatt_server_interface.c b/service/stacks/zephyr/sal_gatt_server_interface.c
+index 5146fd5..7b8d940 100644
+--- a/service/stacks/zephyr/sal_gatt_server_interface.c
++++ b/service/stacks/zephyr/sal_gatt_server_interface.c
+@@ -1236,7 +1236,7 @@ static void remove_service(gatt_element_t* element)
+     svc->attrs = NULL;
+     svc->attr_count = 0;
+ 
+-    BT_LOGD("%s, removed service at index %zu, attr_count now %u", __func__, index, attr_count);
++    BT_LOGD("%s, removed service at index %zu, attr_count now %zu", __func__, index, attr_count);
+ }
+ 
+ bt_status_t bt_sal_gatt_server_remove_elements(gatt_element_t* elements, uint16_t size)
+diff --git a/service/stacks/zephyr/sal_le_advertise_interface.c b/service/stacks/zephyr/sal_le_advertise_interface.c
+index f1d472e..81bbb22 100644
+--- a/service/stacks/zephyr/sal_le_advertise_interface.c
++++ b/service/stacks/zephyr/sal_le_advertise_interface.c
+@@ -102,13 +102,13 @@ static bt_status_t parse_bt_adv_data(uint8_t* raw, uint16_t raw_len,
+         }
+ 
+         if (index + 1 + item_len > raw_len) {
+-            BT_LOGE("%s, adv data overflow: raw_len=%d idx=%d item_len=%d", __func__,
++            BT_LOGE("%s, adv data overflow: raw_len=%d idx=%zu item_len=%d", __func__,
+                 raw_len, index, item_len);
+             return BT_STATUS_PARM_INVALID;
+         }
+ 
+         if (*out_size >= out_max) {
+-            BT_LOGE("too many segments: out_max=%d idx=%d", out_max, index);
++            BT_LOGE("too many segments: out_max=%zu idx=%zu", out_max, index);
+             return BT_STATUS_PARM_INVALID;
+         }
+ 
+diff --git a/service/utils/log_server.c b/service/utils/log_server.c
+index 33ba3c8..07ab92a 100644
+--- a/service/utils/log_server.c
++++ b/service/utils/log_server.c
+@@ -73,6 +73,7 @@ static const char* log_id_str(uint8_t id)
+     }
+ }
+ 
++#if defined(CONFIG_KVDB) && defined(__NuttX__)
+ static uint8_t bt_log_set_level(uint8_t level, bool changed)
+ {
+     if (level != BT_LOG_LEVEL_OFF && level != BT_LOG_LEVEL_ERROR && level != BT_LOG_LEVEL_WARNING && level != BT_LOG_LEVEL_INFO && level != BT_LOG_LEVEL_DEBUG)
+@@ -90,6 +91,7 @@ static uint8_t bt_log_set_level(uint8_t level, bool changed)
+ 
+     return g_logger.framework_level;
+ }
++#endif
+ 
+ static int stack_log_setup(void)
+ {
+@@ -145,6 +147,8 @@ void bt_log_module_enable(int id, bool changed)
+         property_set_int32(property, 1);
+         property_commit();
+     }
++#else
++    (void)property;
+ #endif
+     syslog(LOG_INFO, "%s enabled\n", log_id_str(id));
+ }
+@@ -183,6 +187,8 @@ void bt_log_module_disable(int id, bool changed)
+         property_set_int32(property, 0);
+         property_commit();
+     }
++#else
++    (void)property;
+ #endif
+     syslog(LOG_INFO, "%s disabled\n", log_id_str(id));
+ }
+@@ -278,6 +284,11 @@ void bt_log_server_init(void)
+     syslog(1, "Framework log level: %d, Stack:%d, mask:%08x, Snoop: %d\n", g_logger.framework_level,
+         g_logger.stack_enable, g_logger.stack_mask, g_logger.snoop_enable);
+ #else
++    /* 没有 KVDB：等级用编译期默认值，不做持久化和运行时监视 */
++    g_logger.framework_level = DEFAULT_BT_LOG_LEVEL;
++    bt_sal_debug_init();
++    if (btsnoop_log_init() != BT_STATUS_SUCCESS)
++        syslog(LOG_ERR, "init snoop log fail\n");
+ #endif
+ }
+ 
+@@ -286,8 +297,10 @@ void bt_log_server_cleanup(void)
+     /** stop log property monitor */
+     service_loop_remove_poll(g_logger.poll);
+     g_logger.poll = NULL;
++#if defined(CONFIG_KVDB) && defined(__NuttX__)
+     if (g_logger.monitor_fd)
+         property_monitor_close(g_logger.monitor_fd);
++#endif
+ 
+     g_logger.monitor_fd = -1;
+ 
+diff --git a/tools/bt_tools.c b/tools/bt_tools.c
+index fcc2f2e..a081be2 100644
+--- a/tools/bt_tools.c
++++ b/tools/bt_tools.c
+@@ -1714,7 +1714,7 @@ static int execute_command(void* handle, int argc, char* argv[])
+ static void bttool_uninit(void)
+ {
+ #ifdef CONFIG_LIBUV_EXTENSION
+-    if (g_bttool_loop && g_bttool_loop->data && !uv_loop_is_close(g_bttool_loop)) {
++    if (g_bttool_loop && g_bttool_loop->data && uv_loop_alive(g_bttool_loop)) {
+         bttool_t* bttool = g_bttool_loop->data;
+         char* cmd = strdup("_uninit");
+ 
+@@ -2080,7 +2080,12 @@ static int bttool_create_thread(bttool_t* bttool)
+     int ret;
+     uv_thread_options_t options = {
+         .flags = UV_THREAD_HAS_STACK_SIZE,
++#ifdef CONFIG_BLUETOOTH_TASK_STACK_SIZE
++        /* 8192 在 64 位上不够：命令线程里同步 IPC + syslog 会压穿 */
++        .stack_size = CONFIG_BLUETOOTH_TASK_STACK_SIZE,
++#else
+         .stack_size = 8192,
++#endif
+     };
+ 
+     ret = uv_sem_init(&bttool->ready, 0);
+diff --git a/tools/log.c b/tools/log.c
+index 21dfe09..31de7fe 100644
+--- a/tools/log.c
++++ b/tools/log.c
+@@ -88,13 +88,13 @@ static void usage(void)
+     }
+ }
+ 
++#ifdef CONFIG_KVDB
+ static void property_change_commit(int bit)
+ {
+-#ifdef CONFIG_KVDB
+     property_set_int32("persist.bluetooth.log.changed", (1 << bit) & 0xFFFFFFFF);
+     property_commit();
+-#endif
+ }
++#endif
+ 
+ static int log_control(void* handle, char* id, int enable)
+ {

@@ -92,7 +92,12 @@ int kickpi_k7_bt_initialize(void)
       return ret;
     }
 
-#ifdef CONFIG_NET_BLUETOOTH
+#if defined(CONFIG_NET_BLUETOOTH) || defined(CONFIG_UART_BTH4)
+  /* NET_BLUETOOTH：注册成 NuttX 自带协议栈的 netdev（bnep0）；
+   * UART_BTH4：同一个驱动注册成 /dev/ttyHCI0，交给 openvela 蓝牙框架
+   * （zblue）去开。驱动本身不区分，见 drivers/wireless/bluetooth/bt_driver.c。
+   */
+
   return skw6621s_bt_register("/data/skw/sv6160lite.nvbin");
 #else
   return skw6621s_bt_hci_init("/data/skw/sv6160lite.nvbin");

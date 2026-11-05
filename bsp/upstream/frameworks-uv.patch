@@ -19,3 +19,19 @@ index 29a7a33..d65040b 100644
  CFLAGS += -Wno-shadow -Wno-dangling-pointer
  CFLAGS += -DDEF_THREADPOOL_SIZE=CONFIG_LIBUV_THREADPOOL_SIZE
  CFLAGS += -DDEF_THREADPOOL_STACKSIZE=CONFIG_LIBUV_THREAD_STACKSIZE
+diff --git a/src/uv_db.c b/src/uv_db.c
+index 6de13fe..5695fa0 100644
+--- a/src/uv_db.c
++++ b/src/uv_db.c
+@@ -308,7 +308,10 @@ int uv_db_close(uv_db_t* handle)
+     struct uv__queue* tmp;
+     struct uv__queue* q;
+     handle->closing = 1;
+-    uv__queue_foreach_safe(q, tmp, &handle->queue)
++    /* 树里的 libuv 1.46 没有 uv__queue_foreach_safe，展开成等价的循环 */
++    for (q = uv__queue_next(&handle->queue), tmp = uv__queue_next(q);
++         q != &handle->queue;
++         q = tmp, tmp = uv__queue_next(q))
+     {
+         uv_db_req_t* req = container_of(q, uv_db_req_t, node);
+         uv_cancel((uv_req_t*)&req->work_req);

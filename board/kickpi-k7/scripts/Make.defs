@@ -26,6 +26,12 @@ include $(TOPDIR)/arch/arm64/src/Toolchain.defs
 
 LDSCRIPT = dramboot.ld
 
+# zblue（external/zblue）自己还在调已标 __deprecated 的 net_buf_get()。
+# arm64 的 Toolchain.defs 全局 -Werror（arm32 没有），这一条降回警告。
+ifeq ($(CONFIG_BT),y)
+ARCHCFLAGS += -Wno-error=deprecated-declarations
+endif
+
 ARCHSCRIPT += $(BOARD_DIR)$(DELIM)scripts$(DELIM)$(LDSCRIPT)
 
 CFLAGS := $(ARCHCFLAGS) $(ARCHOPTIMIZATION) $(ARCHCPUFLAGS) $(ARCHINCLUDES) $(ARCHDEFINES) $(EXTRAFLAGS)
